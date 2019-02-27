@@ -9,9 +9,15 @@ import numpy as np
 from astropy import units as u
 import glob
 from ctapipe.core import Provenance
-from ctapipe.instrument import TelescopeDescription, SubarrayDescription, \
-    CameraGeometry, OpticsDescription
-from .eventsource import EventSource
+from ctapipe.instrument import (
+    TelescopeDescription,
+    SubarrayDescription,
+    CameraGeometry,
+    OpticsDescription,
+)
+
+from ctapipe.io import EventSource
+
 from .containers import LSTDataContainer
 
 
@@ -23,8 +29,6 @@ class LSTEventSource(EventSource):
     """
     EventSource for LST r0 data.
     """
-
-
 
     def __init__(self, config=None, tool=None, **kwargs):
 
@@ -46,11 +50,9 @@ class LSTEventSource(EventSource):
             the 'input_url' parameter.
         """
 
-
         # EventSource can not handle file wild cards as input_url
         # To overcome this we substitute the input_url with first file matching
         # the specified file mask (copied from  MAGICEventSourceROOT).
-
         if 'input_url' in kwargs.keys():
             self.file_list = glob.glob(kwargs['input_url'])
             self.file_list.sort()
