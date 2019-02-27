@@ -29,6 +29,7 @@ before_install:
 install:
     - conda create --name travis python=$PYTHON_VERSION
     - travis_wait 20 conda env update -n travis --file py${PYTHON_VERSION}_env.yaml
+    - . $HOME/miniconda/etc/profile.d/conda.sh
     - conda activate travis
     - pip install -e .
 
