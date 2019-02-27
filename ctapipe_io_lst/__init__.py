@@ -17,6 +17,7 @@ from ctapipe.instrument import (
 )
 
 from ctapipe.io import EventSource
+from astropy.io import fits
 
 from .containers import LSTDataContainer
 
@@ -77,7 +78,6 @@ class LSTEventSource(EventSource):
         self.data.meta['input_url'] = self.input_url
         self.data.meta['max_events'] = self.max_events
 
-
         # fill LST data from the CameraConfig table
         self.fill_lst_service_container_from_zfile()
 
@@ -121,14 +121,8 @@ class LSTEventSource(EventSource):
             self.fill_r0_container_from_zfile(event)
             yield self.data
 
-
     @staticmethod
     def is_compatible(file_path):
-        from .sst1meventsource import is_fits_in_header
-        if not is_fits_in_header(file_path):
-            return False
-
-        from astropy.io import fits
         try:
             # The file contains two tables:
             #  1: CameraConfig

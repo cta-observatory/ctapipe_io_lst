@@ -15,7 +15,7 @@ FIRST_EVENT_NUMBER_IN_FILE = 1
 
 
 def test_loop_over_events():
-    from ctapipe.io.lsteventsource import LSTEventSource
+    from ctapipe_io_lst import LSTEventSource
 
     n_events = 10
     inputfile_reader = LSTEventSource(
@@ -39,15 +39,17 @@ def test_loop_over_events():
 
 
 def test_is_compatible():
-    from ctapipe.io.lsteventsource import LSTEventSource
-
+    from ctapipe_io_lst import LSTEventSource
     assert LSTEventSource.is_compatible(example_file_path)
 
 
 def test_factory_for_lst_file():
     from ctapipe.io import event_source
-    from ctapipe.io.lsteventsource import LSTEventSource
 
     reader = event_source(example_file_path)
+
+    # import here to see if ctapipe detects plugin
+    from ctapipe_io_lst import LSTEventSource
+
     assert isinstance(reader, LSTEventSource)
     assert reader.input_url == example_file_path
