@@ -1,6 +1,5 @@
 from pkg_resources import resource_filename
 import os
-import pytest
 
 example_file_path = resource_filename(
     'protozfits',
