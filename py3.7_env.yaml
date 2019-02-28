@@ -25,6 +25,7 @@ dependencies:
   - pyyaml
   - pytables
   - zlib
+  - gcc_linux-64
   - pip:
       - pytest_runner
       - https://github.com/cta-observatory/ctapipe-extra/archive/v0.2.16.tar.gz
