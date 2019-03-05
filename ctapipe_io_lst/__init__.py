@@ -206,12 +206,11 @@ class LSTEventSource(EventSource):
         event_container.tib_tenMHz_counter = unpacked_tib[2]
         event_container.tib_stereo_pattern = unpacked_tib[3]
         event_container.tib_masked_trigger = unpacked_tib[4]
-        #event_container.cdts_data = event.lstcam.cdts_data
         event_container.swat_data = event.lstcam.swat_data
 
         # unpack CDTS data
         rec_fmt = '=IIIQQBBB'
-        unpacked_cdts =  struct.unpack(rec_fmt, event.lstcam.cdst_data)
+        unpacked_cdts =  struct.unpack(rec_fmt, event.lstcam.cdts_data)
         event_container.ucts_event_counter = unpacked_cdts[0]
         event_container.ucts_pps_counter = unpacked_cdts[1]
         event_container.ucts_clock_counter = unpacked_cdts[2]
