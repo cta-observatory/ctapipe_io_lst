@@ -130,6 +130,7 @@ class PixelStatusContainer(Container):
     )
 
 
+
 class MonitoringCameraContainer(Container):
     """
     Container for camera monitoring data

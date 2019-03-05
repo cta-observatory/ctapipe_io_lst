@@ -95,7 +95,7 @@ class LSTEventSource(EventSource):
             geometry_version = 2
             camera = CameraGeometry.from_name("LSTCam", geometry_version)
 
-            tel_descr = TelescopeDescription(optics, camera)
+            tel_descr = TelescopeDescription("LST","LST",optics, camera)
 
             self.n_camera_pixels = tel_descr.camera.n_pixels
             tels = {tel_id: tel_descr}
@@ -200,8 +200,7 @@ class LSTEventSource(EventSource):
 
         # unpack TIB data
         rec_fmt = '=IHIBB'
-        rec_unpack = struct.Struct(rec_fmt).unpack_from
-        unpacked_tib = rec_unpack(event.lstcam.tib_data)
+        unpacked_tib = struct.unpack(rec_fmt, event.lstcam.tib_data)
         event_container.tib_event_counter = unpacked_tib[0]
         event_container.tib_pps_counter = unpacked_tib[1]
         event_container.tib_tenMHz_counter = unpacked_tib[2]
@@ -212,8 +211,7 @@ class LSTEventSource(EventSource):
 
         # unpack CDTS data
         rec_fmt = '=IIIQQBBB'
-        rec_unpack = struct.Struct(rec_fmt).unpack_from
-        unpacked_cdts = rec_unpack(event.lstcam.cdts_data)
+        unpacked_cdts =  struct.unpack(rec_fmt, event.lstcam.cdst_data)
         event_container.ucts_event_counter = unpacked_cdts[0]
         event_container.ucts_pps_counter = unpacked_cdts[1]
         event_container.ucts_clock_counter = unpacked_cdts[2]
@@ -327,6 +325,10 @@ class LSTEventSource(EventSource):
         # initalize the container
         status_container = PixelStatusContainer()
         status_container.hardware_mask = pixel_status > 0
+        # for the moment initialize to True the other mask (to be probably changed)
+        status_container.pedestal_mask  = np.ones([self.n_camera_pixels], dtype=bool)
+        status_container.flatfield_mask = np.ones([self.n_camera_pixels], dtype=bool)
+
         mon_camera_container.pixel_status = status_container
 
 
