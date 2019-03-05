@@ -88,20 +88,20 @@ class LSTEventSource(EventSource):
 
             # optics info from standard optics.fits.gz file
             optics = OpticsDescription.from_name("LST")
-            optics.tel_subtype = ''  # to correct bug in reading
 
             # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
             geometry_version = 2
             camera = CameraGeometry.from_name("LSTCam", geometry_version)
 
-            tel_descr = TelescopeDescription(optics, camera)
+            tel_descr = TelescopeDescription(
+                name='LST', type='LST', optics=optics, camera=camera
+            )
 
             self.n_camera_pixels = tel_descr.camera.n_pixels
             tels = {tel_id: tel_descr}
 
             # LSTs telescope position taken from MC from the moment
             tel_pos = {tel_id: [50., 50., 16] * u.m}
-
 
         subarray = SubarrayDescription("LST1 subarray")
         subarray.tels = tels
