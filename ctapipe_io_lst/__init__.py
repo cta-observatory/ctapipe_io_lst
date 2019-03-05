@@ -5,9 +5,10 @@ EventSource for LSTCam protobuf-fits.fz-files.
 Needs protozfits v1.4.2 from github.com/cta-sst-1m/protozfitsreader
 """
 import numpy as np
-
+import struct
 from astropy import units as u
 import glob
+
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
     TelescopeDescription,
@@ -17,22 +18,17 @@ from ctapipe.instrument import (
 )
 
 from ctapipe.io import EventSource
-from astropy.io import fits
 
-from .containers import LSTDataContainer
+from .containers import LSTDataContainer, PixelStatusContainer
 
 
 __all__ = ['LSTEventSource']
 
 
 class LSTEventSource(EventSource):
-
-    """
-    EventSource for LST r0 data.
-    """
+    """EventSource for LST r0 data."""
 
     def __init__(self, config=None, tool=None, **kwargs):
-
         """
         Constructor
         Parameters
@@ -54,6 +50,7 @@ class LSTEventSource(EventSource):
         # EventSource can not handle file wild cards as input_url
         # To overcome this we substitute the input_url with first file matching
         # the specified file mask (copied from  MAGICEventSourceROOT).
+
         if 'input_url' in kwargs.keys():
             self.file_list = glob.glob(kwargs['input_url'])
             self.file_list.sort()
@@ -63,13 +60,17 @@ class LSTEventSource(EventSource):
             super().__init__(config=config, tool=tool, **kwargs)
             self.file_list = [self.input_url]
 
-
         self.multi_file = MultiFiles(self.file_list)
 
         self.camera_config = self.multi_file.camera_config
-        self.log.info("Read {} input files".format(self.multi_file.num_inputs()))
+        self.log.info(
+            "Read {} input files".format(
+                self.multi_file.num_inputs()
+            )
+        )
 
-
+    def rewind(self):
+        self.multi_file.rewind()
 
     def _generator(self):
 
@@ -84,7 +85,7 @@ class LSTEventSource(EventSource):
         # Instrument information
         for tel_id in self.data.lst.tels_with_data:
 
-            assert (tel_id == 0)  # only LST1 for the moment (id = 0)
+            assert (tel_id == 0 or tel_id == 1) # only LST1 (for the moment id = 0)
 
             # optics info from standard optics.fits.gz file
             optics = OpticsDescription.from_name("LST")
@@ -96,6 +97,7 @@ class LSTEventSource(EventSource):
             tel_descr = TelescopeDescription(
                 name='LST', type='LST', optics=optics, camera=camera
             )
+
 
             self.n_camera_pixels = tel_descr.camera.n_pixels
             tels = {tel_id: tel_descr}
@@ -117,12 +119,17 @@ class LSTEventSource(EventSource):
             # fill specific LST event data
             self.fill_lst_event_container_from_zfile(event)
 
+            # fill general monitoring data
+            self.fill_mon_container_from_zfile(event)
+
             # fill general R0 data
             self.fill_r0_container_from_zfile(event)
+
             yield self.data
 
     @staticmethod
     def is_compatible(file_path):
+        from astropy.io import fits
         try:
             # The file contains two tables:
             #  1: CameraConfig
@@ -151,6 +158,11 @@ class LSTEventSource(EventSource):
         return is_protobuf_zfits_file & is_lst_file
 
     def fill_lst_service_container_from_zfile(self):
+        """
+        Fill LSTServiceContainer with specific LST service data data
+        (from the CameraConfig table of zfit file)
+
+        """
 
         self.data.lst.tels_with_data = [self.camera_config.telescope_id, ]
         svc_container = self.data.lst.tel[self.camera_config.telescope_id].svc
@@ -171,9 +183,12 @@ class LSTEventSource(EventSource):
         svc_container.algorithms = self.camera_config.lstcam.algorithms
         svc_container.pre_proc_algorithms = self.camera_config.lstcam.pre_proc_algorithms
 
-
     def fill_lst_event_container_from_zfile(self, event):
+        """
+        Fill LSTEventContainer with specific LST service data
+        (from the Event table of zfit file)
 
+        """
 
         event_container = self.data.lst.tel[self.camera_config.telescope_id].evt
 
@@ -184,51 +199,103 @@ class LSTEventSource(EventSource):
         event_container.ped_id = event.ped_id
         event_container.module_status = event.lstcam.module_status
         event_container.extdevices_presence = event.lstcam.extdevices_presence
-        event_container.tib_data = event.lstcam.tib_data
-        event_container.cdts_data = event.lstcam.cdts_data
+
+        # unpack TIB data
+        rec_fmt = '=IHIBB'
+        unpacked_tib = struct.unpack(rec_fmt, event.lstcam.tib_data)
+        event_container.tib_event_counter = unpacked_tib[0]
+        event_container.tib_pps_counter = unpacked_tib[1]
+        event_container.tib_tenMHz_counter = unpacked_tib[2]
+        event_container.tib_stereo_pattern = unpacked_tib[3]
+        event_container.tib_masked_trigger = unpacked_tib[4]
         event_container.swat_data = event.lstcam.swat_data
-        event_container.counters = event.lstcam.counters
+
+        # unpack CDTS data
+        rec_fmt = '=IIIQQBBB'
+        unpacked_cdts =  struct.unpack(rec_fmt, event.lstcam.cdts_data)
+        event_container.ucts_event_counter = unpacked_cdts[0]
+        event_container.ucts_pps_counter = unpacked_cdts[1]
+        event_container.ucts_clock_counter = unpacked_cdts[2]
+        event_container.ucts_timestamp = unpacked_cdts[3]
+        event_container.ucts_camera_timestamp = unpacked_cdts[4]
+        event_container.ucts_trigger_type = unpacked_cdts[5]
+        event_container.ucts_white_rabbit_status = unpacked_cdts[6]
+
+        # unpack Dragon counters
+        rec_fmt = '=HIIIQ'
+        rec_len = struct.calcsize(rec_fmt)
+        rec_unpack = struct.Struct(rec_fmt).unpack_from
+
+        event_container.pps_counter = np.zeros(self.camera_config.lstcam.num_modules)
+        event_container.tenMHz_counter = np.zeros(self.camera_config.lstcam.num_modules)
+        event_container.event_counter = np.zeros(self.camera_config.lstcam.num_modules)
+        event_container.trigger_counter = np.zeros(self.camera_config.lstcam.num_modules)
+        event_container.local_clock_counter = np.zeros(self.camera_config.lstcam.num_modules)
+        for mod in range(self.camera_config.lstcam.num_modules):
+
+            words=event.lstcam.counters[mod*rec_len:(mod+1)*rec_len]
+            unpacked_counter = rec_unpack(words)
+            event_container.pps_counter[mod] = unpacked_counter[0]
+            event_container.tenMHz_counter[mod] = unpacked_counter[1]
+            event_container.event_counter[mod] = unpacked_counter[2]
+            event_container.trigger_counter[mod] = unpacked_counter[3]
+            event_container.local_clock_counter[mod] = unpacked_counter[4]
+
         event_container.chips_flags = event.lstcam.chips_flags
         event_container.first_capacitor_id = event.lstcam.first_capacitor_id
         event_container.drs_tag_status = event.lstcam.drs_tag_status
         event_container.drs_tag = event.lstcam.drs_tag
 
-    def fill_r0_camera_container_from_zfile(self, container, event):
+    def fill_r0_camera_container_from_zfile(self, r0_container, event):
+        """
+        Fill with R0CameraContainer
 
-        container.num_samples = self.camera_config.num_samples
-        container.trigger_time = event.trigger_time_s
-        container.trigger_type = event.trigger_type
+        """
+
+        r0_container.num_samples = self.camera_config.num_samples
+        #container.trigger_time = event.trigger_time_s
+
+        # temporary patch to have an event time set
+        r0_container.trigger_time = (
+            self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
+            self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
+
+        r0_container.trigger_type = event.trigger_type
 
         # verify the number of gains
         if event.waveform.shape[0] == (self.camera_config.num_pixels *
-                                       container.num_samples):
+                                       r0_container.num_samples):
             n_gains = 1
         elif event.waveform.shape[0] == (self.camera_config.num_pixels *
-                                         container.num_samples * 2):
+                                         r0_container.num_samples * 2):
             n_gains = 2
         else:
             raise ValueError("Waveform matrix dimension not supported: "
                              "N_chan x N_pix x N_samples= '{}'"
                              .format(event.waveform.shape[0]))
 
-
         reshaped_waveform = np.array(
-                event.waveform
-             ).reshape(n_gains,
-                       self.camera_config.num_pixels,
-                       container.num_samples)
+            event.waveform
+        ).reshape(
+            n_gains,
+            self.camera_config.num_pixels,
+            r0_container.num_samples
+        )
 
         # initialize the waveform container to zero
-        container.waveform = np.zeros([n_gains, self.n_camera_pixels,
-                                       container.num_samples])
+        r0_container.waveform = np.zeros([n_gains, self.n_camera_pixels,
+                                       r0_container.num_samples])
 
-        # re-order the waveform following the expected_pixels_id values (rank = pixel id)
-        container.waveform[:, self.camera_config.expected_pixels_id, :] =\
+        # re-order the waveform following the expected_pixels_id values
+        # (rank = pixel id)
+        r0_container.waveform[:, self.camera_config.expected_pixels_id, :] =\
             reshaped_waveform
 
     def fill_r0_container_from_zfile(self, event):
+        """
+        Fill with R0Container
 
-
+        """
         container = self.data.r0
 
         container.obs_id = -1
@@ -240,6 +307,30 @@ class LSTEventSource(EventSource):
             r0_camera_container,
             event
         )
+
+    def fill_mon_container_from_zfile(self, event):
+        """
+        Fill with MonitoringContainer.
+        For the moment, initialize only the PixelStatusContainer
+
+        """
+        container = self.data.mon
+        container.tels_with_data = [self.camera_config.telescope_id, ]
+        mon_camera_container = container.tel[self.camera_config.telescope_id]
+
+        # reorder the array
+        pixel_status = np.zeros([self.n_camera_pixels])
+        pixel_status[self.camera_config.expected_pixels_id]  = \
+            event.pixel_status
+
+        # initalize the container
+        status_container = PixelStatusContainer()
+        status_container.hardware_mask = pixel_status > 0
+        # for the moment initialize to True the other mask (to be probably changed)
+        status_container.pedestal_mask  = np.ones([self.n_camera_pixels], dtype=bool)
+        status_container.flatfield_mask = np.ones([self.n_camera_pixels], dtype=bool)
+
+        mon_camera_container.pixel_status = status_container
 
 
 class MultiFiles:
@@ -256,7 +347,6 @@ class MultiFiles:
         self._events_table = {}
         self._camera_config = {}
         self.camera_config = None
-
 
         paths = []
         for file_name in file_list:
@@ -281,12 +371,11 @@ class MultiFiles:
                     if(self.camera_config is None):
                         self.camera_config = self._camera_config[path]
 
-
             except StopIteration:
                 pass
 
         # verify that somewhere the CameraConfing is present
-        assert (self.camera_config)
+        assert self.camera_config
 
     def __iter__(self):
         return self
@@ -319,6 +408,10 @@ class MultiFiles:
             for table in self._events_table.values()
         )
         return total_length
+
+    def rewind(self):
+        for name, file in self._file.items():
+            file.Events.protobuf_i_fits.rewind()
 
     def num_inputs(self):
         return len(self._file)
