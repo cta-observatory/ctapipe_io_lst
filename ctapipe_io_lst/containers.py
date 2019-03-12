@@ -93,16 +93,15 @@ class PedestalContainer(Container):
         'Range of time of the pedestal events [t_min, t_max]',
         unit=u.s
     )
-    n_event = Field(0, 'Number of events used for statistics')
-    pedestal_mean = Field(
+    charge_mean = Field(
         None,
         "np array of pedestal average (n_chan X N_pix)"
     )
-    pedestal_median = Field(
+    charge_median = Field(
         None,
         "np array of the pedestal  median (n_chan X N_pix)"
     )
-    pedestal_rms = Field(
+    charge_rms = Field(
         None,
         "np array of the pedestal rms (n_chan X N_pix)"
     )
