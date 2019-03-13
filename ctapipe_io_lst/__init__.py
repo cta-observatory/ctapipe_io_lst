@@ -98,7 +98,6 @@ class LSTEventSource(EventSource):
                 name='LST', type='LST', optics=optics, camera=camera
             )
 
-
             self.n_camera_pixels = tel_descr.camera.n_pixels
             tels = {tel_id: tel_descr}
 
@@ -110,6 +109,9 @@ class LSTEventSource(EventSource):
         subarray.positions = tel_pos
 
         self.data.inst.subarray = subarray
+
+        # initialize general monitoring container
+        self.initialize_mon_container()
 
         # loop on events
         for count, event in enumerate(self.multi_file):
@@ -308,7 +310,7 @@ class LSTEventSource(EventSource):
             event
         )
 
-    def fill_mon_container_from_zfile(self, event):
+    def initialize_mon_container(self):
         """
         Fill with MonitoringContainer.
         For the moment, initialize only the PixelStatusContainer
@@ -318,19 +320,32 @@ class LSTEventSource(EventSource):
         container.tels_with_data = [self.camera_config.telescope_id, ]
         mon_camera_container = container.tel[self.camera_config.telescope_id]
 
-        # reorder the array
-        pixel_status = np.zeros([self.n_camera_pixels])
-        pixel_status[self.camera_config.expected_pixels_id]  = \
-            event.pixel_status
-
-        # initalize the container
+        # initialize the container
         status_container = PixelStatusContainer()
-        status_container.hardware_mask = pixel_status > 0
-        # for the moment initialize to True the other mask (to be probably changed)
-        status_container.pedestal_mask  = np.ones([self.n_camera_pixels], dtype=bool)
-        status_container.flatfield_mask = np.ones([self.n_camera_pixels], dtype=bool)
+        status_container.hardware_mask = np.zeros([self.n_camera_pixels], dtype=bool)
+        status_container.pedestal_mask = np.zeros([self.n_camera_pixels], dtype=bool)
+        status_container.flatfield_mask = np.zeros([self.n_camera_pixels], dtype=bool)
 
         mon_camera_container.pixel_status = status_container
+
+    def fill_mon_container_from_zfile(self, event):
+        """
+        Fill with MonitoringContainer.
+        For the moment, initialize only the PixelStatusContainer
+
+        """
+
+        status_container = self.data.mon.tel[self.camera_config.telescope_id].pixel_status
+
+        # reorder the array
+        pixel_status = np.zeros([self.n_camera_pixels])
+        pixel_status[self.camera_config.expected_pixels_id] = \
+            event.pixel_status
+
+        # initialize the hardware mask
+        status_container.hardware_mask = pixel_status == 0
+
+
 
 
 class MultiFiles:
