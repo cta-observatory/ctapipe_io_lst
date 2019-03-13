@@ -31,53 +31,55 @@ class FlatFieldContainer(Container):
         unit=u.s
     )
     n_events = Field(0, 'Number of events used for statistics')
-    relative_gain_mean = Field(
-        None,
-        "np array of the relative flat-field coefficient mean (n_chan X N_pix)"
-    )
+
     charge_mean = Field(
         None,
-        "np array of signal charge mean (n_chan X N_pix)"
+        "np array of signal charge mean (n_chan X n_pix)"
     )
     charge_median = Field(
         None,
-        "np array of signal charge median (n_chan X N_pix)"
+        "np array of signal charge median (n_chan X n_pix)"
     )
-    charge_rms = Field(
+    charge_std = Field(
         None,
-        "np array of signal charge rms (n_chan X N_pix)"
+        "np array of signal charge standard deviation (n_chan X n_pix)"
     )
     time_mean = Field(
         None,
-        "np array of signal time mean (n_chan X N_pix)",
+        "np array of signal time mean (n_chan X n_pix)",
         unit=u.ns,
     )
     time_median = Field(
         None,
-        "np array of signal time median (n_chan X N_pix)",
+        "np array of signal time median (n_chan X n_pix)",
         unit=u.ns
     )
-    time_rms = Field(
+    time_std = Field(
         None,
-        "np array of signal time rms (n_chan X N_pix)"
-    )
+        "np array of signal time standard deviation (n_chan X n_pix)",
+        unit=u.ns
 
+    )
+    relative_gain_mean = Field(
+        None,
+        "np array of the relative flat-field coefficient mean (n_chan X n_pix)"
+    )
     relative_gain_median = Field(
         None,
-        "np array of the relative flat-field coefficient  median (n_chan X N_pix)"
+        "np array of the relative flat-field coefficient  median (n_chan X n_pix)"
     )
-    relative_gain_rms = Field(
+    relative_gain_std = Field(
         None,
-        "np array of the relative flat-field coefficient rms (n_chan X N_pix)"
+        "np array of the relative flat-field coefficient standard deviation (n_chan X n_pix)"
     )
     relative_time_mean = Field(
         None,
-        "np array of the relative time mean (n_chan X N_pix)",
+        "np array of the relative time mean (n_chan X n_pix)",
         unit=u.ns
     )
     relative_time_median = Field(
         None,
-        "np array of the relative time  median (n_chan X N_pix)",
+        "np array of the relative time  median (n_chan X n_pix)",
         unit=u.ns)
 
 
@@ -95,15 +97,15 @@ class PedestalContainer(Container):
     )
     charge_mean = Field(
         None,
-        "np array of pedestal average (n_chan X N_pix)"
+        "np array of pedestal average (n_chan X n_pix)"
     )
     charge_median = Field(
         None,
-        "np array of the pedestal  median (n_chan X N_pix)"
+        "np array of the pedestal  median (n_chan X n_pix)"
     )
-    charge_rms = Field(
+    charge_std = Field(
         None,
-        "np array of the pedestal rms (n_chan X N_pix)"
+        "np array of the pedestal standard deviation (n_chan X n_pix)"
     )
 
 
@@ -115,17 +117,17 @@ class PixelStatusContainer(Container):
     """
     hardware_mask = Field(
         None,
-        "Mask from the hardware pixel status data (N_pix)"
+        "Mask from the hardware pixel status data (n_pix)"
     )
 
     pedestal_mask = Field(
         None,
-        "Mask from the pedestal data analysis (N_pix)"
+        "Mask from the pedestal data analysis (n_pix)"
     )
 
     flatfield_mask = Field(
         None,
-        "Mask from the flat-flield data analysis (N_pix)"
+        "Mask from the flat-flield data analysis (n_pix)"
     )
 
 
