@@ -82,8 +82,6 @@ class FlatFieldContainer(Container):
         "np array of the relative time  median (n_chan X n_pix)",
         unit=u.ns)
 
-
-
 class PedestalContainer(Container):
     """
     Container for pedestal parameters obtained from a set of
@@ -107,6 +105,14 @@ class PedestalContainer(Container):
     charge_std = Field(
         None,
         "np array of the pedestal standard deviation (n_chan X n_pix)"
+    )
+    charge_median_outliers = Field(
+        None,
+        "np array of the pedestal median outliers (n_chan X n_pix)"
+    )
+    charge_std_outliers = Field(
+        None,
+        "np array of the pedestal standard deviation outliers (n_chan X n_pix)"
     )
 
 
