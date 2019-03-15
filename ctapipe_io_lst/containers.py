@@ -24,8 +24,8 @@ class FlatFieldContainer(Container):
     [n_events] flat-field events
     """
 
-    time = Field(0, 'Time associated to the flat-field event set ', unit=u.s)
-    time_range = Field(
+    sample_time = Field(0, 'Time associated to the flat-field event set ', unit=u.s)
+    sample_time_range = Field(
         [],
         'Range of time of the flat-field events [t_min, t_max]',
         unit=u.s
@@ -72,15 +72,21 @@ class FlatFieldContainer(Container):
         None,
         "np array of the relative flat-field coefficient standard deviation (n_chan X n_pix)"
     )
-    relative_time_mean = Field(
-        None,
-        "np array of the relative time mean (n_chan X n_pix)",
-        unit=u.ns
-    )
     relative_time_median = Field(
         None,
-        "np array of the relative time  median (n_chan X n_pix)",
+        "np array of time (median) - time median averaged over camera (n_chan X n_pix)",
         unit=u.ns)
+
+    charge_median_outliers = Field(
+        None,
+        "Boolean np array of charge (median) outliers (n_chan X n_pix)"
+    )
+    time_median_outliers = Field(
+        None,
+        "Boolean np array of pixel time (median) outliers (n_chan X n_pix)"
+    )
+
+
 
 class PedestalContainer(Container):
     """
@@ -88,8 +94,8 @@ class PedestalContainer(Container):
     [n_pedestal] pedestal events
     """
     n_events = Field(0, 'Number of events used for statistics')
-    time = Field(0, 'Time associated to the pedestal event set', unit=u.s)
-    time_range = Field(
+    sample_time = Field(0, 'Time associated to the pedestal event set', unit=u.s)
+    sample_time_range = Field(
         [],
         'Range of time of the pedestal events [t_min, t_max]',
         unit=u.s
@@ -108,11 +114,11 @@ class PedestalContainer(Container):
     )
     charge_median_outliers = Field(
         None,
-        "np array of the pedestal median outliers (n_chan X n_pix)"
+        "Boolean np array of the pedestal median outliers (n_chan X n_pix)"
     )
     charge_std_outliers = Field(
         None,
-        "np array of the pedestal standard deviation outliers (n_chan X n_pix)"
+        "Boolean np array of the pedestal std outliers (n_chan X n_pix)"
     )
 
 
