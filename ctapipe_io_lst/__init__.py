@@ -28,7 +28,7 @@ __all__ = ['LSTEventSource']
 class LSTEventSource(EventSource):
     """EventSource for LST r0 data."""
 
-    def __init__(self, config=None, tool=None, **kwargs):
+    def __init__(self, **kwargs):
         """
         Constructor
         Parameters
@@ -55,11 +55,11 @@ class LSTEventSource(EventSource):
             self.file_list = glob.glob(kwargs['input_url'])
             self.file_list.sort()
             kwargs['input_url'] = self.file_list[0]
-            super().__init__(config=config, parent=tool, **kwargs)
         else:
-            super().__init__(config=config, parent=tool, **kwargs)
             self.file_list = [self.input_url]
-
+        
+        super().__init__(**kwargs)
+        
         self.multi_file = MultiFiles(self.file_list)
 
         self.camera_config = self.multi_file.camera_config
