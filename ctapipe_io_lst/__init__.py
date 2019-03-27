@@ -262,7 +262,8 @@ class LSTEventSource(EventSource):
             self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
             self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
 
-        r0_container.trigger_type = event.trigger_type
+        #r0_container.trigger_type = event.trigger_type
+        r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger
 
         # verify the number of gains
         if event.waveform.shape[0] == (self.camera_config.num_pixels *
@@ -327,6 +328,7 @@ class LSTEventSource(EventSource):
         status_container.flatfield_mask = np.zeros([self.n_camera_pixels], dtype=bool)
 
         mon_camera_container.pixel_status = status_container
+        
 
     def fill_mon_container_from_zfile(self, event):
         """

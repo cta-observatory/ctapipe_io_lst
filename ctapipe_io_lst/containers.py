@@ -87,7 +87,6 @@ class FlatFieldContainer(Container):
     )
 
 
-
 class PedestalContainer(Container):
     """
     Container for pedestal parameters obtained from a set of
@@ -130,17 +129,42 @@ class PixelStatusContainer(Container):
     """
     hardware_mask = Field(
         None,
-        "Mask from the hardware pixel status data (n_pix)"
+        "Boolean np array (mask) from the hardware pixel status data (n_pix)"
     )
 
     pedestal_mask = Field(
         None,
-        "Mask from the pedestal data analysis (n_pix)"
+        "Boolean np array (mask) from the pedestal data analysis (n_pix)"
     )
 
     flatfield_mask = Field(
         None,
-        "Mask from the flat-flield data analysis (n_pix)"
+        "Boolean np array (mask) from the flat-flield data analysis (n_pix)"
+    )
+
+    calibration_mask = Field(
+        None,
+        "Boolean np array (mask) of final calibration data analysis (n_pix)"
+    )
+
+
+class WaveformCalibrationContainer(Container):
+    """
+    Container for the pixel calibration coefficients
+    """
+    dc_to_phe = Field(
+        None,
+        "np array of (digital count) to (photon electron) coefficients (n_chan X n_pix)"
+    )
+
+    delta_time = Field(
+        None,
+        "np array of time shift coefficients (n_chan X n_pix)"
+    )
+
+    n_phe = Field(
+        None,
+        "np array of photo-electrons in calibration signal (n_chan X n_pix)"
     )
 
 
@@ -152,6 +176,7 @@ class MonitoringCameraContainer(Container):
     flatfield = Field(FlatFieldContainer(), "Relative flat field data")
     pedestal = Field(PedestalContainer(), "Pedestal data")
     pixel_status = Field(PixelStatusContainer(), "Container of masks with pixel status")
+    calibration = Field(WaveformCalibrationContainer(), "Container for calibration coefficients")
 
 
 class MonitoringContainer(Container):
