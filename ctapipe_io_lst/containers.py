@@ -11,6 +11,7 @@ __all__ = [
     'FlatFieldContainer',
     'PedestalContainer',
     'PixelStatusContainer',
+    'WaveformCalibrationContainer',
     'MonitoringCameraContainer',
     'MonitoringContainer',
     'LSTCameraContainer',
