@@ -133,22 +133,17 @@ class PixelStatusContainer(Container):
     """
     hardware_mask = Field(
         None,
-        "Boolean np array (mask) from the hardware pixel status data (n_pix)"
+        "Boolean np array (mask) from the hardware pixel status data (n_chan X n_pix)"
     )
 
     pedestal_mask = Field(
         None,
-        "Boolean np array (mask) from the pedestal data analysis (n_pix)"
+        "Boolean np array (mask) from the pedestal data analysis (n_chan X n_pix)"
     )
 
     flatfield_mask = Field(
         None,
-        "Boolean np array (mask) from the flat-flield data analysis (n_pix)"
-    )
-
-    calibration_mask = Field(
-        None,
-        "Boolean np array (mask) of final calibration data analysis (n_pix)"
+        "Boolean np array (mask) from the flat-flield data analysis (n_chan X n_pix)"
     )
 
 
@@ -156,14 +151,21 @@ class WaveformCalibrationContainer(Container):
     """
     Container for the pixel calibration coefficients
     """
+    time = Field(0, 'Time associated to the calibration event', unit=u.s)
+    time_range = Field(
+        [],
+        'Range of time of validity for the calibration event [t_min, t_max]',
+        unit=u.s
+    )
+
     dc_to_phe = Field(
         None,
         "np array of (digital count) to (photon electron) coefficients (n_chan X n_pix)"
     )
 
-    delta_time = Field(
+    time_correction = Field(
         None,
-        "np array of time shift coefficients (n_chan X n_pix)"
+        "np array of time correction values (n_chan X n_pix)"
     )
 
     n_phe = Field(
@@ -171,6 +173,10 @@ class WaveformCalibrationContainer(Container):
         "np array of photo-electrons in calibration signal (n_chan X n_pix)"
     )
 
+    pixel_status_mask = Field(
+        None,
+        "Boolean np array (mask) of final calibration data analysis (n_chan x n_pix)"
+    )
 
 class MonitoringCameraContainer(Container):
     """
