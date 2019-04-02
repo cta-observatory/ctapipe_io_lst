@@ -173,9 +173,9 @@ class MonitoringCameraContainer(Container):
     Container for camera monitoring data
     """
 
-    flatfield = Field(FlatFieldContainer(), "Relative flat field data")
-    pedestal = Field(PedestalContainer(), "Pedestal data")
-    pixel_status = Field(PixelStatusContainer(), "Container of masks with pixel status")
+    flatfield = Field(FlatFieldContainer(), "Data from flat-field event distributions")
+    pedestal = Field(PedestalContainer(), "Data from pedestal event distributions")
+    pixel_status = Field(PixelStatusContainer(), "Container for masks with pixel status")
     calibration = Field(WaveformCalibrationContainer(), "Container for calibration coefficients")
 
 
