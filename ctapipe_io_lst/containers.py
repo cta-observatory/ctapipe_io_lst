@@ -14,7 +14,10 @@ __all__ = [
     'WaveformCalibrationContainer',
     'MonitoringCameraContainer',
     'MonitoringContainer',
+    'LSTEventContainer',
+    'LSTServiceContainer',
     'LSTCameraContainer',
+    'LSTContainer',
     'LSTDataContainer'
 ]
 
