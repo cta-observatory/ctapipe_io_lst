@@ -38,56 +38,56 @@ class FlatFieldContainer(Container):
 
     charge_mean = Field(
         None,
-        "np array of signal charge mean (n_chan X n_pix)"
+        "np array of signal charge mean (n_chan, n_pix)"
     )
     charge_median = Field(
         None,
-        "np array of signal charge median (n_chan X n_pix)"
+        "np array of signal charge median (n_chan, n_pix)"
     )
     charge_std = Field(
         None,
-        "np array of signal charge standard deviation (n_chan X n_pix)"
+        "np array of signal charge standard deviation (n_chan, n_pix)"
     )
     time_mean = Field(
         None,
-        "np array of signal time mean (n_chan X n_pix)",
+        "np array of signal time mean (n_chan, n_pix)",
         unit=u.ns,
     )
     time_median = Field(
         None,
-        "np array of signal time median (n_chan X n_pix)",
+        "np array of signal time median (n_chan, n_pix)",
         unit=u.ns
     )
     time_std = Field(
         None,
-        "np array of signal time standard deviation (n_chan X n_pix)",
+        "np array of signal time standard deviation (n_chan, n_pix)",
         unit=u.ns
 
     )
     relative_gain_mean = Field(
         None,
-        "np array of the relative flat-field coefficient mean (n_chan X n_pix)"
+        "np array of the relative flat-field coefficient mean (n_chan, n_pix)"
     )
     relative_gain_median = Field(
         None,
-        "np array of the relative flat-field coefficient  median (n_chan X n_pix)"
+        "np array of the relative flat-field coefficient  median (n_chan, n_pix)"
     )
     relative_gain_std = Field(
         None,
-        "np array of the relative flat-field coefficient standard deviation (n_chan X n_pix)"
+        "np array of the relative flat-field coefficient standard deviation (n_chan, n_pix)"
     )
     relative_time_median = Field(
         None,
-        "np array of time (median) - time median averaged over camera (n_chan X n_pix)",
+        "np array of time (median) - time median averaged over camera (n_chan, n_pix)",
         unit=u.ns)
 
     charge_median_outliers = Field(
         None,
-        "Boolean np array of charge (median) outliers (n_chan X n_pix)"
+        "Boolean np array of charge (median) outliers (n_chan, n_pix)"
     )
     time_median_outliers = Field(
         None,
-        "Boolean np array of pixel time (median) outliers (n_chan X n_pix)"
+        "Boolean np array of pixel time (median) outliers (n_chan, n_pix)"
     )
 
 
@@ -105,23 +105,23 @@ class PedestalContainer(Container):
     )
     charge_mean = Field(
         None,
-        "np array of pedestal average (n_chan X n_pix)"
+        "np array of pedestal average (n_chan, n_pix)"
     )
     charge_median = Field(
         None,
-        "np array of the pedestal  median (n_chan X n_pix)"
+        "np array of the pedestal  median (n_chan, n_pix)"
     )
     charge_std = Field(
         None,
-        "np array of the pedestal standard deviation (n_chan X n_pix)"
+        "np array of the pedestal standard deviation (n_chan, n_pix)"
     )
     charge_median_outliers = Field(
         None,
-        "Boolean np array of the pedestal median outliers (n_chan X n_pix)"
+        "Boolean np array of the pedestal median outliers (n_chan, n_pix)"
     )
     charge_std_outliers = Field(
         None,
-        "Boolean np array of the pedestal std outliers (n_chan X n_pix)"
+        "Boolean np array of the pedestal std outliers (n_chan, n_pix)"
     )
 
 
@@ -133,17 +133,17 @@ class PixelStatusContainer(Container):
     """
     hardware_mask = Field(
         None,
-        "Boolean np array (mask) from the hardware pixel status data (n_chan X n_pix)"
+        "Boolean np array (mask) from the hardware pixel status data (n_chan, n_pix)"
     )
 
     pedestal_mask = Field(
         None,
-        "Boolean np array (mask) from the pedestal data analysis (n_chan X n_pix)"
+        "Boolean np array (mask) from the pedestal data analysis (n_chan, n_pix)"
     )
 
     flatfield_mask = Field(
         None,
-        "Boolean np array (mask) from the flat-flield data analysis (n_chan X n_pix)"
+        "Boolean np array (mask) from the flat-flield data analysis (n_chan, n_pix)"
     )
 
 
@@ -160,22 +160,22 @@ class WaveformCalibrationContainer(Container):
 
     dc_to_phe = Field(
         None,
-        "np array of (digital count) to (photon electron) coefficients (n_chan X n_pix)"
+        "np array of (digital count) to (photon electron) coefficients (n_chan, n_pix)"
     )
 
     time_correction = Field(
         None,
-        "np array of time correction values (n_chan X n_pix)"
+        "np array of time correction values (n_chan, n_pix)"
     )
 
     n_phe = Field(
         None,
-        "np array of photo-electrons in calibration signal (n_chan X n_pix)"
+        "np array of photo-electrons in calibration signal (n_chan, n_pix)"
     )
 
     pixel_status_mask = Field(
         None,
-        "Boolean np array (mask) of final calibration data analysis (n_chan x n_pix)"
+        "Boolean np array (mask) of final calibration data analysis (n_chan, n_pix)"
     )
 
 class MonitoringCameraContainer(Container):
