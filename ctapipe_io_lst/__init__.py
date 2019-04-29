@@ -254,22 +254,21 @@ class LSTEventSource(EventSource):
 
         """
 
-        r0_container.num_samples = self.camera_config.num_samples
-        #container.trigger_time = event.trigger_time_s
 
         # temporary patch to have an event time set
         r0_container.trigger_time = (
             self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
             self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
 
-        r0_container.trigger_type = event.trigger_type
+        #r0_container.trigger_type = event.trigger_type
+        r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger
 
         # verify the number of gains
         if event.waveform.shape[0] == (self.camera_config.num_pixels *
-                                       r0_container.num_samples):
+                                       self.camera_config.num_samples):
             n_gains = 1
         elif event.waveform.shape[0] == (self.camera_config.num_pixels *
-                                         r0_container.num_samples * 2):
+                                         self.camera_config.num_samples * 2):
             n_gains = 2
         else:
             raise ValueError("Waveform matrix dimension not supported: "
@@ -281,12 +280,12 @@ class LSTEventSource(EventSource):
         ).reshape(
             n_gains,
             self.camera_config.num_pixels,
-            r0_container.num_samples
+            self.camera_config.num_samples
         )
 
         # initialize the waveform container to zero
         r0_container.waveform = np.zeros([n_gains, self.n_camera_pixels,
-                                       r0_container.num_samples])
+                                          self.camera_config.num_samples])
 
         # re-order the waveform following the expected_pixels_id values
         # (rank = pixel id)
@@ -327,6 +326,7 @@ class LSTEventSource(EventSource):
         status_container.flatfield_mask = np.zeros([self.n_camera_pixels], dtype=bool)
 
         mon_camera_container.pixel_status = status_container
+        
 
     def fill_mon_container_from_zfile(self, event):
         """
