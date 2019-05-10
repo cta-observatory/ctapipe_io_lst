@@ -78,6 +78,7 @@ class LSTEventSource(EventSource):
         self.data = LSTDataContainer()
         self.data.meta['input_url'] = self.input_url
         self.data.meta['max_events'] = self.max_events
+        self.data.meta['origin'] = 'LSTCAM'
 
         # fill LST data from the CameraConfig table
         self.fill_lst_service_container_from_zfile()
@@ -321,13 +322,12 @@ class LSTEventSource(EventSource):
 
         # initialize the container
         status_container = PixelStatusContainer()
-        status_container.hardware_mask = np.zeros([self.n_camera_pixels], dtype=bool)
-        status_container.pedestal_mask = np.zeros([self.n_camera_pixels], dtype=bool)
-        status_container.flatfield_mask = np.zeros([self.n_camera_pixels], dtype=bool)
+        status_container.hardware_failing_pixels = np.zeros([self.n_camera_pixels], dtype=bool)
+        status_container.pedestal_failing_pixels = np.zeros([self.n_camera_pixels], dtype=bool)
+        status_container.flatfield_failing_pixels = np.zeros([self.n_camera_pixels], dtype=bool)
 
         mon_camera_container.pixel_status = status_container
         
-
     def fill_mon_container_from_zfile(self, event):
         """
         Fill with MonitoringContainer.
@@ -343,9 +343,7 @@ class LSTEventSource(EventSource):
             event.pixel_status
 
         # initialize the hardware mask
-        status_container.hardware_mask = pixel_status == 0
-
-
+        status_container.hardware_failing_pixels = pixel_status == 0
 
 
 class MultiFiles:
