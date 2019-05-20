@@ -18,15 +18,25 @@ from ctapipe.instrument import (
 )
 
 from ctapipe.io import EventSource
-
-from .containers import LSTDataContainer, PixelStatusContainer
-
+from ctapipe.core.traits import Int
+from .containers import LSTDataContainer
+from ctapipe.io.containers import PixelStatusContainer
 
 __all__ = ['LSTEventSource']
 
 
 class LSTEventSource(EventSource):
     """EventSource for LST r0 data."""
+
+    n_gains = Int(
+        2,
+        help='Number of gains at r0/r1 level'
+    ).tag(config=True)
+
+    baseline = Int(
+        250,
+        help='r0 waveform baseline '
+    ).tag(config=True)
 
     def __init__(self, **kwargs):
         """
@@ -261,31 +271,27 @@ class LSTEventSource(EventSource):
             self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
             self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
 
+        if r0_container.trigger_time is None:
+            r0_container.trigger_time = 0
         #r0_container.trigger_type = event.trigger_type
         r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger
 
         # verify the number of gains
-        if event.waveform.shape[0] == (self.camera_config.num_pixels *
-                                       self.camera_config.num_samples):
-            n_gains = 1
-        elif event.waveform.shape[0] == (self.camera_config.num_pixels *
-                                         self.camera_config.num_samples * 2):
-            n_gains = 2
-        else:
-            raise ValueError("Waveform matrix dimension not supported: "
-                             "N_chan x N_pix x N_samples= '{}'"
-                             .format(event.waveform.shape[0]))
+        if event.waveform.shape[0] != self.camera_config.num_pixels * self.camera_config.num_samples * self.n_gains:
+            raise ValueError(f"Number of gains not correct, waveform shape is {event.waveform.shape[0]}"
+                             f" instead of "
+                             f"{self.camera_config.num_pixels * self.camera_config.num_samples * self.n_gains}")
 
         reshaped_waveform = np.array(
             event.waveform
         ).reshape(
-            n_gains,
+            self.n_gains,
             self.camera_config.num_pixels,
             self.camera_config.num_samples
         )
 
         # initialize the waveform container to zero
-        r0_container.waveform = np.zeros([n_gains, self.n_camera_pixels,
+        r0_container.waveform = np.zeros([self.n_gains, self.n_camera_pixels,
                                           self.camera_config.num_samples])
 
         # re-order the waveform following the expected_pixels_id values
@@ -309,7 +315,6 @@ class LSTEventSource(EventSource):
             r0_camera_container,
             event
         )
-
     def initialize_mon_container(self):
         """
         Fill with MonitoringContainer.
@@ -322,12 +327,12 @@ class LSTEventSource(EventSource):
 
         # initialize the container
         status_container = PixelStatusContainer()
-        status_container.hardware_failing_pixels = np.zeros([self.n_camera_pixels], dtype=bool)
-        status_container.pedestal_failing_pixels = np.zeros([self.n_camera_pixels], dtype=bool)
-        status_container.flatfield_failing_pixels = np.zeros([self.n_camera_pixels], dtype=bool)
+        status_container.hardware_failing_pixels = np.zeros((self.n_gains, self.n_camera_pixels), dtype=bool)
+        status_container.pedestal_failing_pixels = np.zeros((self.n_gains, self.n_camera_pixels), dtype=bool)
+        status_container.flatfield_failing_pixels = np.zeros((self.n_gains, self.n_camera_pixels), dtype=bool)
 
         mon_camera_container.pixel_status = status_container
-        
+
     def fill_mon_container_from_zfile(self, event):
         """
         Fill with MonitoringContainer.
@@ -338,12 +343,9 @@ class LSTEventSource(EventSource):
         status_container = self.data.mon.tel[self.camera_config.telescope_id].pixel_status
 
         # reorder the array
-        pixel_status = np.zeros([self.n_camera_pixels])
-        pixel_status[self.camera_config.expected_pixels_id] = \
-            event.pixel_status
-
-        # initialize the hardware mask
-        status_container.hardware_failing_pixels = pixel_status == 0
+        pixel_status = np.zeros(self.n_camera_pixels)
+        pixel_status[self.camera_config.expected_pixels_id] = event.pixel_status
+        status_container.hardware_failing_pixels[:] = pixel_status == 0
 
 
 class MultiFiles:
