@@ -106,7 +106,7 @@ class LSTEventSource(EventSource):
             camera = CameraGeometry.from_name("LSTCam", geometry_version)
 
             tel_descr = TelescopeDescription(
-                name='LST', type='LST', optics=optics, camera=camera
+                name='LST', tel_type='LST', optics=optics, camera=camera
             )
 
             self.n_camera_pixels = tel_descr.camera.n_pixels
@@ -315,6 +315,7 @@ class LSTEventSource(EventSource):
             r0_camera_container,
             event
         )
+
     def initialize_mon_container(self):
         """
         Fill with MonitoringContainer.
