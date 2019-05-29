@@ -34,7 +34,7 @@ class LSTEventSource(EventSource):
     ).tag(config=True)
 
     baseline = Int(
-        250,
+        400,
         help='r0 waveform baseline '
     ).tag(config=True)
 
