@@ -8,6 +8,7 @@ import numpy as np
 import struct
 from astropy import units as u
 import glob
+from os import listdir, getcwd
 
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
@@ -18,7 +19,7 @@ from ctapipe.instrument import (
 )
 
 from ctapipe.io import EventSource
-from ctapipe.core.traits import Int
+from ctapipe.core.traits import Int, Bool
 from .containers import LSTDataContainer
 from ctapipe.io.containers import PixelStatusContainer
 
@@ -35,7 +36,12 @@ class LSTEventSource(EventSource):
 
     baseline = Int(
         400,
-        help='r0 waveform baseline '
+        help='r0 waveform baseline (default from EvB v3)'
+    ).tag(config=True)
+
+    multi_streams = Bool(
+        True,
+        help='Read in parallel all streams '
     ).tag(config=True)
 
     def __init__(self, **kwargs):
@@ -43,14 +49,16 @@ class LSTEventSource(EventSource):
         Constructor
         Parameters
         ----------
+        n_gains = number of gains expected in input file
+
+        baseline = baseline to be subtracted at r1 level (not used for the moment)
+
+        multi_streams = enable the reading of input files from all streams
+
         config: traitlets.loader.Config
             Configuration specified by config file or cmdline arguments.
             Used to set traitlet values.
-            Set to None if no configuration to pass.
-        tool: ctapipe.core.Tool
-            Tool executable that is calling this component.
-            Passes the correct logger to the component.
-            Set to None if no Tool to pass.
+            Set to None if no configuration to pass.\
         kwargs: dict
             Additional parameters to be passed.
             NOTE: The file mask of the data to read can be passed with
@@ -61,15 +69,36 @@ class LSTEventSource(EventSource):
         # To overcome this we substitute the input_url with first file matching
         # the specified file mask (copied from  MAGICEventSourceROOT).
 
-        if 'input_url' in kwargs.keys():
-            self.file_list = glob.glob(kwargs['input_url'])
-            self.file_list.sort()
-            kwargs['input_url'] = self.file_list[0]
+
+        super().__init__(**kwargs)
+
+        if self.multi_streams:
+            # test how many streams are there:
+            # file name must be [stream name]Run[all the rest]
+            # All the files with the same [all the rest] are opened
+
+            if '/' in self.input_url:
+                dir, name = self.input_url.rsplit('/', 1)
+            else:
+                dir = getcwd()
+                name = self.input_url
+
+            if 'Run' in name:
+                stream, run = name.split('Run', 1)
+            else:
+                run = name
+
+            ls = listdir(dir)
+            self.file_list = []
+
+            for file_name in ls:
+                if run in file_name:
+                    full_name = dir + '/' + file_name
+                    self.file_list.append(full_name)
+                    Provenance().add_input_file(full_name, role='dl0.sub.evt')
         else:
             self.file_list = [self.input_url]
-        
-        super().__init__(**kwargs)
-        
+
         self.multi_file = MultiFiles(self.file_list)
 
         self.camera_config = self.multi_file.camera_config
