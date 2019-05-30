@@ -8,6 +8,7 @@ import numpy as np
 import struct
 from astropy import units as u
 import glob
+from os import listdir, getcwd
 
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
@@ -18,9 +19,9 @@ from ctapipe.instrument import (
 )
 
 from ctapipe.io import EventSource
-
-from .containers import LSTDataContainer, PixelStatusContainer
-
+from ctapipe.core.traits import Int, Bool
+from .containers import LSTDataContainer
+from ctapipe.io.containers import PixelStatusContainer
 
 __all__ = ['LSTEventSource']
 
@@ -28,19 +29,36 @@ __all__ = ['LSTEventSource']
 class LSTEventSource(EventSource):
     """EventSource for LST r0 data."""
 
+    n_gains = Int(
+        2,
+        help='Number of gains at r0/r1 level'
+    ).tag(config=True)
+
+    baseline = Int(
+        400,
+        help='r0 waveform baseline (default from EvB v3)'
+    ).tag(config=True)
+
+    multi_streams = Bool(
+        True,
+        help='Read in parallel all streams '
+    ).tag(config=True)
+
     def __init__(self, **kwargs):
         """
         Constructor
         Parameters
         ----------
+        n_gains = number of gains expected in input file
+
+        baseline = baseline to be subtracted at r1 level (not used for the moment)
+
+        multi_streams = enable the reading of input files from all streams
+
         config: traitlets.loader.Config
             Configuration specified by config file or cmdline arguments.
             Used to set traitlet values.
-            Set to None if no configuration to pass.
-        tool: ctapipe.core.Tool
-            Tool executable that is calling this component.
-            Passes the correct logger to the component.
-            Set to None if no Tool to pass.
+            Set to None if no configuration to pass.\
         kwargs: dict
             Additional parameters to be passed.
             NOTE: The file mask of the data to read can be passed with
@@ -51,15 +69,36 @@ class LSTEventSource(EventSource):
         # To overcome this we substitute the input_url with first file matching
         # the specified file mask (copied from  MAGICEventSourceROOT).
 
-        if 'input_url' in kwargs.keys():
-            self.file_list = glob.glob(kwargs['input_url'])
-            self.file_list.sort()
-            kwargs['input_url'] = self.file_list[0]
+
+        super().__init__(**kwargs)
+
+        if self.multi_streams:
+            # test how many streams are there:
+            # file name must be [stream name]Run[all the rest]
+            # All the files with the same [all the rest] are opened
+
+            if '/' in self.input_url:
+                dir, name = self.input_url.rsplit('/', 1)
+            else:
+                dir = getcwd()
+                name = self.input_url
+
+            if 'Run' in name:
+                stream, run = name.split('Run', 1)
+            else:
+                run = name
+
+            ls = listdir(dir)
+            self.file_list = []
+
+            for file_name in ls:
+                if run in file_name:
+                    full_name = dir + '/' + file_name
+                    self.file_list.append(full_name)
+                    Provenance().add_input_file(full_name, role='dl0.sub.evt')
         else:
             self.file_list = [self.input_url]
-        
-        super().__init__(**kwargs)
-        
+
         self.multi_file = MultiFiles(self.file_list)
 
         self.camera_config = self.multi_file.camera_config
@@ -78,6 +117,7 @@ class LSTEventSource(EventSource):
         self.data = LSTDataContainer()
         self.data.meta['input_url'] = self.input_url
         self.data.meta['max_events'] = self.max_events
+        self.data.meta['origin'] = 'LSTCAM'
 
         # fill LST data from the CameraConfig table
         self.fill_lst_service_container_from_zfile()
@@ -95,7 +135,7 @@ class LSTEventSource(EventSource):
             camera = CameraGeometry.from_name("LSTCam", geometry_version)
 
             tel_descr = TelescopeDescription(
-                name='LST', type='LST', optics=optics, camera=camera
+                name='LST', tel_type='LST', optics=optics, camera=camera
             )
 
             self.n_camera_pixels = tel_descr.camera.n_pixels
@@ -260,31 +300,27 @@ class LSTEventSource(EventSource):
             self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
             self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
 
+        if r0_container.trigger_time is None:
+            r0_container.trigger_time = 0
         #r0_container.trigger_type = event.trigger_type
         r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger
 
         # verify the number of gains
-        if event.waveform.shape[0] == (self.camera_config.num_pixels *
-                                       self.camera_config.num_samples):
-            n_gains = 1
-        elif event.waveform.shape[0] == (self.camera_config.num_pixels *
-                                         self.camera_config.num_samples * 2):
-            n_gains = 2
-        else:
-            raise ValueError("Waveform matrix dimension not supported: "
-                             "N_chan x N_pix x N_samples= '{}'"
-                             .format(event.waveform.shape[0]))
+        if event.waveform.shape[0] != self.camera_config.num_pixels * self.camera_config.num_samples * self.n_gains:
+            raise ValueError(f"Number of gains not correct, waveform shape is {event.waveform.shape[0]}"
+                             f" instead of "
+                             f"{self.camera_config.num_pixels * self.camera_config.num_samples * self.n_gains}")
 
         reshaped_waveform = np.array(
             event.waveform
         ).reshape(
-            n_gains,
+            self.n_gains,
             self.camera_config.num_pixels,
             self.camera_config.num_samples
         )
 
         # initialize the waveform container to zero
-        r0_container.waveform = np.zeros([n_gains, self.n_camera_pixels,
+        r0_container.waveform = np.zeros([self.n_gains, self.n_camera_pixels,
                                           self.camera_config.num_samples])
 
         # re-order the waveform following the expected_pixels_id values
@@ -321,12 +357,11 @@ class LSTEventSource(EventSource):
 
         # initialize the container
         status_container = PixelStatusContainer()
-        status_container.hardware_mask = np.zeros([self.n_camera_pixels], dtype=bool)
-        status_container.pedestal_mask = np.zeros([self.n_camera_pixels], dtype=bool)
-        status_container.flatfield_mask = np.zeros([self.n_camera_pixels], dtype=bool)
+        status_container.hardware_failing_pixels = np.zeros((self.n_gains, self.n_camera_pixels), dtype=bool)
+        status_container.pedestal_failing_pixels = np.zeros((self.n_gains, self.n_camera_pixels), dtype=bool)
+        status_container.flatfield_failing_pixels = np.zeros((self.n_gains, self.n_camera_pixels), dtype=bool)
 
         mon_camera_container.pixel_status = status_container
-        
 
     def fill_mon_container_from_zfile(self, event):
         """
@@ -338,14 +373,9 @@ class LSTEventSource(EventSource):
         status_container = self.data.mon.tel[self.camera_config.telescope_id].pixel_status
 
         # reorder the array
-        pixel_status = np.zeros([self.n_camera_pixels])
-        pixel_status[self.camera_config.expected_pixels_id] = \
-            event.pixel_status
-
-        # initialize the hardware mask
-        status_container.hardware_mask = pixel_status == 0
-
-
+        pixel_status = np.zeros(self.n_camera_pixels)
+        pixel_status[self.camera_config.expected_pixels_id] = event.pixel_status
+        status_container.hardware_failing_pixels[:] = pixel_status == 0
 
 
 class MultiFiles:
