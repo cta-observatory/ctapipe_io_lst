@@ -7,7 +7,7 @@ Needs protozfits v1.4.2 from github.com/cta-sst-1m/protozfitsreader
 import numpy as np
 import struct
 from astropy import units as u
-import glob
+import os
 from os import listdir, getcwd
 
 from ctapipe.core import Provenance
@@ -44,6 +44,8 @@ class LSTEventSource(EventSource):
         help='Read in parallel all streams '
     ).tag(config=True)
 
+
+
     def __init__(self, **kwargs):
         """
         Constructor
@@ -65,11 +67,6 @@ class LSTEventSource(EventSource):
             the 'input_url' parameter.
         """
 
-        # EventSource can not handle file wild cards as input_url
-        # To overcome this we substitute the input_url with first file matching
-        # the specified file mask (copied from  MAGICEventSourceROOT).
-
-
         super().__init__(**kwargs)
 
         if self.multi_streams:
@@ -77,12 +74,7 @@ class LSTEventSource(EventSource):
             # file name must be [stream name]Run[all the rest]
             # All the files with the same [all the rest] are opened
 
-            if '/' in self.input_url:
-                dir, name = self.input_url.rsplit('/', 1)
-            else:
-                dir = getcwd()
-                name = self.input_url
-
+            dir, name = os.path.split(os.path.abspath(self.input_url))
             if 'Run' in name:
                 stream, run = name.split('Run', 1)
             else:
@@ -93,9 +85,9 @@ class LSTEventSource(EventSource):
 
             for file_name in ls:
                 if run in file_name:
-                    full_name = dir + '/' + file_name
+                    full_name = os.path.join(dir,file_name)
                     self.file_list.append(full_name)
-                    Provenance().add_input_file(full_name, role='dl0.sub.evt')
+
         else:
             self.file_list = [self.input_url]
 
