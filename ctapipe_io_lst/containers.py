@@ -9,9 +9,11 @@ from ctapipe.io.containers import DataContainer, MonitoringContainer
 
 __all__ = [
     'LSTEventContainer',
+    'LSTMonitoringContainer',
     'LSTServiceContainer',
     'LSTCameraContainer',
     'LSTContainer',
+    'LSTMonitoringContainer',
     'LSTDataContainer'
 ]
 
@@ -82,12 +84,19 @@ class LSTEventContainer(Container):
     drs_tag = Field([], "DRS tag")
 
 
+class LSTMonitoringContainer(Container):
+    """
+    Container for Fields/containers that are specific for the LST monitoring
+    e.g. the pointing data
+    """
+
 class LSTCameraContainer(Container):
     """
     Container for Fields that are specific to each LST camera
     """
     evt = Field(LSTEventContainer(), "LST specific event Information")
     svc = Field(LSTServiceContainer(), "LST specific camera_config Information")
+    mon = Field(LSTMonitoringContainer(), "LST specific monitoring Information")
 
 
 class LSTContainer(Container):
@@ -107,6 +116,6 @@ class LSTDataContainer(DataContainer):
     Data container including LST and monitoring information
     """
     lst = Field(LSTContainer(), "LST specific Information")
-    mon = Field(MonitoringContainer(), "container for monitoring data (MON)")
+    mon = Field(MonitoringContainer(), "container for LST monitoring data (MON)")
 
 
