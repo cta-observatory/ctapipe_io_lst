@@ -44,8 +44,6 @@ class LSTEventSource(EventSource):
         help='Read in parallel all streams '
     ).tag(config=True)
 
-
-
     def __init__(self, **kwargs):
         """
         Constructor
@@ -74,18 +72,18 @@ class LSTEventSource(EventSource):
             # file name must be [stream name]Run[all the rest]
             # All the files with the same [all the rest] are opened
 
-            dir, name = os.path.split(os.path.abspath(self.input_url))
+            path, name = os.path.split(os.path.abspath(self.input_url))
             if 'Run' in name:
                 stream, run = name.split('Run', 1)
             else:
                 run = name
 
-            ls = listdir(dir)
+            ls = listdir(path)
             self.file_list = []
 
             for file_name in ls:
                 if run in file_name:
-                    full_name = os.path.join(dir,file_name)
+                    full_name = os.path.join(path,file_name)
                     self.file_list.append(full_name)
 
         else:
