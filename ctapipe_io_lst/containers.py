@@ -2,12 +2,13 @@
 Container structures for data that should be read or written to disk
 """
 from astropy import units as u
-
+from numpy import nan
 from ctapipe.core import Container, Field, Map
 from ctapipe.io.containers import DataContainer, MonitoringContainer
 
 
 __all__ = [
+    'LSTDriveContainer',
     'LSTEventContainer',
     'LSTMonitoringContainer',
     'LSTServiceContainer',
@@ -16,6 +17,24 @@ __all__ = [
     'LSTMonitoringContainer',
     'LSTDataContainer'
 ]
+
+
+class LSTDriveContainer(Container):
+    """
+    Drive report container
+    """
+    date = Field(" ", "observation date")
+    time_stamp = Field(-1, "timestamp")
+    epoch = Field(-1, "Epoch")
+    time = Field(-1, "time",)
+    Az_avg = Field(nan*u.rad, "Azimuth", unit=u.rad)
+    Az_min = Field(nan*u.rad, "Azimuth min", unit=u.rad)
+    Az_max = Field(nan*u.rad, "Azimuth max", unit=u.rad)
+    Az_rms = Field(nan*u.rad, "Azimuth RMS", unit=u.rad)
+    El_avg = Field(nan*u.rad, "Elevation", unit=u.rad)
+    El_min = Field(nan*u.rad, "Elevation min", unit=u.rad)
+    El_max = Field(nan*u.rad, "Elevation max", unit=u.rad)
+    El_rms = Field(nan*u.rad, "Elevation RMS", unit=u.rad)
 
 
 class LSTServiceContainer(Container):
@@ -89,7 +108,8 @@ class LSTMonitoringContainer(Container):
     Container for Fields/containers that are specific for the LST monitoring
     e.g. the pointing data
     """
-
+    drive = Field(LSTDriveContainer(), "container for LST drive reports")
+     
 
 class LSTCameraContainer(Container):
     """
@@ -118,5 +138,3 @@ class LSTDataContainer(DataContainer):
     """
     lst = Field(LSTContainer(), "LST specific Information")
     mon = Field(MonitoringContainer(), "container for LST monitoring data (MON)")
-
-
