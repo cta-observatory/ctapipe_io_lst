@@ -6,13 +6,13 @@ matrix:
       python: 3.6
       env:
         - PYTHON_VERSION=3.6
-        - CTAPIPE_VERSION=master
+        - CTAPIPE_VERSION=v0.7.0
 
     - os: linux
       python: 3.7
       env:
         - PYTHON_VERSION=3.7
-        - CTAPIPE_VERSION=master
+        - CTAPIPE_VERSION=v0.7.0
 
 
 before_install:
@@ -31,7 +31,7 @@ install:
     - conda create --name travis python=$PYTHON_VERSION
     - travis_wait 20 conda env update -n travis --file py${PYTHON_VERSION}_env.yaml
     - conda activate travis
-    
+
     # we install ctapipe using pip to be able to select any commit, e.g. the current master
     - pip install https://github.com/cta-observatory/ctapipe/archive/$CTAPIPE_VERSION.tar.gz
     - pip install -e .
