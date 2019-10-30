@@ -27,6 +27,7 @@ dependencies:
   - zlib
   - gcc_linux-64
   - gxx_linux-64
+  - pip
   - pip:
       - pytest_runner
       - https://github.com/cta-observatory/ctapipe-extra/archive/v0.2.18.tar.gz

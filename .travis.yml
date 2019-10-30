@@ -28,8 +28,7 @@ before_install:
     - conda info -a # Useful for debugging any issues with conda
 
 install:
-    - conda env create --name travis python=$PYTHON_VERSION
-    - travis_wait 20 conda env update -n travis --file py${PYTHON_VERSION}_env.yaml
+    - conda env create -n travis python=$PYTHON_VERSION -f py${PYTHON_VERSION}_env.yaml
     - conda activate travis
 
     # we install ctapipe using pip to be able to select any commit, e.g. the current master
