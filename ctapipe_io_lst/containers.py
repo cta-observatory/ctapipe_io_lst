@@ -27,14 +27,14 @@ class LSTDriveContainer(Container):
     time_stamp = Field(-1, "timestamp")
     epoch = Field(-1, "Epoch")
     time = Field(-1, "time",)
-    Az_avg = Field(nan*u.rad, "Azimuth", unit=u.rad)
-    Az_min = Field(nan*u.rad, "Azimuth min", unit=u.rad)
-    Az_max = Field(nan*u.rad, "Azimuth max", unit=u.rad)
-    Az_rms = Field(nan*u.rad, "Azimuth RMS", unit=u.rad)
-    El_avg = Field(nan*u.rad, "Elevation", unit=u.rad)
-    El_min = Field(nan*u.rad, "Elevation min", unit=u.rad)
-    El_max = Field(nan*u.rad, "Elevation max", unit=u.rad)
-    El_rms = Field(nan*u.rad, "Elevation RMS", unit=u.rad)
+    azimuth_avg = Field(nan * u.rad, "Azimuth", unit=u.rad)
+    azimuth_min = Field(nan * u.rad, "Azimuth min", unit=u.rad)
+    azimuth_max = Field(nan * u.rad, "Azimuth max", unit=u.rad)
+    azimuth_rmse = Field(nan * u.rad, "Azimuth root-mean-square error", unit=u.rad)
+    altitude_avg = Field(nan * u.rad, "Altitude", unit=u.rad)
+    altitude_min = Field(nan * u.rad, "Altitude min", unit=u.rad)
+    altitude_max = Field(nan * u.rad, "Altitude max", unit=u.rad)
+    altitude_rmse = Field(nan * u.rad, "Altitude root-mean-square error", unit=u.rad)
 
 
 class LSTServiceContainer(Container):
