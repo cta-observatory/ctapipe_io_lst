@@ -88,8 +88,14 @@ class LSTEventContainer(Container):
     ucts_trigger_type = Field(None, "UCTS trigger type")
     ucts_white_rabbit_status = Field(None, "UCTS whiteRabbit status")
 
-    #cdts_data = Field([], "CDTS data array")
-    swat_data = Field([], "SWAT data array")
+    swat_timestamp = Field(None, "SWAT timestamp")
+    swat_counter1 = Field(None, "SWAT event counter 1")
+    swat_counter2 = Field(None, "SWAT event counter 2")
+    swat_event_type = Field(None, "SWAT event type")
+    swat_camera_flag = Field(None, "SWAT camera flag ")
+    swat_camera_event_num = Field(None, "SWAT camera event number")
+    swat_array_flag = Field(None, "SWAT array negative flag")
+    swat_array_event_num = Field(None, "SWAT array event number")
 
     pps_counter= Field([], "Dragon pulse per second counter (n_modules)")
     tenMHz_counter = Field([], "Dragon 10 MHz counter (n_modules)")
