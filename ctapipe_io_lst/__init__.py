@@ -329,13 +329,13 @@ class LSTEventSource(EventSource):
         Fill with R0CameraContainer
         """
 
-        # look for correct trigger_time (TAI time in ns), first in UCTS and then in TIB
-
+        # look for correct trigger_time (TAI time in s), first in UCTS and then in TIB
         if self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp > 0:
-            r0_container.trigger_time = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp
+            r0_container.trigger_time = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp/1e9
 
-        elif self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter >0:
+        elif self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter > 0:
             r0_container.trigger_time = (
+                self.data.lst.tel[self.camera_config.telescope_id].svc.date +
                 self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
                 self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
         else:
