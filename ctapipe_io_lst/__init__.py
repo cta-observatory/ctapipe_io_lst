@@ -8,8 +8,9 @@ import numpy as np
 import struct
 from astropy import units as u
 import os
-from os import listdir, getcwd
-
+from os import listdir
+from astropy.time import Time
+from datetime import datetime
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
     TelescopeDescription,
@@ -232,26 +233,71 @@ class LSTEventSource(EventSource):
         event_container.module_status = event.lstcam.module_status
         event_container.extdevices_presence = event.lstcam.extdevices_presence
 
-        # unpack TIB data
-        rec_fmt = '=IHIBB'
-        unpacked_tib = struct.unpack(rec_fmt, event.lstcam.tib_data)
-        event_container.tib_event_counter = unpacked_tib[0]
-        event_container.tib_pps_counter = unpacked_tib[1]
-        event_container.tib_tenMHz_counter = unpacked_tib[2]
-        event_container.tib_stereo_pattern = unpacked_tib[3]
-        event_container.tib_masked_trigger = unpacked_tib[4]
-        event_container.swat_data = event.lstcam.swat_data
+        # if TIB data are there
+        if event_container.extdevices_presence & 1:
+            # unpack TIB data
+            rec_fmt = '=IHIBB'
+            unpacked_tib = struct.unpack(rec_fmt, event.lstcam.tib_data)
+            event_container.tib_event_counter = unpacked_tib[0]
+            event_container.tib_pps_counter = unpacked_tib[1]
+            event_container.tib_tenMHz_counter = unpacked_tib[2]
+            event_container.tib_stereo_pattern = unpacked_tib[3]
+            event_container.tib_masked_trigger = unpacked_tib[4]
+        else:
+            # missing TIB data
+            event_container.tib_event_counter = -1
+            event_container.tib_pps_counter = -1
+            event_container.tib_tenMHz_counter = -1
+            event_container.tib_stereo_pattern = -1
+            event_container.tib_masked_trigger = -1
 
-        # unpack CDTS data
-        rec_fmt = '=IIIQQBBB'
-        unpacked_cdts =  struct.unpack(rec_fmt, event.lstcam.cdts_data)
-        event_container.ucts_event_counter = unpacked_cdts[0]
-        event_container.ucts_pps_counter = unpacked_cdts[1]
-        event_container.ucts_clock_counter = unpacked_cdts[2]
-        event_container.ucts_timestamp = unpacked_cdts[3]
-        event_container.ucts_camera_timestamp = unpacked_cdts[4]
-        event_container.ucts_trigger_type = unpacked_cdts[5]
-        event_container.ucts_white_rabbit_status = unpacked_cdts[6]
+        # if UCTS data are there
+        if event_container.extdevices_presence & 2:
+
+            # unpack UCTS-CDTS data
+            rec_fmt = '=IIIQQBBB'
+            unpacked_cdts =  struct.unpack(rec_fmt, event.lstcam.cdts_data)
+            event_container.ucts_event_counter = unpacked_cdts[0]
+            event_container.ucts_pps_counter = unpacked_cdts[1]
+            event_container.ucts_clock_counter = unpacked_cdts[2]
+            event_container.ucts_timestamp = unpacked_cdts[3]
+            event_container.ucts_camera_timestamp = unpacked_cdts[4]
+            event_container.ucts_trigger_type = unpacked_cdts[5]
+            event_container.ucts_white_rabbit_status = unpacked_cdts[6]
+
+        else:
+            event_container.ucts_event_counter = -1
+            event_container.ucts_pps_counter = -1
+            event_container.ucts_clock_counter = -1
+            event_container.ucts_timestamp = -1
+            event_container.ucts_camera_timestamp = -1
+            event_container.ucts_trigger_type = -1
+            event_container.ucts_white_rabbit_status = -1
+
+
+        # if SWAT data are there
+        if event_container.extdevices_presence & 4:
+            # unpack SWAT data
+            rec_fmt = '=QIIBBIBI'
+            unpacked_swat = struct.unpack(rec_fmt, event.lstcam.swat_data)
+            event_container.swat_timestamp = unpacked_swat[0]
+            event_container.swat_counter1 = unpacked_swat[1]
+            event_container.swat_counter2 = unpacked_swat[2]
+            event_container.swat_event_type = unpacked_swat[3]
+            event_container.swat_camera_flag = unpacked_swat[4]
+            event_container.swat_camera_event_num = unpacked_swat[5]
+            event_container.swat_array_flag = unpacked_swat[6]
+            event_container.swat_array_event_num = unpacked_swat[7]
+
+        else:
+            event_container.swat_timestamp =-1
+            event_container.swat_counter1 = -1
+            event_container.swat_counter2 = -1
+            event_container.swat_event_type = -1
+            event_container.swat_camera_flag = -1
+            event_container.swat_camera_event_num = -1
+            event_container.swat_array_flag = -1
+            event_container.swat_array_event_num = -1
 
         # unpack Dragon counters
         rec_fmt = '=HIIIQ'
@@ -281,19 +327,30 @@ class LSTEventSource(EventSource):
     def fill_r0_camera_container_from_zfile(self, r0_container, event):
         """
         Fill with R0CameraContainer
-
         """
 
+        # look for correct trigger_time (TAI time in s), first in UCTS and then in TIB
+        #if self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp > 0:
+        #    r0_container.trigger_time = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp/1e9
 
-        # temporary patch to have an event time set
-        r0_container.trigger_time = (
-            self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
-            self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
-
-        if r0_container.trigger_time is None:
+        # consider for the moment only TIB time since UCTS seems not correct
+        if self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter > 0:
+            r0_container.trigger_time = (
+                self.data.lst.tel[self.camera_config.telescope_id].svc.date +
+                self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
+                self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
+        else:
             r0_container.trigger_time = 0
-        #r0_container.trigger_type = event.trigger_type
-        r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger
+
+        # look for correct trigger type first in UCTS and then in TIB
+        #if self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_trigger_type > 0:
+        #    r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_trigger_type
+
+        # consider for the moment only TIB trigger since UCTS seems not correct
+        if self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger > 0:
+            r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger
+        else:
+            r0_container.trigger_type = -1
 
         # verify the number of gains
         if event.waveform.shape[0] != self.camera_config.num_pixels * self.camera_config.num_samples * self.n_gains:
