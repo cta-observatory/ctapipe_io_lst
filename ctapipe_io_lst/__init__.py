@@ -330,10 +330,11 @@ class LSTEventSource(EventSource):
         """
 
         # look for correct trigger_time (TAI time in s), first in UCTS and then in TIB
-        if self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp > 0:
-            r0_container.trigger_time = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp/1e9
+        #if self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp > 0:
+        #    r0_container.trigger_time = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp/1e9
 
-        elif self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter > 0:
+        # consider for the moment only TIB time since UCTS seems not correct
+        if self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter > 0:
             r0_container.trigger_time = (
                 self.data.lst.tel[self.camera_config.telescope_id].svc.date +
                 self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
@@ -342,9 +343,11 @@ class LSTEventSource(EventSource):
             r0_container.trigger_time = 0
 
         # look for correct trigger type first in UCTS and then in TIB
-        if self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_trigger_type > 0:
-            r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_trigger_type
-        elif self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger > 0:
+        #if self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_trigger_type > 0:
+        #    r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_trigger_type
+
+        # consider for the moment only TIB trigger since UCTS seems not correct
+        if self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger > 0:
             r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger
         else:
             r0_container.trigger_type = -1
