@@ -110,7 +110,7 @@ class LSTEventSource(EventSource):
         ctapipe.instrument.SubarrayDecription
         """
 
-        tel_id = 0
+        tel_id = 1
 
         # optics info from standard optics.fits.gz file
         optics = OpticsDescription.from_name("LST")
