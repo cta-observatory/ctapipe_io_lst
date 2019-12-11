@@ -8,6 +8,7 @@ from ctapipe.io.containers import DataContainer, MonitoringContainer
 
 
 __all__ = [
+    'LSTDRS4TimeFitContainer',
     'LSTDriveContainer',
     'LSTEventContainer',
     'LSTMonitoringContainer',
@@ -17,6 +18,23 @@ __all__ = [
     'LSTMonitoringContainer',
     'LSTDataContainer'
 ]
+
+
+class LSTDRS4TimeFitContainer(Container):
+    """
+    Container with Fourier coefficient of
+    of drs4 time curve fit
+    """
+    n_events = Field(-1, "Number of used events")
+    n_armonics = Field(-1, "Number of used armonics")
+    b_sin_coef = Field(
+        None,
+        "array of sinus Fourier coefficients (n_gain, n_pixels, n_armonics)"
+    )
+    a_cos_coef = Field(
+        None,
+        "array of cosinus Fourier coefficients (n_gain, n_pixels, n_armonics)"
+    )
 
 
 class LSTDriveContainer(Container):
