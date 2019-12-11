@@ -102,6 +102,38 @@ class LSTEventSource(EventSource):
     def rewind(self):
         self.multi_file.rewind()
 
+    def subarray(self):
+        """
+        Obtain the subarray from the EventSource
+        Returns
+        -------
+        ctapipe.instrument.SubarrayDecription
+        """
+
+        tel_id = 1
+
+        # optics info from standard optics.fits.gz file
+        optics = OpticsDescription.from_name("LST")
+
+        # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
+        geometry_version = 2
+        camera = CameraGeometry.from_name("LSTCam", geometry_version)
+
+        tel_descr = TelescopeDescription(
+            name='LST', tel_type='LST', optics=optics, camera=camera
+        )
+
+        tels = {tel_id: tel_descr}
+
+        # LSTs telescope position taken from MC from the moment
+        tel_pos = {tel_id: [50., 50., 16] * u.m}
+
+        subarray = SubarrayDescription("LST1 subarray")
+        subarray.tels = tels
+        subarray.positions = tel_pos
+
+        return subarray
+
     def _generator(self):
 
         # container for LST data
