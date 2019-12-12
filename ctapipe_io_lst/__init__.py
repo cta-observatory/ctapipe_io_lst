@@ -116,7 +116,7 @@ class LSTEventSource(EventSource):
         optics = OpticsDescription.from_name("LST")
 
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
-        geometry_version = 2
+        geometry_version = 3
         camera = CameraGeometry.from_name("LSTCam", geometry_version)
 
         tel_descr = TelescopeDescription(
@@ -366,13 +366,20 @@ class LSTEventSource(EventSource):
         #    r0_container.trigger_time = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp/1e9
 
         # consider for the moment only TIB time since UCTS seems not correct
-        if self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter > 0:
-            r0_container.trigger_time = (
-                self.data.lst.tel[self.camera_config.telescope_id].svc.date +
-                self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
-                self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
-        else:
-            r0_container.trigger_time = 0
+        #if self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter > 0:
+        #    r0_container.trigger_time = (
+        #        self.data.lst.tel[self.camera_config.telescope_id].svc.date +
+        #        self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
+        #        self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
+        #else:
+        #    r0_container.trigger_time = 0
+
+        #consider for the moment trigger time from central dragon module
+        module_rank=np.where(self.data.lst.tel[self.camera_config.telescope_id].svc.module_ids == 132)
+        r0_container.trigger_time = (
+                    self.data.lst.tel[self.camera_config.telescope_id].svc.date +
+                    self.data.lst.tel[self.camera_config.telescope_id].evt.pps_counter[module_rank] +
+                    self.data.lst.tel[self.camera_config.telescope_id].evt.tenMHz_counter[module_rank] * 10**(-7))
 
         # look for correct trigger type first in UCTS and then in TIB
         #if self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_trigger_type > 0:
