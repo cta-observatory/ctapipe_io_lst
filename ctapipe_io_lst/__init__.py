@@ -240,7 +240,6 @@ class LSTEventSource(EventSource):
         svc_container.num_samples = self.camera_config.num_samples
         svc_container.pixel_ids = self.camera_config.expected_pixels_id
         svc_container.data_model_version = self.camera_config.data_model_version
-
         svc_container.num_modules = self.camera_config.lstcam.num_modules
         svc_container.module_ids = self.camera_config.lstcam.expected_modules_id
         svc_container.idaq_version = self.camera_config.lstcam.idaq_version
@@ -275,37 +274,38 @@ class LSTEventSource(EventSource):
             event_container.tib_tenMHz_counter = unpacked_tib[2]
             event_container.tib_stereo_pattern = unpacked_tib[3]
             event_container.tib_masked_trigger = unpacked_tib[4]
-        else:
-            # missing TIB data
-            event_container.tib_event_counter = -1
-            event_container.tib_pps_counter = -1
-            event_container.tib_tenMHz_counter = -1
-            event_container.tib_stereo_pattern = -1
-            event_container.tib_masked_trigger = -1
 
         # if UCTS data are there
         if event_container.extdevices_presence & 2:
 
-            # unpack UCTS-CDTS data
-            rec_fmt = '=IIIQQBBB'
-            unpacked_cdts =  struct.unpack(rec_fmt, event.lstcam.cdts_data)
-            event_container.ucts_event_counter = unpacked_cdts[0]
-            event_container.ucts_pps_counter = unpacked_cdts[1]
-            event_container.ucts_clock_counter = unpacked_cdts[2]
-            event_container.ucts_timestamp = unpacked_cdts[3]
-            event_container.ucts_camera_timestamp = unpacked_cdts[4]
-            event_container.ucts_trigger_type = unpacked_cdts[5]
-            event_container.ucts_white_rabbit_status = unpacked_cdts[6]
+            if int(self.data.lst.tel[self.camera_config.telescope_id].svc.idaq_version) > 37201:
 
-        else:
-            event_container.ucts_event_counter = -1
-            event_container.ucts_pps_counter = -1
-            event_container.ucts_clock_counter = -1
-            event_container.ucts_timestamp = -1
-            event_container.ucts_camera_timestamp = -1
-            event_container.ucts_trigger_type = -1
-            event_container.ucts_white_rabbit_status = -1
+                # unpack UCTS-CDTS data (new version)
+                rec_fmt = '=QIIIIIBBBBI'
+                unpacked_cdts = struct.unpack(rec_fmt, event.lstcam.cdts_data)
+                event_container.ucts_timestamp = unpacked_cdts[0]
+                event_container.ucts_address = unpacked_cdts[1]        # new
+                event_container.ucts_event_counter = unpacked_cdts[2]
+                event_container.ucts_busy_counter = unpacked_cdts[3]   # new
+                event_container.ucts_pps_counter = unpacked_cdts[4]
+                event_container.ucts_clock_counter = unpacked_cdts[5]
+                event_container.ucts_trigger_type = unpacked_cdts[6]
+                event_container.ucts_white_rabbit_status = unpacked_cdts[7]
+                event_container.ucts_stereo_pattern = unpacked_cdts[8] # new
+                event_container.ucts_num_in_bunch = unpacked_cdts[9]   # new
+                event_container.ucts_cdts_version = unpacked_cdts[10]  # new
 
+            else:
+                # unpack UCTS-CDTS data (old version)
+                rec_fmt = '=IIIQQBBB'
+                unpacked_cdts =  struct.unpack(rec_fmt, event.lstcam.cdts_data)
+                event_container.ucts_event_counter = unpacked_cdts[0]
+                event_container.ucts_pps_counter = unpacked_cdts[1]
+                event_container.ucts_clock_counter = unpacked_cdts[2]
+                event_container.ucts_timestamp = unpacked_cdts[3]
+                event_container.ucts_camera_timestamp = unpacked_cdts[4]
+                event_container.ucts_trigger_type = unpacked_cdts[5]
+                event_container.ucts_white_rabbit_status = unpacked_cdts[6]
 
         # if SWAT data are there
         if event_container.extdevices_presence & 4:
@@ -320,16 +320,6 @@ class LSTEventSource(EventSource):
             event_container.swat_camera_event_num = unpacked_swat[5]
             event_container.swat_array_flag = unpacked_swat[6]
             event_container.swat_array_event_num = unpacked_swat[7]
-
-        else:
-            event_container.swat_timestamp =-1
-            event_container.swat_counter1 = -1
-            event_container.swat_counter2 = -1
-            event_container.swat_event_type = -1
-            event_container.swat_camera_flag = -1
-            event_container.swat_camera_event_num = -1
-            event_container.swat_array_flag = -1
-            event_container.swat_array_event_num = -1
 
         # unpack Dragon counters
         rec_fmt = '=HIIIQ'
@@ -375,7 +365,7 @@ class LSTEventSource(EventSource):
         #    r0_container.trigger_time = 0
 
         #consider for the moment trigger time from central dragon module
-        module_rank=np.where(self.data.lst.tel[self.camera_config.telescope_id].svc.module_ids == 132)
+        module_rank = np.where(self.data.lst.tel[self.camera_config.telescope_id].svc.module_ids == 132)
         r0_container.trigger_time = (
                     self.data.lst.tel[self.camera_config.telescope_id].svc.date +
                     self.data.lst.tel[self.camera_config.telescope_id].evt.pps_counter[module_rank] +
