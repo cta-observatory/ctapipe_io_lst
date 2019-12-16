@@ -7,6 +7,7 @@ Needs protozfits v1.4.2 from github.com/cta-sst-1m/protozfitsreader
 import numpy as np
 import struct
 from astropy import units as u
+from pkg_resources import resource_filename
 import os
 from os import listdir
 from astropy.time import Time
@@ -25,6 +26,14 @@ from .containers import LSTDataContainer
 from ctapipe.io.containers import PixelStatusContainer
 
 __all__ = ['LSTEventSource']
+
+
+def load_camera_geometry(version=3):
+    ''' Load camera geometry from bundled resources of this repo '''
+    f = resource_filename(
+        'ctapipe_io_lst', 'resources/LSTCam-{:03d}'.format(version)
+    )
+    return CameraGeometry.from_table(f)
 
 
 class LSTEventSource(EventSource):
@@ -92,6 +101,8 @@ class LSTEventSource(EventSource):
 
         self.multi_file = MultiFiles(self.file_list)
 
+        self.geometry_version=3
+
         self.camera_config = self.multi_file.camera_config
         self.log.info(
             "Read {} input files".format(
@@ -116,9 +127,7 @@ class LSTEventSource(EventSource):
         optics = OpticsDescription.from_name("LST")
 
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
-
-        geometry_version = 3
-        camera = CameraGeometry.from_name("LSTCam", geometry_version)
+        camera = load_camera_geometry(version=self.geometry_version)
 
         tel_descr = TelescopeDescription(
             name='LST', tel_type='LST', optics=optics, camera=camera
@@ -155,8 +164,7 @@ class LSTEventSource(EventSource):
             optics = OpticsDescription.from_name("LST")
 
             # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
-            geometry_version = 3
-            camera = CameraGeometry.from_name("LSTCam", geometry_version)
+            camera = load_camera_geometry(version=self.geometry_version)
 
             tel_descr = TelescopeDescription(
                 name='LST', tel_type='LST', optics=optics, camera=camera
