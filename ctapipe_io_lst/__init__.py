@@ -116,7 +116,8 @@ class LSTEventSource(EventSource):
         optics = OpticsDescription.from_name("LST")
 
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
-        geometry_version = 3
+        # as soon as ctapipe-extra go to version 0.2.19 we should mv to version 3
+        geometry_version = 2
         camera = CameraGeometry.from_name("LSTCam", geometry_version)
 
         tel_descr = TelescopeDescription(
