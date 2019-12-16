@@ -158,8 +158,6 @@ class LSTEventSource(EventSource):
         # Instrument information
         for tel_id in self.data.lst.tels_with_data:
 
-            assert (tel_id == 0 or tel_id == 1) # only LST1
-
             # optics info from standard optics.fits.gz file
             optics = OpticsDescription.from_name("LST")
 
