@@ -116,8 +116,8 @@ class LSTEventSource(EventSource):
         optics = OpticsDescription.from_name("LST")
 
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
-        # as soon as ctapipe-extra go to version 0.2.19 we should mv to version 3
-        geometry_version = 2
+
+        geometry_version = 3
         camera = CameraGeometry.from_name("LSTCam", geometry_version)
 
         tel_descr = TelescopeDescription(
@@ -149,7 +149,7 @@ class LSTEventSource(EventSource):
         # Instrument information
         for tel_id in self.data.lst.tels_with_data:
 
-            assert (tel_id == 0 or tel_id == 1) # only LST1 (for the moment id = 0)
+            assert (tel_id == 0 or tel_id == 1) # only LST1
 
             # optics info from standard optics.fits.gz file
             optics = OpticsDescription.from_name("LST")
@@ -167,6 +167,7 @@ class LSTEventSource(EventSource):
 
             # LSTs telescope position taken from MC from the moment
             tel_pos = {tel_id: [50., 50., 16] * u.m}
+
 
         subarray = SubarrayDescription("LST1 subarray")
         subarray.tels = tels
