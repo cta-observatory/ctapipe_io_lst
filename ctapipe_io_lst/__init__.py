@@ -31,7 +31,7 @@ __all__ = ['LSTEventSource']
 def load_camera_geometry(version=3):
     ''' Load camera geometry from bundled resources of this repo '''
     f = resource_filename(
-        'ctapipe_io_lst', 'resources/LSTCam-{:03d}'.format(version)
+        'ctapipe_io_lst', 'resources/LSTCam-{:03d}.camgeom.fits.gz'.format(version)
     )
     return CameraGeometry.from_table(f)
 
