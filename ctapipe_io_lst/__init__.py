@@ -1,8 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 """
 EventSource for LSTCam protobuf-fits.fz-files.
-
-Needs protozfits v1.4.2 from github.com/cta-sst-1m/protozfitsreader
 """
 import numpy as np
 import struct
@@ -28,8 +26,17 @@ from .containers import LSTDataContainer
 from .version import get_version
 
 __version__ = get_version(pep440=False)
-print(__version__)
 __all__ = ['LSTEventSource']
+
+
+
+OPTICS = OpticsDescription(
+    'LST',
+    equivalent_focal_length=u.Quantity(28, u.m),
+    num_mirrors=1,
+    mirror_area=u.Quantity(386.73, u.m**2),
+    num_mirror_tiles=198,
+)
 
 
 def load_camera_geometry(version=3):
@@ -38,6 +45,7 @@ def load_camera_geometry(version=3):
         'ctapipe_io_lst', 'resources/LSTCam-{:03d}.camgeom.fits.gz'.format(version)
     )
     return CameraGeometry.from_table(f)
+
 
 
 class LSTEventSource(EventSource):
@@ -127,14 +135,11 @@ class LSTEventSource(EventSource):
 
         tel_id = 1
 
-        # optics info from standard optics.fits.gz file
-        optics = OpticsDescription.from_name("LST")
-
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
         camera = load_camera_geometry(version=self.geometry_version)
 
         tel_descr = TelescopeDescription(
-            name='LST', tel_type='LST', optics=optics, camera=camera
+            name='LST', tel_type='LST', optics=OPTICS, camera=camera
         )
 
         tels = {tel_id: tel_descr}
@@ -162,14 +167,11 @@ class LSTEventSource(EventSource):
         # Instrument information
         for tel_id in self.data.lst.tels_with_data:
 
-            # optics info from standard optics.fits.gz file
-            optics = OpticsDescription.from_name("LST")
-
             # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
             camera = load_camera_geometry(version=self.geometry_version)
 
             tel_descr = TelescopeDescription(
-                name='LST', tel_type='LST', optics=optics, camera=camera
+                name='LST', tel_type='LST', optics=OPTICS, camera=camera
             )
 
             self.n_camera_pixels = tel_descr.camera.n_pixels
