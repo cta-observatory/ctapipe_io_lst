@@ -7,11 +7,11 @@ Install:
 ```
 conda env create -n lstenv -f py3.7_env.yaml
 conda activate lstenv
-pip install .
+pip install -e .
 ```
 
 Or in your favorite conda environment:
 ```
 conda env update -f py3.7_env.yaml
-pip install .
+pip install -e .
 ```

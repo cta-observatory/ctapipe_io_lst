@@ -1,5 +1,6 @@
 from setuptools import setup, find_packages
 from os import path
+import ctapipe_io_lst
 
 # read the contents of your README file
 this_directory = path.abspath(path.dirname(__file__))
@@ -10,7 +11,7 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
 setup(
     name='ctapipe_io_lst',
     packages=find_packages(),
-    version='0.4.0',
+    version=ctapipe_io_lst.__version__,
     description='ctapipe plugin for reading LST prototype files',
     long_description=long_description,
     long_description_content_type='text/markdown',
