@@ -17,7 +17,7 @@ setup(
     install_requires=[
         'astropy',
         'ctapipe',
-        'protozfits',
+        'protozfits'
     ],
     package_data={
         'ctapipe_io_lst': ['resources/*'],
