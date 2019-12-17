@@ -22,13 +22,15 @@ from ctapipe.instrument import (
 
 from ctapipe.io import EventSource
 from ctapipe.core.traits import Int, Bool
-from .containers import LSTDataContainer
 from ctapipe.io.containers import PixelStatusContainer
 
-from . import version
-__version__ = version.get_version(pep440=False)
+from .containers import LSTDataContainer
+from .version import get_version
 
+__version__ = get_version(pep440=False)
+print(__version__)
 __all__ = ['LSTEventSource']
+
 
 def load_camera_geometry(version=3):
     ''' Load camera geometry from bundled resources of this repo '''

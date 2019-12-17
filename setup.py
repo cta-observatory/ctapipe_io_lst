@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 from os import path
-import ctapipe_io_lst
+from version import get_version, update_release_version
 
 # read the contents of your README file
 this_directory = path.abspath(path.dirname(__file__))
@@ -8,17 +8,21 @@ with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 
+update_release_version()
+version = get_version()
+
 setup(
     name='ctapipe_io_lst',
     packages=find_packages(),
-    version=ctapipe_io_lst.__version__,
+    version=version,
     description='ctapipe plugin for reading LST prototype files',
     long_description=long_description,
     long_description_content_type='text/markdown',
     install_requires=[
         'astropy',
         'ctapipe',
-        'protozfits'
+        'protozfits @ https://github.com/cta-sst-1m/protozfitsreader/archive/v1.4.2.tar.gz',
+
     ],
     package_data={
         'ctapipe_io_lst': ['resources/*'],
