@@ -113,7 +113,7 @@ class LSTEventSource(EventSource):
 
         self.multi_file = MultiFiles(self.file_list)
 
-        self.geometry_version=3
+        self.geometry_version=4
 
         self.camera_config = self.multi_file.camera_config
         self.log.info(
