@@ -39,7 +39,7 @@ OPTICS = OpticsDescription(
 )
 
 
-def load_camera_geometry(version=3):
+def load_camera_geometry(version=4):
     ''' Load camera geometry from bundled resources of this repo '''
     f = resource_filename(
         'ctapipe_io_lst', 'resources/LSTCam-{:03d}.camgeom.fits.gz'.format(version)
@@ -125,15 +125,13 @@ class LSTEventSource(EventSource):
     def rewind(self):
         self.multi_file.rewind()
 
-    def subarray(self):
+    def subarray(self,tel_id = 1):
         """
         Obtain the subarray from the EventSource
         Returns
         -------
         ctapipe.instrument.SubarrayDecription
         """
-
-        tel_id = 1
 
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
         camera = load_camera_geometry(version=self.geometry_version)
