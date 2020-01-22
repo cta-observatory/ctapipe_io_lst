@@ -32,10 +32,10 @@ class LSTDriveContainer(Container):
     azimuth_min = Field(nan * u.rad, "Azimuth min", unit=u.rad)
     azimuth_max = Field(nan * u.rad, "Azimuth max", unit=u.rad)
     azimuth_rmse = Field(nan * u.rad, "Azimuth root-mean-square error", unit=u.rad)
-    altitude_avg = Field(nan * u.rad, "Altitude", unit=u.rad)
-    altitude_min = Field(nan * u.rad, "Altitude min", unit=u.rad)
-    altitude_max = Field(nan * u.rad, "Altitude max", unit=u.rad)
-    altitude_rmse = Field(nan * u.rad, "Altitude root-mean-square error", unit=u.rad)
+    zenith_avg = Field(nan * u.rad, "Zenith", unit=u.rad)
+    zenith_min = Field(nan * u.rad, "Zenith min", unit=u.rad)
+    zenith_max = Field(nan * u.rad, "Zenith max", unit=u.rad)
+    zenith_rmse = Field(nan * u.rad, "Zenith root-mean-square error", unit=u.rad)
 
 
 class LSTServiceContainer(Container):
