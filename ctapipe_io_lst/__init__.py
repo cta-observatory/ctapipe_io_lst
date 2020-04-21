@@ -8,8 +8,6 @@ from astropy import units as u
 from pkg_resources import resource_filename
 import os
 from os import listdir
-from astropy.time import Time
-from datetime import datetime
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
     TelescopeDescription,
@@ -29,7 +27,6 @@ __version__ = get_version(pep440=False)
 __all__ = ['LSTEventSource']
 
 
-
 OPTICS = OpticsDescription(
     'LST',
     equivalent_focal_length=u.Quantity(28, u.m),
@@ -42,10 +39,9 @@ OPTICS = OpticsDescription(
 def load_camera_geometry(version=4):
     ''' Load camera geometry from bundled resources of this repo '''
     f = resource_filename(
-        'ctapipe_io_lst', 'resources/LSTCam-{:03d}.camgeom.fits.gz'.format(version)
+        'ctapipe_io_lst', f'resources/LSTCam-{version:03d}.camgeom.fits.gz'
     )
     return CameraGeometry.from_table(f)
-
 
 
 class LSTEventSource(EventSource):
@@ -105,15 +101,14 @@ class LSTEventSource(EventSource):
 
             for file_name in ls:
                 if run in file_name:
-                    full_name = os.path.join(path,file_name)
+                    full_name = os.path.join(path, file_name)
                     self.file_list.append(full_name)
 
         else:
             self.file_list = [self.input_url]
 
         self.multi_file = MultiFiles(self.file_list)
-
-        self.geometry_version=4
+        self.geometry_version = 4
 
         self.camera_config = self.multi_file.camera_config
         self.log.info(
@@ -121,11 +116,14 @@ class LSTEventSource(EventSource):
                 self.multi_file.num_inputs()
             )
         )
+        self.tel_id = self.camera_config.telescope_id
+        self.subarray = self.create_subarray(self.tel_id)
+        self.n_camera_pixels = self.subarray.tel[self.tel_id].camera.n_pixels
 
     def rewind(self):
         self.multi_file.rewind()
 
-    def subarray(self,tel_id = 1):
+    def create_subarray(self, tel_id=1):
         """
         Obtain the subarray from the EventSource
         Returns
@@ -161,29 +159,7 @@ class LSTEventSource(EventSource):
 
         # fill LST data from the CameraConfig table
         self.fill_lst_service_container_from_zfile()
-
-        # Instrument information
-        for tel_id in self.data.lst.tels_with_data:
-
-            # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
-            camera = load_camera_geometry(version=self.geometry_version)
-
-            tel_descr = TelescopeDescription(
-                name='LST', tel_type='LST', optics=OPTICS, camera=camera
-            )
-
-            self.n_camera_pixels = tel_descr.camera.n_pixels
-            tels = {tel_id: tel_descr}
-
-            # LSTs telescope position taken from MC from the moment
-            tel_pos = {tel_id: [50., 50., 16] * u.m}
-
-
-        subarray = SubarrayDescription("LST1 subarray")
-        subarray.tels = tels
-        subarray.positions = tel_pos
-
-        self.data.inst.subarray = subarray
+        self.data.inst.subarray = self.subarray
 
         # initialize general monitoring container
         self.initialize_mon_container()
@@ -241,10 +217,10 @@ class LSTEventSource(EventSource):
 
         """
 
-        self.data.lst.tels_with_data = [self.camera_config.telescope_id, ]
-        svc_container = self.data.lst.tel[self.camera_config.telescope_id].svc
+        self.data.lst.tels_with_data = [self.tel_id, ]
+        svc_container = self.data.lst.tel[self.tel_id].svc
 
-        svc_container.telescope_id = self.camera_config.telescope_id
+        svc_container.telescope_id = self.tel_id
         svc_container.cs_serial = self.camera_config.cs_serial
         svc_container.configuration_id = self.camera_config.configuration_id
         svc_container.date = self.camera_config.date
@@ -266,7 +242,7 @@ class LSTEventSource(EventSource):
 
         """
 
-        event_container = self.data.lst.tel[self.camera_config.telescope_id].evt
+        event_container = self.data.lst.tel[self.tel_id].evt
 
         event_container.configuration_id = event.configuration_id
         event_container.event_id = event.event_id
@@ -290,7 +266,7 @@ class LSTEventSource(EventSource):
         # if UCTS data are there
         if event_container.extdevices_presence & 2:
 
-            if int(self.data.lst.tel[self.camera_config.telescope_id].svc.idaq_version) > 37201:
+            if int(self.data.lst.tel[self.tel_id].svc.idaq_version) > 37201:
 
                 # unpack UCTS-CDTS data (new version)
                 rec_fmt = '=QIIIIIBBBBI'
@@ -364,32 +340,32 @@ class LSTEventSource(EventSource):
         """
 
         # look for correct trigger_time (TAI time in s), first in UCTS and then in TIB
-        #if self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp > 0:
-        #    r0_container.trigger_time = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_timestamp/1e9
+        #if self.data.lst.tel[self.tel_id].evt.ucts_timestamp > 0:
+        #    r0_container.trigger_time = self.data.lst.tel[self.tel_id].evt.ucts_timestamp/1e9
 
         # consider for the moment only TIB time since UCTS seems not correct
-        #if self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter > 0:
+        #if self.data.lst.tel[self.tel_id].evt.tib_pps_counter > 0:
         #    r0_container.trigger_time = (
-        #        self.data.lst.tel[self.camera_config.telescope_id].svc.date +
-        #        self.data.lst.tel[self.camera_config.telescope_id].evt.tib_pps_counter +
-        #        self.data.lst.tel[self.camera_config.telescope_id].evt.tib_tenMHz_counter * 10**(-7))
+        #        self.data.lst.tel[self.tel_id].svc.date +
+        #        self.data.lst.tel[self.tel_id].evt.tib_pps_counter +
+        #        self.data.lst.tel[self.tel_id].evt.tib_tenMHz_counter * 10**(-7))
         #else:
         #    r0_container.trigger_time = 0
 
         #consider for the moment trigger time from central dragon module
-        module_rank = np.where(self.data.lst.tel[self.camera_config.telescope_id].svc.module_ids == 132)
+        module_rank = np.where(self.data.lst.tel[self.tel_id].svc.module_ids == 132)
         r0_container.trigger_time = (
-                    self.data.lst.tel[self.camera_config.telescope_id].svc.date +
-                    self.data.lst.tel[self.camera_config.telescope_id].evt.pps_counter[module_rank] +
-                    self.data.lst.tel[self.camera_config.telescope_id].evt.tenMHz_counter[module_rank] * 10**(-7))
+                    self.data.lst.tel[self.tel_id].svc.date +
+                    self.data.lst.tel[self.tel_id].evt.pps_counter[module_rank] +
+                    self.data.lst.tel[self.tel_id].evt.tenMHz_counter[module_rank] * 10**(-7))
 
         # look for correct trigger type first in UCTS and then in TIB
-        #if self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_trigger_type > 0:
-        #    r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.ucts_trigger_type
+        #if self.data.lst.tel[self.tel_id].evt.ucts_trigger_type > 0:
+        #    r0_container.trigger_type = self.data.lst.tel[self.tel_id].evt.ucts_trigger_type
 
         # consider for the moment only TIB trigger since UCTS seems not correct
-        if self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger > 0:
-            r0_container.trigger_type = self.data.lst.tel[self.camera_config.telescope_id].evt.tib_masked_trigger
+        if self.data.lst.tel[self.tel_id].evt.tib_masked_trigger > 0:
+            r0_container.trigger_type = self.data.lst.tel[self.tel_id].evt.tib_masked_trigger
         else:
             r0_container.trigger_type = -1
 
@@ -426,8 +402,8 @@ class LSTEventSource(EventSource):
         container.obs_id = -1
         container.event_id = event.event_id
 
-        container.tels_with_data = [self.camera_config.telescope_id, ]
-        r0_camera_container = container.tel[self.camera_config.telescope_id]
+        container.tels_with_data = [self.tel_id, ]
+        r0_camera_container = container.tel[self.tel_id]
         self.fill_r0_camera_container_from_zfile(
             r0_camera_container,
             event
@@ -440,8 +416,8 @@ class LSTEventSource(EventSource):
 
         """
         container = self.data.mon
-        container.tels_with_data = [self.camera_config.telescope_id, ]
-        mon_camera_container = container.tel[self.camera_config.telescope_id]
+        container.tels_with_data = [self.tel_id, ]
+        mon_camera_container = container.tel[self.tel_id]
 
         # initialize the container
         status_container = PixelStatusContainer()
@@ -458,7 +434,7 @@ class LSTEventSource(EventSource):
 
         """
 
-        status_container = self.data.mon.tel[self.camera_config.telescope_id].pixel_status
+        status_container = self.data.mon.tel[self.tel_id].pixel_status
 
         # reorder the array
         pixel_status = np.zeros(self.n_camera_pixels)
