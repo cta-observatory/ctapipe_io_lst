@@ -1,14 +1,15 @@
 from pkg_resources import resource_filename
 import os
+from pathlib import Path
 
-example_file_path = resource_filename(
+example_file_path = Path(resource_filename(
     'protozfits',
     os.path.join(
         'tests',
         'resources',
         'example_LST_R1_10_evts.fits.fz'
     )
-)
+))
 
 FIRST_EVENT_NUMBER_IN_FILE = 1
 # ADC_SAMPLES_SHAPE = (2, 14, 40)
