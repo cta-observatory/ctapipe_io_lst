@@ -18,7 +18,7 @@ from ctapipe.instrument import (
 
 from ctapipe.io import EventSource
 from ctapipe.core.traits import Int, Bool
-from ctapipe.io.containers import PixelStatusContainer
+from ctapipe.containers import PixelStatusContainer
 
 from .containers import LSTDataContainer
 from .version import get_version
