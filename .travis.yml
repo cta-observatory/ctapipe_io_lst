@@ -14,6 +14,12 @@ matrix:
         - PYTHON_VERSION=3.7
         - CTAPIPE_VERSION=v0.7.0
 
+    - os: linux
+      python: 3.7
+      env:
+        - PYTHON_VERSION=3.7
+        - CTAPIPE_VERSION=master
+
 
 before_install:
     - export PYTHONIOENCODING=UTF8
