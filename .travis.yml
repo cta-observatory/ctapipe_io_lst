@@ -9,17 +9,20 @@ env:
 
 matrix:
   include:
+    - name: ctapipe=0.8.0
+      os: linux
+      env:
+        - PYTHON_VERSION=3.7
+        - CTAPIPE_VERSION=v0.8.0
+
     - name: ctapipe=master
       os: linux
       env:
         - PYTHON_VERSION=3.7
         - CTAPIPE_VERSION=master
 
-    - name: ctapipe=0.8
-      os: linux
-      env:
-        - PYTHON_VERSION=3.7
-        - CTAPIPE_VERSION=v0.8
+  allow_failures:
+    - name: ctapipe=master
 
 
 before_install:
@@ -32,7 +35,8 @@ before_install:
   - conda info -a # Useful for debugging any issues with conda
 
 install:
-  - conda env create -n travis python=$PYTHON_VERSION -f py${PYTHON_VERSION}_env.yaml
+  - sed -i -e "s/- python=.*/- python=$TRAVIS_PYTHON_VERSION/g" environment.yml
+  - conda env create -n travis python=$PYTHON_VERSION -f environment.yml
   - conda activate travis
 
   # we install ctapipe using pip to be able to select any commit, e.g. the current master
