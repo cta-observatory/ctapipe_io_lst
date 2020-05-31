@@ -399,7 +399,7 @@ class LSTEventSource(EventSource):
         """
         container = self.data.r0
 
-        container.obs_id = -1
+        container.obs_id = self.camera_config.configuration_id
         container.event_id = event.event_id
 
         container.tels_with_data = [self.tel_id, ]
