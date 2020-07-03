@@ -4,7 +4,7 @@ Container structures for data that should be read or written to disk
 from astropy import units as u
 from numpy import nan
 from ctapipe.core import Container, Field, Map
-from ctapipe.io.containers import DataContainer, MonitoringContainer
+from ctapipe.containers import DataContainer, MonitoringContainer
 
 
 __all__ = [
