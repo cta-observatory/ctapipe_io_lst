@@ -48,6 +48,17 @@ def load_camera_geometry(version=4):
     return CameraGeometry.from_table(f)
 
 
+def read_pulse_shapes(self):
+
+    infilename = resource_filename('ctapipe_io_lst',
+                                   'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat')
+    data = np.genfromtxt(infilename, dtype='float', comment='#')
+    daq_time_per_sample = data[0, 0] # ns
+    pulse_shape_time_step = data[0, 1] # ns
+
+    return daq_time_per_sample, pulse_shape_time_step, data[1:,]
+
+
 class LSTEventSource(EventSource):
     """EventSource for LST r0 data."""
 
@@ -548,14 +559,3 @@ class MultiFiles:
 
     def num_inputs(self):
         return len(self._file)
-
-
-def read_pulse_shapes(self):
-
-    infilename = resource_filename('ctapipe_io_lst',
-                                   'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat')
-    data = np.genfromtxt(infilename, dtype='float', comment='#')
-    daq_time_per_sample = data[0, 0] # ns
-    pulse_shape_time_step = data[0, 1] # ns
-
-    return daq_time_per_sample, pulse_shape_time_step, data[1:,]
