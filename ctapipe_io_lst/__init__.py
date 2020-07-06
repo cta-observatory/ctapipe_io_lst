@@ -8,8 +8,6 @@ from astropy import units as u
 from pkg_resources import resource_filename
 import os
 from os import listdir
-from astropy.time import Time
-from datetime import datetime
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
     TelescopeDescription,
@@ -20,7 +18,7 @@ from ctapipe.instrument import (
 
 from ctapipe.io import EventSource
 from ctapipe.core.traits import Int, Bool
-from ctapipe.io.containers import PixelStatusContainer
+from ctapipe.containers import PixelStatusContainer
 
 from .containers import LSTDataContainer
 from .version import get_version
@@ -136,18 +134,14 @@ class LSTEventSource(EventSource):
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
         camera = load_camera_geometry(version=self.geometry_version)
 
-        tel_descr = TelescopeDescription(
-            name='LST', tel_type='LST', optics=OPTICS, camera=camera
-        )
-
-        tels = {tel_id: tel_descr}
+        tel_descriptions = {1: TelescopeDescription.from_name("LST", "LSTCam")}
 
         # LSTs telescope position taken from MC from the moment
-        tel_pos = {tel_id: [50., 50., 16] * u.m}
+        tel_positions = {tel_id: [50., 50., 16] * u.m}
 
         subarray = SubarrayDescription("LST1 subarray")
-        subarray.tels = tels
-        subarray.positions = tel_pos
+        subarray.tel_descriptions = tel_descriptions
+        subarray.tel_positions = tel_positions
 
         return subarray
 
