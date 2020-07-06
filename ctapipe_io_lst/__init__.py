@@ -12,6 +12,8 @@ from ctapipe.core import Provenance
 from ctapipe.instrument import (
     TelescopeDescription,
     SubarrayDescription,
+    CameraDescription,
+    CameraReadout,
     CameraGeometry,
     OpticsDescription,
 )
@@ -24,6 +26,8 @@ from ctapipe.containers import PixelStatusContainer
 from .containers import LSTDataContainer
 from .version import get_version
 
+from pkg_resources import resource_filename
+
 __version__ = get_version(pep440=False)
 __all__ = ['LSTEventSource']
 
@@ -35,7 +39,6 @@ OPTICS = OpticsDescription(
     mirror_area=u.Quantity(386.73, u.m**2),
     num_mirror_tiles=198,
 )
-
 
 def load_camera_geometry(version=4):
     ''' Load camera geometry from bundled resources of this repo '''
@@ -62,6 +65,11 @@ class LSTEventSource(EventSource):
         True,
         help='Read in parallel all streams '
     ).tag(config=True)
+
+    # to keep info on the camera readout:
+
+    daq_time_per_sample, pulse_shape_time_step, pulse_shapes = \
+        read_pulse_shapes()
 
     def __init__(self, **kwargs):
         """
@@ -146,7 +154,7 @@ class LSTEventSource(EventSource):
         Obtain the subarray from the EventSource
         Returns
         -------
-        ctapipe.instrument.SubarrayDecription
+        ctapipe.instrument.SubarrayDescription
         """
 
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
@@ -540,3 +548,14 @@ class MultiFiles:
 
     def num_inputs(self):
         return len(self._file)
+
+
+def read_pulse_shapes(self):
+
+    infilename = resource_filename('ctapipe_io_lst',
+                                   'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat')
+    data = np.genfromtxt(infilename, dtype='float', comment='#')
+    daq_time_per_sample = data[0, 0] # ns
+    pulse_shape_time_step = data[0, 1] # ns
+
+    return daq_time_per_sample, pulse_shape_time_step, data[1:,]
