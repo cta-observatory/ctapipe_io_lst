@@ -48,7 +48,7 @@ def load_camera_geometry(version=4):
     return CameraGeometry.from_table(f)
 
 
-def read_pulse_shapes(self):
+def read_pulse_shapes():
 
     infilename = resource_filename('ctapipe_io_lst',
                                    'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat')
