@@ -17,8 +17,9 @@ from ctapipe.instrument import (
 )
 
 from ctapipe.io import EventSource
+from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Int, Bool
-from ctapipe.io.containers import PixelStatusContainer
+from ctapipe.containers import PixelStatusContainer
 
 from .containers import LSTDataContainer
 from .version import get_version
@@ -117,8 +118,25 @@ class LSTEventSource(EventSource):
             )
         )
         self.tel_id = self.camera_config.telescope_id
-        self.subarray = self.create_subarray(self.tel_id)
+        self._subarray = self.create_subarray(self.tel_id)
         self.n_camera_pixels = self.subarray.tel[self.tel_id].camera.n_pixels
+
+    @property
+    def subarray(self):
+        return self._subarray
+
+    @property
+    def is_simulation(self):
+        return False
+
+    @property
+    def obs_id(self):
+        # currently no obs id is available from the input files
+        return self.camera_config.configuration_id
+
+    @property
+    def datalevels(self):
+        return (DataLevel.R0, )
 
     def rewind(self):
         self.multi_file.rewind()
@@ -159,7 +177,6 @@ class LSTEventSource(EventSource):
 
         # fill LST data from the CameraConfig table
         self.fill_lst_service_container_from_zfile()
-        self.data.inst.subarray = self.subarray
 
         # initialize general monitoring container
         self.initialize_mon_container()
@@ -168,6 +185,8 @@ class LSTEventSource(EventSource):
         for count, event in enumerate(self.multi_file):
 
             self.data.count = count
+            self.data.index.event_id = event.event_id
+            self.data.index.obs_id = self.obs_id
 
             # fill specific LST event data
             self.fill_lst_event_container_from_zfile(event)
@@ -399,9 +418,6 @@ class LSTEventSource(EventSource):
         """
         container = self.data.r0
 
-        container.obs_id = self.camera_config.configuration_id
-        container.event_id = event.event_id
-
         container.tels_with_data = [self.tel_id, ]
         r0_camera_container = container.tel[self.tel_id]
         self.fill_r0_camera_container_from_zfile(
@@ -469,7 +485,7 @@ class MultiFiles:
 
             try:
                 self._file[path] = File(path)
-                self._events_table[path] = File(path).Events
+                self._events_table[path] = self._file[path].Events
                 self._events[path] = next(self._file[path].Events)
 
                 # verify where the CameraConfig is present
