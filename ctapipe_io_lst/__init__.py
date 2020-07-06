@@ -133,7 +133,8 @@ class LSTEventSource(EventSource):
         )
         self.tel_id = self.camera_config.telescope_id
         self._subarray = self.create_subarray(self.tel_id)
-        self.n_camera_pixels = self.subarray.tel[self.tel_id].camera.n_pixels
+        self.n_camera_pixels = \
+            self.subarray.tel[self.tel_id].camera.geometry.n_pixels
 
     @property
     def subarray(self):
