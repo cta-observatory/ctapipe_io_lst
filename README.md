@@ -5,13 +5,13 @@ EventSource Plugin for ctapipe, able to read LST zfits files
 
 Install:
 ```
-conda env create -n lstenv -f py3.7_env.yaml
+conda env create -n lstenv -f environment.yml
 conda activate lstenv
 pip install -e .
 ```
 
 Or in your favorite conda environment:
 ```
-conda env update -f py3.7_env.yaml
+conda env update -f environment.yml
 pip install -e .
 ```
