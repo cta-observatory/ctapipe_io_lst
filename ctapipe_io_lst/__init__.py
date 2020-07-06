@@ -77,11 +77,6 @@ class LSTEventSource(EventSource):
         help='Read in parallel all streams '
     ).tag(config=True)
 
-    # to keep info on the camera readout:
-
-    daq_time_per_sample, pulse_shape_time_step, pulse_shapes = \
-        read_pulse_shapes()
-
     def __init__(self, **kwargs):
         """
         Constructor
@@ -169,11 +164,20 @@ class LSTEventSource(EventSource):
         """
 
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
-        camera = load_camera_geometry(version=self.geometry_version)
+        camerageom = load_camera_geometry(version=self.geometry_version)
+
+        # get info on the camera readout:
+        daq_time_per_sample, pulse_shape_time_step, pulse_shapes = \
+            read_pulse_shapes()
+
+        camerareadout = CameraReadout('LSTCam', 1./daq_time_per_sample*u.GHz,
+                                      pulse_shapes, pulse_shape_time_step)
+        camera = CameraDescription('LSTCam', camerageom, camerareadout)
 
         tel_descr = TelescopeDescription(
             name='LST', tel_type='LST', optics=OPTICS, camera=camera
         )
+
 
         tels = {tel_id: tel_descr}
 
