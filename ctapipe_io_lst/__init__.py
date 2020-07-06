@@ -132,7 +132,7 @@ class LSTEventSource(EventSource):
     @property
     def obs_id(self):
         # currently no obs id is available from the input files
-        return -1
+        return self.camera_config.configuration_id
 
     @property
     def datalevels(self):
@@ -417,9 +417,6 @@ class LSTEventSource(EventSource):
 
         """
         container = self.data.r0
-
-        container.obs_id = self.camera_config.configuration_id
-        container.event_id = event.event_id
 
         container.tels_with_data = [self.tel_id, ]
         r0_camera_container = container.tel[self.tel_id]
