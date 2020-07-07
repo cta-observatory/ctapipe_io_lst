@@ -4,7 +4,7 @@ channels:
   - conda-forge
 dependencies:
   - python=3.7 # nail the python version, so conda does not try upgrading / dowgrading
-  - ctapipe
+  - ctapipe=0.8
   - zeromq
   - astropy
   - bokeh
