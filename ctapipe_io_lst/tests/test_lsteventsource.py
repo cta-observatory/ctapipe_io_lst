@@ -28,7 +28,8 @@ def test_loop_over_events():
         for telid in event.r0.tels_with_data:
             assert event.index.event_id == i
             n_gain = 2
-            n_camera_pixels = source.subarray.tels[telid].camera.n_pixels
+            n_camera_pixels = \
+                source.subarray.tels[telid].camera.geometry.n_pixels
             num_samples = event.lst.tel[telid].svc.num_samples
             waveform_shape = (n_gain, n_camera_pixels, num_samples)
 
