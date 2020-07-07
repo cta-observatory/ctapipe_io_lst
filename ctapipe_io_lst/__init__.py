@@ -163,15 +163,18 @@ class LSTEventSource(EventSource):
         """
 
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
-        camerageom = load_camera_geometry(version=self.geometry_version)
+        camera_geom = load_camera_geometry(version=self.geometry_version)
 
         # get info on the camera readout:
-        daq_time_per_sample, pulse_shape_time_step, pulse_shapes = \
-            read_pulse_shapes()
+        daq_time_per_sample, pulse_shape_time_step, pulse_shapes = read_pulse_shapes()
 
-        camerareadout = CameraReadout('LSTCam', 1./daq_time_per_sample*u.GHz,
-                                      pulse_shapes, pulse_shape_time_step)
-        camera = CameraDescription('LSTCam', camerageom, camerareadout)
+        camera_readout = CameraReadout('LSTCam',
+                                       1./daq_time_per_sample * u.GHz,
+                                       pulse_shapes,
+                                       pulse_shape_time_step,
+                                      )
+        
+        camera = CameraDescription('LSTCam', camera_geom, camera_readout)
 
         lst_tel_descr = TelescopeDescription(
             name='LST', tel_type='LST', optics=OPTICS, camera=camera
@@ -425,7 +428,7 @@ class LSTEventSource(EventSource):
         )
 
         # initialize the waveform container to zero
-        n_camera_pixels = self.subarray.tel[self.tel_id].camera.n_pixels
+        n_camera_pixels = self.subarray.tel[self.tel_id].camera.geometry.n_pixels
         r0_container.waveform = np.zeros([self.n_gains, n_camera_pixels,
                                           self.camera_config.num_samples])
 
@@ -460,7 +463,7 @@ class LSTEventSource(EventSource):
 
         # initialize the container
         status_container = PixelStatusContainer()
-        n_camera_pixels = self.subarray.tel[self.tel_id].camera.n_pixels
+        n_camera_pixels = self.subarray.tel[self.tel_id].camera.geometry.n_pixels
         status_container.hardware_failing_pixels = np.zeros((self.n_gains, n_camera_pixels), dtype=bool)
         status_container.pedestal_failing_pixels = np.zeros((self.n_gains, n_camera_pixels), dtype=bool)
         status_container.flatfield_failing_pixels = np.zeros((self.n_gains, n_camera_pixels), dtype=bool)
@@ -477,7 +480,7 @@ class LSTEventSource(EventSource):
         status_container = self.data.mon.tel[self.tel_id].pixel_status
 
         # reorder the array
-        n_camera_pixels = self.subarray.tel[self.tel_id].camera.n_pixels
+        n_camera_pixels = self.subarray.tel[self.tel_id].camera.geometry.n_pixels
         pixel_status = np.zeros(n_camera_pixels)
         pixel_status[self.camera_config.expected_pixels_id] = event.pixel_status
         status_container.hardware_failing_pixels[:] = pixel_status == 0
