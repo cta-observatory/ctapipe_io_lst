@@ -51,16 +51,15 @@ def load_camera_geometry(version=4):
 def read_pulse_shapes():
 
     '''
-    Reads in the data on the pulse shapes and readout speed, from an external
-    file
+    Reads in the data on the pulse shapes and readout speed, from an external file
 
-    Returns:
-
-    time between samples in the actual DAQ (ns, astropy quantity)
-    time between samples in the returned single-p.e pulse shape (ns, astropy
+    Returns
+    -------
+    (daq_time_per_sample, pulse_shape_time_step, pulse shapes)
+        daq_time_per_sample: time between samples in the actual DAQ (ns, astropy quantity)
+        pulse_shape_time_step: time between samples in the returned single-p.e pulse shape (ns, astropy
     quantity)
-    Single-p.e. pulse shapes, ndarray of shape (2, 1640)
-
+        pulse shapes: Single-p.e. pulse shapes, ndarray of shape (2, 1640)
     '''
 
     infilename = resource_filename('ctapipe_io_lst',
