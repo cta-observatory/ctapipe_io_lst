@@ -50,13 +50,27 @@ def load_camera_geometry(version=4):
 
 def read_pulse_shapes():
 
+    '''
+    Reads in the data on the pulse shapes and readout speed, from an external file
+
+    Returns
+    -------
+    (daq_time_per_sample, pulse_shape_time_step, pulse shapes)
+        daq_time_per_sample: time between samples in the actual DAQ (ns, astropy quantity)
+        pulse_shape_time_step: time between samples in the returned single-p.e pulse shape (ns, astropy
+    quantity)
+        pulse shapes: Single-p.e. pulse shapes, ndarray of shape (2, 1640)
+    '''
+
     infilename = resource_filename('ctapipe_io_lst',
                                    'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat')
     data = np.genfromtxt(infilename, dtype='float', comments='#')
-    daq_time_per_sample = data[0, 0] # ns
-    pulse_shape_time_step = data[0, 1] # ns
+    daq_time_per_sample = data[0, 0] * u.ns
+    pulse_shape_time_step = data[0, 1] * u.ns
 
-    return daq_time_per_sample, pulse_shape_time_step, data[1:,]
+    # Note we have to transpose the pulse shapes array to provide what ctapipe
+    # expects:
+    return daq_time_per_sample, pulse_shape_time_step, data[1:,].T
 
 
 class LSTEventSource(EventSource):
@@ -169,7 +183,7 @@ class LSTEventSource(EventSource):
         daq_time_per_sample, pulse_shape_time_step, pulse_shapes = read_pulse_shapes()
 
         camera_readout = CameraReadout('LSTCam',
-                                       1./daq_time_per_sample * u.GHz,
+                                       1./daq_time_per_sample,
                                        pulse_shapes,
                                        pulse_shape_time_step,
                                       )
