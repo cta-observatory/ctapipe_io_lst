@@ -171,7 +171,7 @@ class LSTEventSource(EventSource):
         camera_readout = CameraReadout('LSTCam',
                                        1./daq_time_per_sample * u.GHz,
                                        pulse_shapes,
-                                       pulse_shape_time_step,
+                                       pulse_shape_time_step * u.ns,
                                       )
         
         camera = CameraDescription('LSTCam', camera_geom, camera_readout)
