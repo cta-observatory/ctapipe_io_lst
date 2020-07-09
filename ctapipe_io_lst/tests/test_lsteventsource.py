@@ -62,3 +62,4 @@ def test_subarray():
     subarray = source.subarray
     subarray.info()
     subarray.peek()
+    subarray.to_table()
