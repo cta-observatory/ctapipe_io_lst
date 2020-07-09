@@ -201,7 +201,7 @@ class LSTEventSource(EventSource):
 
         subarray = SubarrayDescription("LST1 subarray")
         subarray.tel_descriptions = tel_descriptions
-        subarray.tel_positions = tel_positions
+        subarray.positions = tel_positions
         subarray.tel[tel_id] = lst_tel_descr
 
         return subarray
