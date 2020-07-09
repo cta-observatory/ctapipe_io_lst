@@ -54,3 +54,11 @@ def test_factory_for_lst_file():
 
     assert isinstance(reader, LSTEventSource)
     assert reader.input_url == example_file_path
+
+
+def test_subarray():
+    from ctapipe.io import event_source
+    source = event_source(example_file_path)
+    subarray = source.subarray
+    subarray.info()
+    subarray.peek()
