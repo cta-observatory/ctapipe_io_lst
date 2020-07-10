@@ -447,7 +447,7 @@ class LSTEventSource(EventSource):
         # initialize the waveform container to zero
         n_camera_pixels = self.subarray.tel[self.tel_id].camera.geometry.n_pixels
         r0_container.waveform = np.zeros([self.n_gains, n_camera_pixels,
-                                          self.camera_config.num_samples])
+                                          self.camera_config.num_samples], dtype=np.float32)
 
         # re-order the waveform following the expected_pixels_id values
         # (rank = pixel id)
