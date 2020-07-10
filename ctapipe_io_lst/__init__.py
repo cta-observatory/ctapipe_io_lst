@@ -62,8 +62,11 @@ def read_pulse_shapes():
         pulse shapes: Single-p.e. pulse shapes, ndarray of shape (2, 1640)
     '''
 
+    # temporary replace the reference pulse shape ("oversampled_pulse_LST_8dynode_pix6_20200204.dat")
+    # with a dummy one in order to disable the charge corrections in the charge extractor
     infilename = resource_filename('ctapipe_io_lst',
-                                   'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat')
+                                   'resources/no_corrections_pulse_LST.dat')
+
     data = np.genfromtxt(infilename, dtype='float', comments='#')
     daq_time_per_sample = data[0, 0] * u.ns
     pulse_shape_time_step = data[0, 1] * u.ns
