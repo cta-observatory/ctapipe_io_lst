@@ -25,8 +25,8 @@ from ctapipe.containers import PixelStatusContainer
 
 from .containers import LSTDataContainer
 from .version import get_version
+from .calibration import LSTR0Corrections
 
-from pkg_resources import resource_filename
 
 __version__ = get_version(pep440=False)
 __all__ = ['LSTEventSource']
@@ -39,6 +39,7 @@ OPTICS = OpticsDescription(
     mirror_area=u.Quantity(386.73, u.m**2),
     num_mirror_tiles=198,
 )
+
 
 def load_camera_geometry(version=4):
     ''' Load camera geometry from bundled resources of this repo '''
@@ -62,10 +63,13 @@ def read_pulse_shapes():
         pulse shapes: Single-p.e. pulse shapes, ndarray of shape (2, 1640)
     '''
 
-    # temporary replace the reference pulse shape ("oversampled_pulse_LST_8dynode_pix6_20200204.dat")
+    # temporary replace the reference pulse shape
+    # ("oversampled_pulse_LST_8dynode_pix6_20200204.dat")
     # with a dummy one in order to disable the charge corrections in the charge extractor
-    infilename = resource_filename('ctapipe_io_lst',
-                                   'resources/no_corrections_pulse_LST.dat')
+    infilename = resource_filename(
+        'ctapipe_io_lst',
+        'resources/no_corrections_pulse_LST.dat'
+    )
 
     data = np.genfromtxt(infilename, dtype='float', comments='#')
     daq_time_per_sample = data[0, 0] * u.ns
@@ -73,7 +77,7 @@ def read_pulse_shapes():
 
     # Note we have to transpose the pulse shapes array to provide what ctapipe
     # expects:
-    return daq_time_per_sample, pulse_shape_time_step, data[1:,].T
+    return daq_time_per_sample, pulse_shape_time_step, data[1:].T
 
 
 class LSTEventSource(EventSource):
@@ -150,6 +154,9 @@ class LSTEventSource(EventSource):
         )
         self.tel_id = self.camera_config.telescope_id
         self._subarray = self.create_subarray(self.tel_id)
+        self.r0_r1_calibrator = LSTR0Corrections(
+            parent=self, tel_id=self.tel_id
+        )
 
     @property
     def subarray(self):
@@ -166,7 +173,9 @@ class LSTEventSource(EventSource):
 
     @property
     def datalevels(self):
-        return (DataLevel.R0, )
+        if self.r0_r1_calibrator.pedestal_path is not None:
+            return (DataLevel.R0, DataLevel.R1)
+        return (DataLevel.R0)
 
     def rewind(self):
         self.multi_file.rewind()
@@ -185,12 +194,13 @@ class LSTEventSource(EventSource):
         # get info on the camera readout:
         daq_time_per_sample, pulse_shape_time_step, pulse_shapes = read_pulse_shapes()
 
-        camera_readout = CameraReadout('LSTCam',
-                                       1./daq_time_per_sample,
-                                       pulse_shapes,
-                                       pulse_shape_time_step,
-                                      )
-        
+        camera_readout = CameraReadout(
+            'LSTCam',
+            1 / daq_time_per_sample,
+            pulse_shapes,
+            pulse_shape_time_step,
+        )
+
         camera = CameraDescription('LSTCam', camera_geom, camera_readout)
 
         lst_tel_descr = TelescopeDescription(
@@ -238,6 +248,8 @@ class LSTEventSource(EventSource):
 
             # fill general R0 data
             self.fill_r0_container_from_zfile(event)
+            if self.r0_r1_calibrator.pedestal_path is not None:
+                self.r0_r1_calibrator.calibrate(self.data)
 
             yield self.data
 
