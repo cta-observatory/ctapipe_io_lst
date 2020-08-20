@@ -80,7 +80,7 @@ CDTS_BEFORE_37201_DTYPE = np.dtype([
     ('unknown', np.uint8),
 ]).newbyteorder('<')
 
-SWAT_DATA_TYPE = np.dtype([
+SWAT_DTYPE = np.dtype([
     ('timestamp', np.uint64),
     ('counter1', np.uint32),
     ('counter2', np.uint32),
@@ -405,7 +405,7 @@ class LSTEventSource(EventSource):
         # if SWAT data are there
         if event_container.extdevices_presence & 4:
             # unpack SWAT data
-            unpacked_swat = event.lstcam.swat_data.view(SWAT_DATA_TYPE)[0]
+            unpacked_swat = event.lstcam.swat_data.view(SWAT_DTYPE)[0]
             event_container.swat_timestamp = unpacked_swat[0]
             event_container.swat_counter1 = unpacked_swat[1]
             event_container.swat_counter2 = unpacked_swat[2]
