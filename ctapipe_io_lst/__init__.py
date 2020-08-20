@@ -26,7 +26,6 @@ from ctapipe.containers import PixelStatusContainer
 from .containers import LSTDataContainer
 from .version import get_version
 
-from pkg_resources import resource_filename
 
 __version__ = get_version(pep440=False)
 __all__ = ['LSTEventSource']
@@ -39,6 +38,15 @@ OPTICS = OpticsDescription(
     mirror_area=u.Quantity(386.73, u.m**2),
     num_mirror_tiles=198,
 )
+
+DRAGON_COUNTERS_DTYPE = np.dtype([
+    ('pps_counter', np.uint16),
+    ('tenMHz_counter', np.uint32),
+    ('event_counter', np.uint32),
+    ('trigger_counter', np.uint32),
+    ('local_clock_counter', np.uint64),
+]).newbyteorder('<')
+
 
 def load_camera_geometry(version=4):
     ''' Load camera geometry from bundled resources of this repo '''
@@ -190,7 +198,7 @@ class LSTEventSource(EventSource):
                                        pulse_shapes,
                                        pulse_shape_time_step,
                                       )
-        
+
         camera = CameraDescription('LSTCam', camera_geom, camera_readout)
 
         lst_tel_descr = TelescopeDescription(
@@ -371,24 +379,12 @@ class LSTEventSource(EventSource):
             event_container.swat_array_event_num = unpacked_swat[7]
 
         # unpack Dragon counters
-        rec_fmt = '=HIIIQ'
-        rec_len = struct.calcsize(rec_fmt)
-        rec_unpack = struct.Struct(rec_fmt).unpack_from
-
-        event_container.pps_counter = np.zeros(self.camera_config.lstcam.num_modules)
-        event_container.tenMHz_counter = np.zeros(self.camera_config.lstcam.num_modules)
-        event_container.event_counter = np.zeros(self.camera_config.lstcam.num_modules)
-        event_container.trigger_counter = np.zeros(self.camera_config.lstcam.num_modules)
-        event_container.local_clock_counter = np.zeros(self.camera_config.lstcam.num_modules)
-        for mod in range(self.camera_config.lstcam.num_modules):
-
-            words=event.lstcam.counters[mod*rec_len:(mod+1)*rec_len]
-            unpacked_counter = rec_unpack(words)
-            event_container.pps_counter[mod] = unpacked_counter[0]
-            event_container.tenMHz_counter[mod] = unpacked_counter[1]
-            event_container.event_counter[mod] = unpacked_counter[2]
-            event_container.trigger_counter[mod] = unpacked_counter[3]
-            event_container.local_clock_counter[mod] = unpacked_counter[4]
+        counters = event.lstcam.counters.view(DRAGON_COUNTERS_DTYPE)
+        event_container.pps_counter = counters['pps_counter']
+        event_container.tenMHz_counter = counters['tenMHz_counter']
+        event_container.event_counter = counters['event_counter']
+        event_container.trigger_counter = counters['trigger_counter']
+        event_container.local_clock_counter = counters['local_clock_counter']
 
         event_container.chips_flags = event.lstcam.chips_flags
         event_container.first_capacitor_id = event.lstcam.first_capacitor_id
