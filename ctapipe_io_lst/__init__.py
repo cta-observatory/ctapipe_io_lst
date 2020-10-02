@@ -45,6 +45,7 @@ def load_camera_geometry(version=4):
     f = resource_filename(
         'ctapipe_io_lst', f'resources/LSTCam-{version:03d}.camgeom.fits.gz'
     )
+    Provenance().add_input_file(f, role="CameraGeometry")
     return CameraGeometry.from_table(f)
 
 
@@ -68,6 +69,7 @@ def read_pulse_shapes():
                                    'resources/no_corrections_pulse_LST.dat')
 
     data = np.genfromtxt(infilename, dtype='float', comments='#')
+    Provenance().add_input_file(infilename, role="PulseShapes")
     daq_time_per_sample = data[0, 0] * u.ns
     pulse_shape_time_step = data[0, 1] * u.ns
 
