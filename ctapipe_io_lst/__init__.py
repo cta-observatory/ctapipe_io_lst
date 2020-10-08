@@ -3,7 +3,6 @@
 EventSource for LSTCam protobuf-fits.fz-files.
 """
 import numpy as np
-import struct
 from astropy import units as u
 from pkg_resources import resource_filename
 import os
@@ -26,7 +25,6 @@ from ctapipe.containers import PixelStatusContainer
 from .containers import LSTDataContainer
 from .version import get_version
 
-from pkg_resources import resource_filename
 
 __version__ = get_version(pep440=False)
 __all__ = ['LSTEventSource']
@@ -39,6 +37,60 @@ OPTICS = OpticsDescription(
     mirror_area=u.Quantity(386.73, u.m**2),
     num_mirror_tiles=198,
 )
+
+DRAGON_COUNTERS_DTYPE = np.dtype([
+    ('pps_counter', np.uint16),
+    ('tenMHz_counter', np.uint32),
+    ('event_counter', np.uint32),
+    ('trigger_counter', np.uint32),
+    ('local_clock_counter', np.uint64),
+]).newbyteorder('<')
+
+
+TIB_DTYPE = np.dtype([
+    ('event_counter', np.uint32),
+    ('pps_counter', np.uint16),
+    ('tenMHz_counter', np.uint32),
+    ('stereo_pattern', np.uint8),
+    ('masked_trigger', np.uint8),
+]).newbyteorder('<')
+
+CDTS_AFTER_37201_DTYPE = np.dtype([
+    ('timestamp', np.uint64),
+    ('address', np.float32),
+    ('event_counter', np.float32),
+    ('busy_counter', np.float32),
+    ('pps_counter', np.float32),
+    ('clock_counter', np.float32),
+    ('trigger_type', np.uint8),
+    ('white_rabbit_status', np.uint8),
+    ('stereo_pattern', np.uint8),
+    ('num_in_bunch', np.uint8),
+    ('cdts_version', np.uint32),
+]).newbyteorder('<')
+
+CDTS_BEFORE_37201_DTYPE = np.dtype([
+    ('event_counter', np.float32),
+    ('pps_counter', np.float32),
+    ('clock_counter', np.float32),
+    ('timestamp', np.float64),
+    ('camera_timestamp', np.float64),
+    ('trigger_type', np.uint8),
+    ('white_rabbit_status', np.uint8),
+    ('unknown', np.uint8),
+]).newbyteorder('<')
+
+SWAT_DTYPE = np.dtype([
+    ('timestamp', np.uint64),
+    ('counter1', np.uint32),
+    ('counter2', np.uint32),
+    ('event_type', np.uint8),
+    ('camera_flag', np.uint8),
+    ('camera_event_num', np.uint32),
+    ('array_flag', np.uint8),
+    ('event_num', np.uint32),
+]).newbyteorder('<')
+
 
 def load_camera_geometry(version=4):
     ''' Load camera geometry from bundled resources of this repo '''
@@ -192,7 +244,7 @@ class LSTEventSource(EventSource):
                                        pulse_shapes,
                                        pulse_shape_time_step,
                                       )
-        
+
         camera = CameraDescription('LSTCam', camera_geom, camera_readout)
 
         lst_tel_descr = TelescopeDescription(
@@ -317,52 +369,45 @@ class LSTEventSource(EventSource):
 
         # if TIB data are there
         if event_container.extdevices_presence & 1:
-            # unpack TIB data
-            rec_fmt = '=IHIBB'
-            unpacked_tib = struct.unpack(rec_fmt, event.lstcam.tib_data)
-            event_container.tib_event_counter = unpacked_tib[0]
-            event_container.tib_pps_counter = unpacked_tib[1]
-            event_container.tib_tenMHz_counter = unpacked_tib[2]
-            event_container.tib_stereo_pattern = unpacked_tib[3]
-            event_container.tib_masked_trigger = unpacked_tib[4]
+            tib = event.lstcam.tib_data.view(TIB_DTYPE)[0]
+            event_container.tib_event_counter = tib['event_counter']
+            event_container.tib_pps_counter = tib['pps_counter']
+            event_container.tib_tenMHz_counter = tib['tenMHz_counter']
+            event_container.tib_stereo_pattern = tib['stereo_pattern']
+            event_container.tib_masked_trigger = tib['masked_trigger']
 
         # if UCTS data are there
         if event_container.extdevices_presence & 2:
 
             if int(self.data.lst.tel[self.tel_id].svc.idaq_version) > 37201:
-
-                # unpack UCTS-CDTS data (new version)
-                rec_fmt = '=QIIIIIBBBBI'
-                unpacked_cdts = struct.unpack(rec_fmt, event.lstcam.cdts_data)
-                event_container.ucts_timestamp = unpacked_cdts[0]
-                event_container.ucts_address = unpacked_cdts[1]        # new
-                event_container.ucts_event_counter = unpacked_cdts[2]
-                event_container.ucts_busy_counter = unpacked_cdts[3]   # new
-                event_container.ucts_pps_counter = unpacked_cdts[4]
-                event_container.ucts_clock_counter = unpacked_cdts[5]
-                event_container.ucts_trigger_type = unpacked_cdts[6]
-                event_container.ucts_white_rabbit_status = unpacked_cdts[7]
-                event_container.ucts_stereo_pattern = unpacked_cdts[8] # new
-                event_container.ucts_num_in_bunch = unpacked_cdts[9]   # new
-                event_container.ucts_cdts_version = unpacked_cdts[10]  # new
+                cdts = event.lstcam.cdts_data.view(CDTS_AFTER_37201_DTYPE)[0]
+                event_container.ucts_timestamp = cdts[0]
+                event_container.ucts_address = cdts[1]        # new
+                event_container.ucts_event_counter = cdts[2]
+                event_container.ucts_busy_counter = cdts[3]   # new
+                event_container.ucts_pps_counter = cdts[4]
+                event_container.ucts_clock_counter = cdts[5]
+                event_container.ucts_trigger_type = cdts[6]
+                event_container.ucts_white_rabbit_status = cdts[7]
+                event_container.ucts_stereo_pattern = cdts[8] # new
+                event_container.ucts_num_in_bunch = cdts[9]   # new
+                event_container.ucts_cdts_version = cdts[10]  # new
 
             else:
                 # unpack UCTS-CDTS data (old version)
-                rec_fmt = '=IIIQQBBB'
-                unpacked_cdts =  struct.unpack(rec_fmt, event.lstcam.cdts_data)
-                event_container.ucts_event_counter = unpacked_cdts[0]
-                event_container.ucts_pps_counter = unpacked_cdts[1]
-                event_container.ucts_clock_counter = unpacked_cdts[2]
-                event_container.ucts_timestamp = unpacked_cdts[3]
-                event_container.ucts_camera_timestamp = unpacked_cdts[4]
-                event_container.ucts_trigger_type = unpacked_cdts[5]
-                event_container.ucts_white_rabbit_status = unpacked_cdts[6]
+                cdts = event.lstcam.cdts_data.view(CDTS_BEFORE_37201_DTYPE)[0]
+                event_container.ucts_event_counter = cdts[0]
+                event_container.ucts_pps_counter = cdts[1]
+                event_container.ucts_clock_counter = cdts[2]
+                event_container.ucts_timestamp = cdts[3]
+                event_container.ucts_camera_timestamp = cdts[4]
+                event_container.ucts_trigger_type = cdts[5]
+                event_container.ucts_white_rabbit_status = cdts[6]
 
         # if SWAT data are there
         if event_container.extdevices_presence & 4:
             # unpack SWAT data
-            rec_fmt = '=QIIBBIBI'
-            unpacked_swat = struct.unpack(rec_fmt, event.lstcam.swat_data)
+            unpacked_swat = event.lstcam.swat_data.view(SWAT_DTYPE)[0]
             event_container.swat_timestamp = unpacked_swat[0]
             event_container.swat_counter1 = unpacked_swat[1]
             event_container.swat_counter2 = unpacked_swat[2]
@@ -373,24 +418,12 @@ class LSTEventSource(EventSource):
             event_container.swat_array_event_num = unpacked_swat[7]
 
         # unpack Dragon counters
-        rec_fmt = '=HIIIQ'
-        rec_len = struct.calcsize(rec_fmt)
-        rec_unpack = struct.Struct(rec_fmt).unpack_from
-
-        event_container.pps_counter = np.zeros(self.camera_config.lstcam.num_modules)
-        event_container.tenMHz_counter = np.zeros(self.camera_config.lstcam.num_modules)
-        event_container.event_counter = np.zeros(self.camera_config.lstcam.num_modules)
-        event_container.trigger_counter = np.zeros(self.camera_config.lstcam.num_modules)
-        event_container.local_clock_counter = np.zeros(self.camera_config.lstcam.num_modules)
-        for mod in range(self.camera_config.lstcam.num_modules):
-
-            words=event.lstcam.counters[mod*rec_len:(mod+1)*rec_len]
-            unpacked_counter = rec_unpack(words)
-            event_container.pps_counter[mod] = unpacked_counter[0]
-            event_container.tenMHz_counter[mod] = unpacked_counter[1]
-            event_container.event_counter[mod] = unpacked_counter[2]
-            event_container.trigger_counter[mod] = unpacked_counter[3]
-            event_container.local_clock_counter[mod] = unpacked_counter[4]
+        counters = event.lstcam.counters.view(DRAGON_COUNTERS_DTYPE)
+        event_container.pps_counter = counters['pps_counter']
+        event_container.tenMHz_counter = counters['tenMHz_counter']
+        event_container.event_counter = counters['event_counter']
+        event_container.trigger_counter = counters['trigger_counter']
+        event_container.local_clock_counter = counters['local_clock_counter']
 
         event_container.chips_flags = event.lstcam.chips_flags
         event_container.first_capacitor_id = event.lstcam.first_capacitor_id
