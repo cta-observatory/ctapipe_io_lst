@@ -155,7 +155,6 @@ class LSTEventSource(EventSource):
 
     def __init__(self, **kwargs):
         """
-        Constructor
         Parameters
         ----------
         n_gains = number of gains expected in input file
@@ -208,9 +207,9 @@ class LSTEventSource(EventSource):
             )
         )
         self.tel_id = self.camera_config.telescope_id
-        self._subarray = self.create_subarray(self.tel_id)
+        self._subarray = self.create_subarray(self.geometry_version, self.tel_id)
         self.r0_r1_calibrator = LSTR0Corrections(
-            parent=self, tel_id=self.tel_id
+            subarray=self._subarray, parent=self
         )
 
     @property
@@ -235,7 +234,8 @@ class LSTEventSource(EventSource):
     def rewind(self):
         self.multi_file.rewind()
 
-    def create_subarray(self, tel_id=1):
+    @staticmethod
+    def create_subarray(geometry_version, tel_id=1):
         """
         Obtain the subarray from the EventSource
         Returns
@@ -244,7 +244,7 @@ class LSTEventSource(EventSource):
         """
 
         # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
-        camera_geom = load_camera_geometry(version=self.geometry_version)
+        camera_geom = load_camera_geometry(version=geometry_version)
 
         # get info on the camera readout:
         daq_time_per_sample, pulse_shape_time_step, pulse_shapes = read_pulse_shapes()

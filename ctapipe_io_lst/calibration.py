@@ -1,21 +1,33 @@
 import numpy as np
 from astropy.io import fits
-from abc import abstractmethod
 from numba import jit, prange
 
-from ctapipe.core import Component
-from ctapipe.core.traits import Path, Int, create_class_enum_trait
+from ctapipe.core import TelescopeComponent
+from ctapipe.core.traits import (
+    Path, create_class_enum_trait, IntTelescopeParameter,
+    TelescopeParameter
+)
+
 from ctapipe.calib.camera import GainSelector
 from ctapipe.containers import MonitoringContainer
 from ctapipe.io import HDF5TableReader
+import tables
 
 __all__ = [
-    'CameraR0Calibrator',
     'LSTR0Corrections',
 ]
 
+N_MODULES = 265
+N_GAINS = 2
+N_PIXELS_PER_MODULE = 7
+N_CAPACITORS = 4 * 1024
+N_ROI = 40
+HIGH_GAIN = 0
+LOW_GAIN = 1
+LAST_RUN_WITH_OLD_FIRMWARE = 1574
 
-class CameraR0Calibrator(Component):
+
+class LSTR0Corrections(TelescopeComponent):
     """
     The base R0-level calibrator. Changes the r0 container.
 
@@ -23,101 +35,53 @@ class CameraR0Calibrator(Component):
     usually performed on the raw data by the camera server.
     This calibrator exists in lstchain for testing and prototyping purposes.
     """
-    tel_id = Int(1,
-                 help='id of the telescope to calibrate'
-                 ).tag(config=True)
+    offset = IntTelescopeParameter(
+        default_value=400,
+        help='Define the offset of the baseline'
+    ).tag(config=True)
 
-    offset = Int(default_value=400,
-                 help='Define the offset of the baseline').tag(config=True)
+    r1_sample_start = IntTelescopeParameter(
+        default_value=3,
+        help='Start sample for r1 waveform',
+        allow_none=True,
+    ).tag(config=True)
 
-    r1_sample_start = Int(default_value=3,
-                          help='Start sample for r1 waveform',
-                          allow_none=True).tag(config=True)
+    r1_sample_end = IntTelescopeParameter(
+        default_value=39,
+        help='End sample for r1 waveform',
+        allow_none=True,
+    ).tag(config=True)
 
-    r1_sample_end = Int(default_value=39,
-                        help='End sample for r1 waveform',
-                        allow_none=True).tag(config=True)
-
-    def __init__(self, **kwargs):
-        """
-        Parent class for the r0 calibrators. Change the r0 container.
-        Parameters
-        ----------
-        config : traitlets.loader.Config
-            Configuration specified by config file or cmdline arguments.
-            Used to set traitlet values.
-            Set to None if no configuration to pass.
-        tool : ctapipe.core.Tool or None
-            Tool executable that is calling this component.
-            Passes the correct logger to the component.
-            Set to None if no Tool to pass.
-        kwargs
-        """
-        super().__init__(**kwargs)
-
-    @abstractmethod
-    def calibrate(self, event):
-        """
-        Abstract method to be defined in child class.
-        Perform the conversion from raw R0 data to R1 data
-        (ADC Samples -> PE Samples), and fill the r1 container.
-        Parameters
-        ----------
-        event : container
-            A `ctapipe` event container
-        """
-
-
-class LSTR0Corrections(CameraR0Calibrator):
-    """
-    The R0 calibrator class for LST Camera.
-    """
-
-    pedestal_path = Path(
-        help='Path to the LST pedestal binary file',
-        exists=True,
+    drs4_pedestal_path = TelescopeParameter(
+        trait=Path(exists=True, directory_ok=False),
+        allow_none=True,
+        default_value=None,
+        help='Path to the LST pedestal file',
     ).tag(config=True)
 
     calibration_path = Path(
+        exists=True, directory_ok=False,
         help='Path to LST calibration file',
-        exists=True,
     ).tag(config=True)
 
     gain_selector_type = create_class_enum_trait(
         GainSelector, default_value='ThresholdGainSelector'
     )
 
-    def __init__(self, **kwargs):
+    def __init__(self, subarray, config=None, parent=None, **kwargs):
         """
         The R0 calibrator for LST data.
         Fill the r1 container.
+
         Parameters
         ----------
-        config : traitlets.loader.Config
-            Configuration specified by config file or cmdline arguments.
-            Used to set traitlet values.
-            Set to None if no configuration to pass.
-        tool : ctapipe.core.Tool
-            Tool executable that is calling this component.
-            Passes the correct logger to the component.
-            Set to None if no Tool to pass.
-        kwargs
         """
-        print(kwargs['parent'].config)
-        super().__init__(**kwargs)
-        self.n_module = 265
-        self.n_gain = 2
-        self.n_pix = 7
-        self.size4drs = 4 * 1024
-        self.roisize = 40
-        self.high_gain = 0
-        self.low_gain = 1
-        self.last_run_with_old_firmware = 1574
+        super().__init__(
+            subarray=subarray, config=config, parent=parent, **kwargs
+        )
 
-        shape = (self.n_gain, self.n_pix * self.n_module, self.size4drs + 40)
-        self.pedestal_value_array = np.zeros(shape, dtype=np.int16)
 
-        shape = (self.n_module, self.n_gain, self.n_pix, self.size4drs)
+        shape = (N_MODULES, N_GAINS, N_PIXELS_PER_MODULE, N_CAPACITORS)
         self.last_reading_time_array = np.zeros(shape)
 
         shape = (self.n_module, self.n_gain, self.n_pix)
@@ -125,15 +89,6 @@ class LSTR0Corrections(CameraR0Calibrator):
         self.first_cap_time_lapse_array = np.zeros(shape)
         self.first_cap_array_spike = np.zeros(shape)
         self.first_cap_old_array = np.zeros(shape)
-
-        if self.pedestal_path is not None:
-            self._read_pedestal_file()
-
-        if self.calibration_path is not None:
-            self.mon_data = MonitoringContainer()
-            self._read_calibration_file()
-        else:
-            self.mon_data = None
 
         self.gain_selector = GainSelector.from_name(
             self.gain_selector_type, parent=self
@@ -166,37 +121,62 @@ class LSTR0Corrections(CameraR0Calibrator):
             n_pixels = samples.shape[1]
             r1.waveform = waveform[r1.selected_gain_channel, np.arange(n_pixels)]
 
-    def _read_calibration_file(self):
+    @staticmethod
+    def _read_calibration_file(path):
         """
         Read the correction from hdf5 calibration file
         """
+        mon = MonitoringContainer()
 
-        self.log.info(f"read {self.calibration_path}")
+        with tables.open_file(path) as f:
+            tel_ids = [
+                int(key[4:]) for key in f.root._v_children.keys()
+                if key.startswith('tel_')
+            ]
 
-        try:
-            with HDF5TableReader(self.calibration_path) as h5_table:
-                mon = self.mon_data.tel[self.tel_id]
-                base = f'/tel_{self.tel_id}'
+        for tel_id in tel_ids:
+            with HDF5TableReader(path) as h5_table:
+                base = f'/tel_{tel_id}'
                 # read the calibration data
                 table = base + '/calibration'
-                next(h5_table.read(table, mon.calibration))
+                next(h5_table.read(table, mon.tel[tel_id].calibration))
 
                 # read pedestal data
                 table = base + '/pedestal'
-                next(h5_table.read(table, mon.pedestal))
+                next(h5_table.read(table, mon.tel[tel_id].pedestal))
 
                 # read flat-field data
                 table = base + '/flatfield'
-                next(h5_table.read(table, mon.flatfield))
+                next(h5_table.read(table, mon.tel[tel_id].flatfield))
 
                 # read the pixel_status container
                 table = base + '/pixel_status'
-                next(h5_table.read(table, mon.pixel_status))
-        except Exception:
-            self.log.exception(
-                f"Problem in reading calibration file {self.calibration_path}"
-            )
-            raise
+                next(h5_table.read(table, mon.tel[tel_id].pixel_status))
+
+        return mon
+
+    @staticmethod
+    def _read_drs4_pedestal_file(path, offset=0):
+        """
+        Function to load pedestal file.
+
+        To make boundary conditions unnecessary,
+        the first N_ROI values are repeated at the end of the array
+        """
+        pedestal_data = np.empty(
+            (N_GAINS, N_PIXELS_PER_MODULE * N_MODULES, N_CAPACITORS + N_ROI),
+            dtype=np.int16
+        )
+        with fits.open(path) as f:
+            pedestal_data[:, :, :N_CAPACITORS] = f[1].data
+
+        pedestal_data[:, :, N_CAPACITORS:] = pedestal_data[:, :, :N_ROI]
+
+        if offset != 0:
+            pedestal_data -= offset
+
+        return pedestal_data
+
 
     def subtract_pedestal(self, event, tel_id):
         """
@@ -215,14 +195,13 @@ class LSTR0Corrections(CameraR0Calibrator):
         expected_pixel_id = event.lst.tel[tel_id].svc.pixel_ids
         samples = event.r0.tel[tel_id].waveform.astype(np.float32)
 
-        samples = subtract_pedestal_jit(samples,
-                                        expected_pixel_id,
-                                        self.first_cap_array,
-                                        self.pedestal_value_array,
-                                        n_modules)
-
-        event.r1.tel[self.tel_id].trigger_type = event.r0.tel[self.tel_id].trigger_type
-        event.r1.tel[self.tel_id].trigger_time = event.r1.tel[self.tel_id].trigger_time
+        samples = subtract_pedestal_jit(
+            samples,
+            expected_pixel_id,
+            self.first_cap_array,
+            self.pedestal_value_array,
+            n_modules,
+        )
         event.r1.tel[self.tel_id].waveform = samples[:, :, :]
 
     def time_lapse_corr(self, event, tel_id):
@@ -441,18 +420,6 @@ class LSTR0Corrections(CameraR0Calibrator):
                                 pixel = expected_pixel_id[nr_module*7 + pix]
                                 interpolate_spike_A(waveform, gain, spike_A_position, pixel)
         return waveform
-
-    def _read_pedestal_file(self):
-        """
-        Function to load pedestal file.
-        """
-        if self.pedestal_path:
-            with fits.open(self.pedestal_path) as f:
-                pedestal_data = np.int16(f[1].data)
-                self.pedestal_value_array[:, :, :self.size4drs] = \
-                                                    pedestal_data - self.offset
-                self.pedestal_value_array[:, :, self.size4drs:self.size4drs + 40] \
-                    = pedestal_data[:, :, 0:40] - self.offset
 
     def _get_first_capacitor(self, event, nr_module, tel_id):
         """
