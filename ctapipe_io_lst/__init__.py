@@ -227,7 +227,7 @@ class LSTEventSource(EventSource):
 
     @property
     def datalevels(self):
-        if self.r0_r1_calibrator.pedestal_path is not None:
+        if self.r0_r1_calibrator.drs4_pedestal_path.tel[self.tel_id] is not None:
             return (DataLevel.R0, DataLevel.R1)
         return (DataLevel.R0)
 
@@ -304,7 +304,7 @@ class LSTEventSource(EventSource):
 
             # fill general R0 data
             self.fill_r0_container_from_zfile(event)
-            if self.r0_r1_calibrator.pedestal_path is not None:
+            if self.r0_r1_calibrator.drs4_pedestal_path.tel[self.tel_id] is not None:
                 self.r0_r1_calibrator.calibrate(self.data)
 
             yield self.data

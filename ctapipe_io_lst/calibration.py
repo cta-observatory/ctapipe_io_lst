@@ -80,11 +80,10 @@ class LSTR0Corrections(TelescopeComponent):
             subarray=subarray, config=config, parent=parent, **kwargs
         )
 
-
         shape = (N_MODULES, N_GAINS, N_PIXELS_PER_MODULE, N_CAPACITORS)
         self.last_reading_time_array = np.zeros(shape)
 
-        shape = (self.n_module, self.n_gain, self.n_pix)
+        shape = (N_MODULES, N_GAINS, N_PIXELS_PER_MODULE)
         self.first_cap_array = np.zeros(shape)
         self.first_cap_time_lapse_array = np.zeros(shape)
         self.first_cap_array_spike = np.zeros(shape)
