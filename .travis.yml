@@ -19,7 +19,7 @@ matrix:
       os: linux
       env:
         - PYTHON_VERSION=3.7
-        - CTAPIPE_VERSION=master
+        - CTAPIPE_VERSION=fix_telescope_parameter_none
 
   # allow_failures:
   #   - name: ctapipe=master
