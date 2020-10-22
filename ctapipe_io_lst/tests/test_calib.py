@@ -21,13 +21,13 @@ def test_read_calib_file():
 
 
 def test_read_drs4_pedestal_file():
-    from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS, N_ROI
+    from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS_4, N_ROI
 
     pedestal = LSTR0Corrections._read_drs4_pedestal_file(test_drs4_pedestal_path)
 
-    assert pedestal.shape[-1] == N_CAPACITORS + N_ROI
+    assert pedestal.shape[-1] == N_CAPACITORS_4 + N_ROI
     # check circular boundary
-    assert np.all(pedestal[..., :N_ROI] == pedestal[..., N_CAPACITORS:])
+    assert np.all(pedestal[..., :N_ROI] == pedestal[..., N_CAPACITORS_4:])
 
     # check offset is applied
     pedestal_offset = LSTR0Corrections._read_drs4_pedestal_file(

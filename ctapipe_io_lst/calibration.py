@@ -20,7 +20,8 @@ __all__ = [
 N_MODULES = 265
 N_GAINS = 2
 N_PIXELS_PER_MODULE = 7
-N_CAPACITORS = 4 * 1024
+N_CAPACITORS = 1024
+N_CAPACITORS_4 = 4 * N_CAPACITORS
 N_ROI = 40
 HIGH_GAIN = 0
 LOW_GAIN = 1
@@ -163,19 +164,18 @@ class LSTR0Corrections(TelescopeComponent):
         the first N_ROI values are repeated at the end of the array
         """
         pedestal_data = np.empty(
-            (N_GAINS, N_PIXELS_PER_MODULE * N_MODULES, N_CAPACITORS + N_ROI),
+            (N_GAINS, N_PIXELS_PER_MODULE * N_MODULES, N_CAPACITORS_4 + N_ROI),
             dtype=np.int16
         )
         with fits.open(path) as f:
-            pedestal_data[:, :, :N_CAPACITORS] = f[1].data
+            pedestal_data[:, :, :N_CAPACITORS_4] = f[1].data
 
-        pedestal_data[:, :, N_CAPACITORS:] = pedestal_data[:, :, :N_ROI]
+        pedestal_data[:, :, N_CAPACITORS_4:] = pedestal_data[:, :, :N_ROI]
 
         if offset != 0:
             pedestal_data -= offset
 
         return pedestal_data
-
 
     def subtract_pedestal(self, event, tel_id):
         """
