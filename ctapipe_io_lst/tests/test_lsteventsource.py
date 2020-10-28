@@ -24,15 +24,12 @@ def test_loop_over_events():
     )
 
     for i, event in enumerate(source, start=1):
-        assert event.r0.tels_with_data == [0]
-        for telid in event.r0.tels_with_data:
-            assert event.index.event_id == i
-            n_gain = 2
-            n_camera_pixels = \
-                source.subarray.tels[telid].camera.geometry.n_pixels
-            num_samples = event.lst.tel[telid].svc.num_samples
-            waveform_shape = (n_gain, n_camera_pixels, num_samples)
-
+        assert event.index.event_id == i
+        for telid in event.r0.tel.keys():
+            n_gains = 2
+            n_pixels = source.subarray.tels[telid].camera.geometry.n_pixels
+            n_samples = event.lst.tel[telid].svc.num_samples
+            waveform_shape = (n_gains, n_pixels, n_samples)
             assert event.r0.tel[telid].waveform.shape == waveform_shape
 
     # make sure max_events works
