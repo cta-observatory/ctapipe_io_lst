@@ -21,7 +21,7 @@ setup(
     install_requires=[
         'astropy',
         'ctapipe',
-        'protozfits @ https://github.com/cta-sst-1m/protozfitsreader/archive/v1.5.0.tar.gz',
+        'protozfits @ https://github.com/cta-observatory/protozfitsreader/archive/v1.5.0.tar.gz',
     ],
     package_data={
         'ctapipe_io_lst': ['resources/*'],
