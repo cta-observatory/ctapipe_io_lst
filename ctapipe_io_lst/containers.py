@@ -136,7 +136,6 @@ class LSTContainer(Container):
     """
     Storage for the LSTCameraContainer for each telescope
     """
-    tels_with_data = Field([], "list of telescopes with data")
 
     # create the camera container
     tel = Field(

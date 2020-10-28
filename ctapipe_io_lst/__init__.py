@@ -346,7 +346,6 @@ class LSTEventSource(EventSource):
 
         """
 
-        self.data.lst.tels_with_data = [self.tel_id, ]
         svc_container = self.data.lst.tel[self.tel_id].svc
 
         svc_container.telescope_id = self.tel_id
@@ -444,41 +443,22 @@ class LSTEventSource(EventSource):
         event_container.drs_tag_status = event.lstcam.drs_tag_status
         event_container.drs_tag = event.lstcam.drs_tag
 
+    def fill_trigger_info(self, trigger, event):
+        module_rank = np.where(self.data.lst.tel[self.tel_id].svc.module_ids == 132)
+        trigger.time = (
+            self.data.lst.tel[self.tel_id].svc.date +
+            self.data.lst.tel[self.tel_id].evt.pps_counter[module_rank] +
+            self.data.lst.tel[self.tel_id].evt.tenMHz_counter[module_rank] * 10**(-7)
+        )
+        if self.data.lst.tel[self.tel_id].evt.tib_masked_trigger > 0:
+            trigger.event_type = self.data.lst.tel[self.tel_id].evt.tib_masked_trigger
+        else:
+            trigger.event_type = -1
+
     def fill_r0_camera_container_from_zfile(self, r0_container, event):
         """
         Fill with R0CameraContainer
         """
-
-        # look for correct trigger_time (TAI time in s), first in UCTS and then in TIB
-        #if self.data.lst.tel[self.tel_id].evt.ucts_timestamp > 0:
-        #    r0_container.trigger_time = self.data.lst.tel[self.tel_id].evt.ucts_timestamp/1e9
-
-        # consider for the moment only TIB time since UCTS seems not correct
-        #if self.data.lst.tel[self.tel_id].evt.tib_pps_counter > 0:
-        #    r0_container.trigger_time = (
-        #        self.data.lst.tel[self.tel_id].svc.date +
-        #        self.data.lst.tel[self.tel_id].evt.tib_pps_counter +
-        #        self.data.lst.tel[self.tel_id].evt.tib_tenMHz_counter * 10**(-7))
-        #else:
-        #    r0_container.trigger_time = 0
-
-        #consider for the moment trigger time from central dragon module
-        module_rank = np.where(self.data.lst.tel[self.tel_id].svc.module_ids == 132)
-        r0_container.trigger_time = (
-                    self.data.lst.tel[self.tel_id].svc.date +
-                    self.data.lst.tel[self.tel_id].evt.pps_counter[module_rank] +
-                    self.data.lst.tel[self.tel_id].evt.tenMHz_counter[module_rank] * 10**(-7))
-
-        # look for correct trigger type first in UCTS and then in TIB
-        #if self.data.lst.tel[self.tel_id].evt.ucts_trigger_type > 0:
-        #    r0_container.trigger_type = self.data.lst.tel[self.tel_id].evt.ucts_trigger_type
-
-        # consider for the moment only TIB trigger since UCTS seems not correct
-        if self.data.lst.tel[self.tel_id].evt.tib_masked_trigger > 0:
-            r0_container.trigger_type = self.data.lst.tel[self.tel_id].evt.tib_masked_trigger
-        else:
-            r0_container.trigger_type = -1
-
         # verify the number of gains
         if event.waveform.shape[0] != self.camera_config.num_pixels * self.camera_config.num_samples * self.n_gains:
             raise ValueError(f"Number of gains not correct, waveform shape is {event.waveform.shape[0]}"
@@ -510,7 +490,6 @@ class LSTEventSource(EventSource):
         """
         container = self.data.r0
 
-        container.tels_with_data = [self.tel_id, ]
         r0_camera_container = container.tel[self.tel_id]
         self.fill_r0_camera_container_from_zfile(
             r0_camera_container,
@@ -524,7 +503,6 @@ class LSTEventSource(EventSource):
 
         """
         container = self.data.mon
-        container.tels_with_data = [self.tel_id, ]
         mon_camera_container = container.tel[self.tel_id]
 
         # initialize the container
