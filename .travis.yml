@@ -45,5 +45,4 @@ install:
 
 script:
   - python -c 'import protozfits'
-  - python -c 'import rawzfits'
   - pytest -v
