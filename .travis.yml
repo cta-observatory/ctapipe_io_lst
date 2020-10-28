@@ -35,9 +35,11 @@ before_install:
   - conda info -a # Useful for debugging any issues with conda
 
 install:
+  - echo $PYTHON_VERSION
   - sed -i -e "s/- python=.*/- python=$PYTHON_VERSION/g" environment.yml
   - conda env create -n travis -f environment.yml
   - conda activate travis
+  - python --version | grep $PYTHON_VERSION
 
   # we install ctapipe using pip to be able to select any commit, e.g. the current master
   - pip install https://github.com/cta-observatory/ctapipe/archive/$CTAPIPE_VERSION.tar.gz
