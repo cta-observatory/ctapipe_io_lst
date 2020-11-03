@@ -153,7 +153,7 @@ class LSTEventSource(EventSource):
         help='Read in parallel all streams '
     ).tag(config=True)
 
-    def __init__(self, **kwargs):
+    def __init__(self, input_url=None, **kwargs):
         """
         Parameters
         ----------
@@ -172,8 +172,7 @@ class LSTEventSource(EventSource):
             NOTE: The file mask of the data to read can be passed with
             the 'input_url' parameter.
         """
-
-        super().__init__(**kwargs)
+        super().__init__(input_url=input_url, **kwargs)
 
         if self.multi_streams:
             # test how many streams are there:

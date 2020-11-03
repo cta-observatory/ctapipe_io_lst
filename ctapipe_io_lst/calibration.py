@@ -28,6 +28,36 @@ N_ROI = 40
 HIGH_GAIN = 0
 LOW_GAIN = 1
 LAST_RUN_WITH_OLD_FIRMWARE = 1574
+N_CHANNELS_DRS4 = 8
+
+# First capacitor order according Dragon v5 board data format
+CHANNEL_ORDER_HIGH_GAIN = [0, 0, 1, 1, 2, 2, 3]
+CHANNEL_ORDER_LOW_GAIN = [4, 4, 5, 5, 6, 6, 7]
+
+
+def get_first_capacitor_for_modules(first_capacitor_id):
+    '''
+    Get the first capacitor for each module's pixels from the
+    flat first_capacitor_id array.
+    '''
+    # get n_modules from the input capacitor array
+    n_modules = first_capacitor_id.size // N_CHANNELS_DRS4
+
+    # first: reshape so we can access by module
+    first_capacitor_id = first_capacitor_id.reshape((-1, N_CHANNELS_DRS4))
+
+    # output array
+    fc = np.zeros((n_modules, N_GAINS, N_PIXELS_PER_MODULE), dtype=np.uint16)
+
+    for i, j in enumerate(CHANNEL_ORDER_HIGH_GAIN):
+        # transpose to make broadcasting work
+        fc.T[i, HIGH_GAIN] = first_capacitor_id[:, j]
+
+    for i, j in enumerate(CHANNEL_ORDER_LOW_GAIN):
+        # transpose to make broadcasting work
+        fc.T[i, LOW_GAIN] = first_capacitor_id[:, j]
+
+    return fc
 
 
 class LSTR0Corrections(TelescopeComponent):
@@ -204,8 +234,9 @@ class LSTR0Corrections(TelescopeComponent):
         """
         n_modules = event.lst.tel[tel_id].svc.num_modules
 
-        for nr_module in range(0, n_modules):
-            self.first_cap[tel_id][nr_module, :, :] = self._get_first_capacitor(event, nr_module, tel_id)
+        self.first_cap[tel_id] = get_first_capacitor_for_modules(
+            event.lst.tel[1].evt.first_capacitor_id
+        )
 
         expected_pixel_id = event.lst.tel[tel_id].svc.pixel_ids
         samples = event.r0.tel[tel_id].waveform.astype(np.float32)
@@ -234,8 +265,9 @@ class LSTR0Corrections(TelescopeComponent):
         expected_pixel_id = event.lst.tel[tel_id].svc.pixel_ids
         local_clock_list = event.lst.tel[tel_id].evt.local_clock_counter
         n_modules = event.lst.tel[tel_id].svc.num_modules
-        for nr_module in range(0, n_modules):
-            self.first_cap_time_lapse[tel_id][nr_module, :, :] = self._get_first_capacitor(event, nr_module, tel_id)
+        self.first_cap_time_lapse[tel_id] = get_first_capacitor_for_modules(
+            event.lst.tel[1].evt.first_capacitor_id
+        )
 
         # If R1 container exists, update it inplace
         if isinstance(event.r1.tel[tel_id].waveform, np.ndarray):
@@ -275,8 +307,9 @@ class LSTR0Corrections(TelescopeComponent):
         self.first_cap_old[tel_id][:] = self.first_cap[tel_id][:]
         n_modules = event.lst.tel[tel_id].svc.num_modules
 
-        for nr_module in range(0, n_modules):
-            self.first_cap[tel_id][nr_module] = self._get_first_capacitor(event, nr_module, tel_id)
+        self.first_cap[tel_id] = get_first_capacitor_for_modules(
+            event.lst.tel[1].evt.first_capacitor_id
+        )
 
         # Interpolate spikes should be done after pedestal subtraction and time lapse correction.
         if isinstance(event.r1.tel[tel_id].waveform, np.ndarray):
@@ -329,9 +362,9 @@ class LSTR0Corrections(TelescopeComponent):
         n_gain = 2
         n_pix = 7
         for nr_module in prange(0, n_modules):
-            for gain in prange(0, n_gain):
-                for pix in prange(0, n_pix):
-                    for k in prange(0, 4):
+            for gain in range(0, n_gain):
+                for pix in range(0, n_pix):
+                    for k in range(0, 4):
                         # looking for spike A first case
                         abspos = int(size1drs + 1 - roi_size - 2 - fc_old[nr_module, gain, pix] + k * size1drs + size4drs)
                         spike_A_position = int((abspos - fc[nr_module, gain, pix] + size4drs) % size4drs)
@@ -385,9 +418,9 @@ class LSTR0Corrections(TelescopeComponent):
         n_gain = 2
         n_pix = 7
         for nr_module in prange(0, n_modules):
-            for gain in prange(0, n_gain):
-                for pix in prange(0, n_pix):
-                    for k in prange(0, 4):
+            for gain in range(0, n_gain):
+                for pix in range(0, n_pix):
+                    for k in range(0, 4):
                         # looking for spike A first case
                         abspos = int(size1drs - roi_size - 2 -fc_old[nr_module, gain, pix]+ k * size1drs + size4drs)
                         spike_A_position = int((abspos - fc[nr_module, gain, pix]+ size4drs) % size4drs)
@@ -410,25 +443,6 @@ class LSTR0Corrections(TelescopeComponent):
                                 interpolate_spike_A(waveform, gain, spike_A_position, pixel)
         return waveform
 
-    def _get_first_capacitor(self, event, nr_module, tel_id):
-        """
-        Get first capacitor values from event for nr module.
-        Parameters
-        ----------
-        event : `ctapipe` event-container
-        nr_module : number of module
-        tel_id : id of the telescope
-        """
-        fc = np.zeros((2, 7))
-        first_cap = event.lst.tel[tel_id].evt.first_capacitor_id[nr_module * 8:
-                                                                 (nr_module + 1) * 8]
-
-        # First capacitor order according Dragon v5 board data format
-        for i, j in zip([0, 1, 2, 3, 4, 5, 6], [0, 0, 1, 1, 2, 2, 3]):
-            fc[HIGH_GAIN, i] = first_cap[j]
-        for i, j in zip([0, 1, 2, 3, 4, 5, 6], [4, 4, 5, 5, 6, 6, 7]):
-            fc[LOW_GAIN, i] = first_cap[j]
-        return fc
 
 @jit(parallel=True)
 def subtract_pedestal_jit(event_waveform, expected_pixel_id, fc_cap, pedestal_value_array, n_modules):
@@ -442,14 +456,16 @@ def subtract_pedestal_jit(event_waveform, expected_pixel_id, fc_cap, pedestal_va
     n_gain = 2
     n_pix = 7
     for nr_module in prange(0, n_modules):
-        for gain in prange(0, n_gain):
-            for pix in prange(0, n_pix):
+        for gain in range(0, n_gain):
+            for pix in range(0, n_pix):
                 pixel = expected_pixel_id[nr_module*7 + pix]
                 position = int((fc_cap[nr_module, gain, pix]) % size4drs)
-                waveform[gain, pixel, :] = \
-                    (event_waveform[gain, pixel, :] -
-                    pedestal_value_array[gain, pixel, position:position + roi_size])
+                waveform[gain, pixel, :] = (
+                    event_waveform[gain, pixel, :]
+                    - pedestal_value_array[gain, pixel, position:position + roi_size]
+                )
     return waveform
+
 
 @jit(parallel=True)
 def do_time_lapse_corr(waveform, expected_pixel_id, local_clock_list,
@@ -465,10 +481,10 @@ def do_time_lapse_corr(waveform, expected_pixel_id, local_clock_list,
     n_pix = 7
     for nr_module in prange(0, number_of_modules):
         time_now = local_clock_list[nr_module]
-        for gain in prange(0, n_gain):
-            for pix in prange(0, n_pix):
+        for gain in range(0, n_gain):
+            for pix in range(0, n_pix):
                 pixel = expected_pixel_id[nr_module*7 + pix]
-                for k in prange(0, roi_size):
+                for k in range(0, roi_size):
                     posads = int((k + fc[nr_module, gain, pix]) % size4drs)
                     if last_time_array[nr_module, gain, pix, posads] > 0:
                         time_diff = time_now - last_time_array[nr_module, gain, pix, posads]
@@ -481,7 +497,7 @@ def do_time_lapse_corr(waveform, expected_pixel_id, local_clock_list,
                 if posads0+roi_size < size4drs:
                     last_time_array[nr_module, gain, pix, (posads0):(posads0+roi_size)] = time_now
                 else:
-                    for k in prange(0, roi_size):
+                    for k in range(0, roi_size):
                         posads = int((k + fc[nr_module, gain, pix]) % size4drs)
                         last_time_array[nr_module, gain, pix, posads] = time_now
 
@@ -517,10 +533,10 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(waveform, expected_pixel_i
 
     for nr_module in prange(0, number_of_modules):
         time_now = local_clock_list[nr_module]
-        for gain in prange(0, n_gain):
-            for pix in prange(0, n_pix):
+        for gain in range(0, n_gain):
+            for pix in range(0, n_pix):
                 pixel = expected_pixel_id[nr_module * 7 + pix]
-                for k in prange(0, roi_size):
+                for k in range(0, roi_size):
                     posads = int((k + fc[nr_module, gain, pix]) % size4drs)
                     if last_time_array[nr_module, gain, pix, posads] > 0:
                         time_diff = time_now - last_time_array[nr_module, gain, pix, posads]
@@ -534,7 +550,7 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(waveform, expected_pixel_i
                     last_time_array[nr_module, gain, pix, (posads0-1):(posads0 + (roi_size-1))] = time_now
                 else:
                     # Old firmware issue: readout shifted by 1 cell
-                    for k in prange(-1, roi_size-1):
+                    for k in range(-1, roi_size-1):
                         posads = int((k + fc[nr_module, gain, pix]) % size4drs)
                         last_time_array[nr_module, gain, pix, posads] = time_now
 
