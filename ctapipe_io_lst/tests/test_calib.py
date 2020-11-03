@@ -63,3 +63,25 @@ def test_source_with_drs4_pedestal():
 
     for event in source:
         assert event.r1.tel[1].waveform is not None
+
+
+def test_source_with_calibration():
+    from ctapipe_io_lst import LSTEventSource
+
+    config = Config({
+        'LSTEventSource': {
+            'LSTR0Corrections': {
+                'drs4_pedestal_path': test_drs4_pedestal_path,
+                'calibration_path': test_calib_path,
+            }
+        }
+    })
+
+    source = LSTEventSource(
+        input_url=test_r0_path,
+        config=config,
+    )
+
+    assert source.r0_r1_calibrator.mon_data is not None
+    for event in source:
+        assert event.r1.tel[1].waveform is not None

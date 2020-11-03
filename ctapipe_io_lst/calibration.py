@@ -104,6 +104,9 @@ class LSTR0Corrections(TelescopeComponent):
             self.gain_selector_type, parent=self
         )
 
+        if self.calibration_path is not None:
+            self.mon_data = self._read_calibration_file(self.calibration_path)
+
     def calibrate(self, event):
         for tel_id, r0 in event.r0.tel.items():
             r1 = event.r1.tel[tel_id]
