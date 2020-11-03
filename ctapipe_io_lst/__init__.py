@@ -22,7 +22,7 @@ from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Int, Bool
 from ctapipe.containers import PixelStatusContainer
 
-from .containers import LSTDataContainer
+from .containers import LSTArrayEventContainer
 from .version import get_version
 from .calibration import LSTR0Corrections
 
@@ -249,7 +249,6 @@ class LSTEventSource(EventSource):
         # get info on the camera readout:
         daq_time_per_sample, pulse_shape_time_step, pulse_shapes = read_pulse_shapes()
 
-
         camera_readout = CameraReadout(
             'LSTCam',
             1 / daq_time_per_sample,
@@ -278,7 +277,7 @@ class LSTEventSource(EventSource):
     def _generator(self):
 
         # container for LST data
-        self.data = LSTDataContainer()
+        self.data = LSTArrayEventContainer()
         self.data.meta['input_url'] = self.input_url
         self.data.meta['max_events'] = self.max_events
         self.data.meta['origin'] = 'LSTCAM'

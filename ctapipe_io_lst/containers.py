@@ -4,7 +4,7 @@ Container structures for data that should be read or written to disk
 from astropy import units as u
 from numpy import nan
 from ctapipe.core import Container, Field, Map
-from ctapipe.containers import DataContainer, MonitoringContainer
+from ctapipe.containers import ArrayEventContainer, MonitoringContainer
 
 
 __all__ = [
@@ -143,7 +143,7 @@ class LSTContainer(Container):
         "map of tel_id to LSTTelContainer")
 
 
-class LSTDataContainer(DataContainer):
+class LSTArrayEventContainer(ArrayEventContainer):
     """
     Data container including LST and monitoring information
     """

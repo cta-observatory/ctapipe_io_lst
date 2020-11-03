@@ -45,6 +45,9 @@ install:
   - pip install https://github.com/cta-observatory/ctapipe/archive/$CTAPIPE_VERSION.tar.gz
   - pip install -e .
 
+before_script:
+  - ./download_test_data.sh
+
 script:
   - python -c 'import protozfits'
   - pytest -v

@@ -61,8 +61,9 @@ def test_source_with_drs4_pedestal():
     )
     assert source.r0_r1_calibrator.drs4_pedestal_path.tel[1] == test_drs4_pedestal_path.absolute()
 
-    for event in source:
-        assert event.r1.tel[1].waveform is not None
+    with source:
+        for event in source:
+            assert event.r1.tel[1].waveform is not None
 
 
 def test_source_with_calibration():
@@ -83,5 +84,6 @@ def test_source_with_calibration():
     )
 
     assert source.r0_r1_calibrator.mon_data is not None
-    for event in source:
-        assert event.r1.tel[1].waveform is not None
+    with source:
+        for event in source:
+            assert event.r1.tel[1].waveform is not None

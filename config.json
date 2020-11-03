@@ -1,0 +1,8 @@
+{
+    "LSTEventSource": {
+        "LSTR0Corrections": {
+            "drs4_pedestal_path": "test_data/real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits",
+            "calibration_path": "test_data/real/calibration/20200218/v05/calibration.Run2006.0000.hdf5"
+        }
+    }
+}
