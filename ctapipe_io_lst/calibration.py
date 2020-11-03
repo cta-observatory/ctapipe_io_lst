@@ -11,15 +11,17 @@ from ctapipe.core.traits import (
 from ctapipe.calib.camera import GainSelector
 from ctapipe.containers import MonitoringContainer
 from ctapipe.io import HDF5TableReader
+from functools import lru_cache
 import tables
 
 __all__ = [
     'LSTR0Corrections',
 ]
 
-N_MODULES = 265
 N_GAINS = 2
+N_MODULES = 265
 N_PIXELS_PER_MODULE = 7
+N_PIXELS = N_MODULES * N_PIXELS_PER_MODULE
 N_CAPACITORS = 1024
 N_CAPACITORS_4 = 4 * N_CAPACITORS
 N_ROI = 40
@@ -81,14 +83,22 @@ class LSTR0Corrections(TelescopeComponent):
             subarray=subarray, config=config, parent=parent, **kwargs
         )
 
-        shape = (N_MODULES, N_GAINS, N_PIXELS_PER_MODULE, N_CAPACITORS)
-        self.last_reading_time_array = np.zeros(shape)
+        self.mon_data = None
+        self.last_readout_time = {}
+        self.first_cap = {}
+        self.first_cap_time_lapse = {}
+        self.first_cap_spikes = {}
+        self.first_cap_old = {}
 
-        shape = (N_MODULES, N_GAINS, N_PIXELS_PER_MODULE)
-        self.first_cap_array = np.zeros(shape)
-        self.first_cap_time_lapse_array = np.zeros(shape)
-        self.first_cap_array_spike = np.zeros(shape)
-        self.first_cap_old_array = np.zeros(shape)
+        for tel_id in self.subarray.tel:
+            shape = (N_MODULES, N_GAINS, N_PIXELS_PER_MODULE, N_CAPACITORS)
+            self.last_readout_time[tel_id] = np.zeros(shape)
+
+            shape = (N_MODULES, N_GAINS, N_PIXELS_PER_MODULE)
+            self.first_cap[tel_id] = np.zeros(shape, dtype=int)
+            self.first_cap_old[tel_id] = np.zeros(shape, dtype=int)
+            self.first_cap_time_lapse[tel_id] = np.zeros(shape)
+            self.first_cap_spikes[tel_id] = np.zeros(shape)
 
         self.gain_selector = GainSelector.from_name(
             self.gain_selector_type, parent=self
@@ -102,13 +112,12 @@ class LSTR0Corrections(TelescopeComponent):
             self.time_lapse_corr(event, tel_id)
             self.interpolate_spikes(event, tel_id)
 
-            r1.trigger_type = r0.trigger_type
-            r1.trigger_time = r0.trigger_time
-
-            samples = r1.waveform[:, :, self.r1_sample_start:self.r1_sample_end]
+            start = self.r1_sample_start.tel[tel_id]
+            end = self.r1_sample_end.tel[tel_id]
+            waveform = r1.waveform[..., start:end]
 
             # apply drs4 offset subtraction
-            waveform = samples - self.offset
+            waveform -= self.offset.tel[tel_id]
 
             # apply monitoring data corrections
             if self.mon_data is not None:
@@ -118,7 +127,7 @@ class LSTR0Corrections(TelescopeComponent):
 
             waveform = waveform.astype(np.float32)
             r1.selected_gain_channel = self.gain_selector(r1.waveform)
-            n_pixels = samples.shape[1]
+            n_pixels = waveform.shape[1]
             r1.waveform = waveform[r1.selected_gain_channel, np.arange(n_pixels)]
 
     @staticmethod
@@ -156,12 +165,16 @@ class LSTR0Corrections(TelescopeComponent):
         return mon
 
     @staticmethod
-    def _read_drs4_pedestal_file(path, offset=0):
+    @lru_cache(maxsize=4)
+    def _get_drs4_pedestal_data(path, offset=0):
         """
         Function to load pedestal file.
 
         To make boundary conditions unnecessary,
         the first N_ROI values are repeated at the end of the array
+
+        The result is cached so we can repeatedly call this method
+        using the configured path without reading it each time.
         """
         pedestal_data = np.empty(
             (N_GAINS, N_PIXELS_PER_MODULE * N_MODULES, N_CAPACITORS_4 + N_ROI),
@@ -189,7 +202,7 @@ class LSTR0Corrections(TelescopeComponent):
         n_modules = event.lst.tel[tel_id].svc.num_modules
 
         for nr_module in range(0, n_modules):
-            self.first_cap_array[nr_module, :, :] = self._get_first_capacitor(event, nr_module, tel_id)
+            self.first_cap[tel_id][nr_module, :, :] = self._get_first_capacitor(event, nr_module, tel_id)
 
         expected_pixel_id = event.lst.tel[tel_id].svc.pixel_ids
         samples = event.r0.tel[tel_id].waveform.astype(np.float32)
@@ -197,11 +210,11 @@ class LSTR0Corrections(TelescopeComponent):
         samples = subtract_pedestal_jit(
             samples,
             expected_pixel_id,
-            self.first_cap_array,
-            self.pedestal_value_array,
+            self.first_cap[tel_id],
+            self._get_drs4_pedestal_data(self.drs4_pedestal_path.tel[tel_id]),
             n_modules,
         )
-        event.r1.tel[self.tel_id].waveform = samples[:, :, :]
+        event.r1.tel[tel_id].waveform = samples[:, :, :]
 
     def time_lapse_corr(self, event, tel_id):
         """
@@ -219,53 +232,31 @@ class LSTR0Corrections(TelescopeComponent):
         local_clock_list = event.lst.tel[tel_id].evt.local_clock_counter
         n_modules = event.lst.tel[tel_id].svc.num_modules
         for nr_module in range(0, n_modules):
-            self.first_cap_time_lapse_array[nr_module, :, :] = self._get_first_capacitor(event, nr_module, tel_id)
+            self.first_cap_time_lapse[tel_id][nr_module, :, :] = self._get_first_capacitor(event, nr_module, tel_id)
 
-        # If R1 container exist modifies it
-        if isinstance(event.r1.tel[self.tel_id].waveform, np.ndarray):
-            samples = event.r1.tel[self.tel_id].waveform
+        # If R1 container exists, update it inplace
+        if isinstance(event.r1.tel[tel_id].waveform, np.ndarray):
+            samples = event.r1.tel[tel_id].waveform
+        else:
+            # Modify R0 container. This is to create pedestal files.
+            samples = event.r0.tel[tel_id].waveform
 
-            # We have 2 functions: one for data from 2018/10/10 to 2019/11/04 and
-            # one for data from 2019/11/05 (from Run 1574) after update firmware.
-            # The old readout (before 2019/11/05) is shifted by 1 cell.
-            if run_id > self.last_run_with_old_firmware:
-                do_time_lapse_corr(samples,
-                                   expected_pixel_id,
-                                   local_clock_list,
-                                   self.first_cap_time_lapse_array,
-                                   self.last_reading_time_array,
-                                   n_modules)
-            else:
-                do_time_lapse_corr_data_from_20181010_to_20191104(samples,
-                                                                  expected_pixel_id,
-                                                                  local_clock_list,
-                                                                  self.first_cap_time_lapse_array,
-                                                                  self.last_reading_time_array,
-                                                                  n_modules)
+        # We have 2 functions: one for data from 2018/10/10 to 2019/11/04 and
+        # one for data from 2019/11/05 (from Run 1574) after update firmware.
+        # The old readout (before 2019/11/05) is shifted by 1 cell.
+        if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+            time_laps_corr = do_time_lapse_corr
+        else:
+            time_laps_corr = do_time_lapse_corr_data_from_20181010_to_20191104
 
-            event.r1.tel[self.tel_id].trigger_type = event.r0.tel[self.tel_id].trigger_type
-            event.r1.tel[self.tel_id].trigger_time = event.r0.tel[self.tel_id].trigger_time
-            event.r1.tel[self.tel_id].waveform = samples[:, :, :]
-
-        else: # Modifies R0 container. This is for create pedestal file.
-            samples = np.copy(event.r0.tel[self.tel_id].waveform)
-
-            if run_id > self.last_run_with_old_firmware:
-                do_time_lapse_corr(samples,
-                                   expected_pixel_id,
-                                   local_clock_list,
-                                   self.first_cap_time_lapse_array,
-                                   self.last_reading_time_array,
-                                   n_modules)
-            else:
-                do_time_lapse_corr_data_from_20181010_to_20191104(samples,
-                                                                  expected_pixel_id,
-                                                                  local_clock_list,
-                                                                  self.first_cap_time_lapse_array,
-                                                                  self.last_reading_time_array,
-                                                                  n_modules)
-
-            event.r0.tel[self.tel_id].waveform = samples[:, :, :]
+        time_laps_corr(
+            samples,
+            expected_pixel_id,
+            local_clock_list,
+            self.first_cap_time_lapse[tel_id],
+            self.last_readout_time[tel_id],
+            n_modules,
+        )
 
     def interpolate_spikes(self, event, tel_id):
         """
@@ -278,36 +269,32 @@ class LSTR0Corrections(TelescopeComponent):
         """
         run_id = event.lst.tel[tel_id].svc.configuration_id
 
-        self.first_cap_old_array[:, :, :] = self.first_cap_array_spike[:, :, :]
+        self.first_cap_old[tel_id][:] = self.first_cap[tel_id][:]
         n_modules = event.lst.tel[tel_id].svc.num_modules
+
         for nr_module in range(0, n_modules):
-            self.first_cap_array_spike[nr_module, :, :] = self._get_first_capacitor(event, nr_module, tel_id)
+            self.first_cap[tel_id][nr_module] = self._get_first_capacitor(event, nr_module, tel_id)
 
         # Interpolate spikes should be done after pedestal subtraction and time lapse correction.
         if isinstance(event.r1.tel[tel_id].waveform, np.ndarray):
             waveform = event.r1.tel[tel_id].waveform[:, :, :]
             expected_pixel_id = event.lst.tel[tel_id].svc.pixel_ids
-            samples = waveform.copy()
 
             # We have 2 functions: one for data from 2018/10/10 to 2019/11/04 and
             # one for data from 2019/11/05 (from Run 1574) after update firmware.
             # The old readout (before 2019/11/05) is shifted by 1 cell.
-            if run_id > self.last_run_with_old_firmware:
-                event.r1.tel[self.tel_id].waveform = self.interpolate_pseudo_pulses(samples,
-                                                                                    expected_pixel_id,
-                                                                                    self.first_cap_array_spike,
-                                                                                    self.first_cap_old_array,
-                                                                                    n_modules)
+            if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+                interpolate_pseudo_pulses = self.interpolate_pseudo_pulses
             else:
-                event.r1.tel[self.tel_id].waveform = \
-                    self.interpolate_pseudo_pulses_data_from_20181010_to_20191104(samples,
-                                                                                  expected_pixel_id,
-                                                                                  self.first_cap_array_spike,
-                                                                                  self.first_cap_old_array,
-                                                                                  n_modules)
+                interpolate_pseudo_pulses = self.interpolate_pseudo_pulses_data_from_20181010_to_20191104
 
-            event.r1.tel[self.tel_id].trigger_type = event.r0.tel[self.tel_id].trigger_type
-            event.r1.tel[self.tel_id].trigger_time = event.r0.tel[self.tel_id].trigger_time
+            event.r1.tel[tel_id].waveform = interpolate_pseudo_pulses(
+                waveform,
+                expected_pixel_id,
+                self.first_cap_spikes[tel_id],
+                self.first_cap_old[tel_id],
+                n_modules,
+            )
 
     @staticmethod
     @jit(parallel=True)
@@ -435,9 +422,9 @@ class LSTR0Corrections(TelescopeComponent):
 
         # First capacitor order according Dragon v5 board data format
         for i, j in zip([0, 1, 2, 3, 4, 5, 6], [0, 0, 1, 1, 2, 2, 3]):
-            fc[self.high_gain, i] = first_cap[j]
+            fc[HIGH_GAIN, i] = first_cap[j]
         for i, j in zip([0, 1, 2, 3, 4, 5, 6], [4, 4, 5, 5, 6, 6, 7]):
-            fc[self.low_gain, i] = first_cap[j]
+            fc[LOW_GAIN, i] = first_cap[j]
         return fc
 
 @jit(parallel=True)
