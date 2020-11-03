@@ -1,6 +1,7 @@
 from pkg_resources import resource_filename
 import os
 from pathlib import Path
+import tempfile
 
 example_file_path = Path(resource_filename(
     'protozfits',
@@ -55,8 +56,11 @@ def test_factory_for_lst_file():
 
 def test_subarray():
     from ctapipe.io import event_source
+
     source = event_source(example_file_path)
     subarray = source.subarray
     subarray.info()
-    subarray.peek()
     subarray.to_table()
+
+    with tempfile.NamedTemporaryFile(suffix='.h5') as f:
+        subarray.to_hdf(f.name)

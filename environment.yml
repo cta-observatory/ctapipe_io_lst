@@ -1,10 +1,9 @@
 channels:
   - default
   - cta-observatory
-  - conda-forge
 dependencies:
   - python=3.7 # nail the python version, so conda does not try upgrading / dowgrading
-  - ctapipe=0.8
+  - ctapipe
   - zeromq
   - ipython
   - numba
@@ -14,6 +13,7 @@ dependencies:
   - pyyaml
   - zlib
   - pip
+  - h5py
   - pip:
       - pytest_runner
       - https://github.com/cta-sst-1m/protozfitsreader/archive/v1.4.2.tar.gz
