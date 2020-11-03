@@ -270,11 +270,14 @@ class LSTR0Corrections(TelescopeComponent):
         )
 
         # If R1 container exists, update it inplace
+
         if isinstance(event.r1.tel[tel_id].waveform, np.ndarray):
-            samples = event.r1.tel[tel_id].waveform
+            container = event.r1.tel[tel_id]
         else:
             # Modify R0 container. This is to create pedestal files.
-            samples = event.r0.tel[tel_id].waveform
+            container = event.r0.tel[tel_id]
+
+        waveform = container.waveform.copy()
 
         # We have 2 functions: one for data from 2018/10/10 to 2019/11/04 and
         # one for data from 2019/11/05 (from Run 1574) after update firmware.
@@ -285,13 +288,15 @@ class LSTR0Corrections(TelescopeComponent):
             time_laps_corr = do_time_lapse_corr_data_from_20181010_to_20191104
 
         time_laps_corr(
-            samples,
+            waveform,
             expected_pixel_id,
             local_clock_list,
             self.first_cap_time_lapse[tel_id],
             self.last_readout_time[tel_id],
             n_modules,
         )
+
+        container.waveform = waveform
 
     def interpolate_spikes(self, event, tel_id):
         """
@@ -313,7 +318,7 @@ class LSTR0Corrections(TelescopeComponent):
 
         # Interpolate spikes should be done after pedestal subtraction and time lapse correction.
         if isinstance(event.r1.tel[tel_id].waveform, np.ndarray):
-            waveform = event.r1.tel[tel_id].waveform[:, :, :]
+            waveform = event.r1.tel[tel_id].waveform.copy()
             expected_pixel_id = event.lst.tel[tel_id].svc.pixel_ids
 
             # We have 2 functions: one for data from 2018/10/10 to 2019/11/04 and
