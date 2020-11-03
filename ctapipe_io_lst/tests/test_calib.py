@@ -3,13 +3,17 @@ from pathlib import Path
 from traitlets.config import Config
 import numpy as np
 import tables
+import pkg_resources
 
-resource_dir = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
+resource_dir = Path(pkg_resources.resource_filename(
+    'ctapipe_io_lst', 'tests/resources'
+))
 
-test_r0_path = resource_dir / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz'
-test_calib_path = resource_dir / 'real/calibration/20200218/v05/calibration.Run2006.0000.hdf5'
-test_drs4_pedestal_path = resource_dir / 'real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits'
-test_time_calib_path = resource_dir / 'real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5'
+test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
+test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz'
+test_calib_path = test_data / 'real/calibration/20200218/v05/calibration.Run2006.0000.hdf5'
+test_drs4_pedestal_path = test_data / 'real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits'
+test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5'
 
 
 def test_get_first_capacitor():
@@ -22,7 +26,7 @@ def test_get_first_capacitor():
 
     first_capacitor_id = event.lst.tel[tel_id].evt.first_capacitor_id
 
-    with tables.open_file('./first_caps.hdf5', 'r') as f:
+    with tables.open_file(resource_dir / 'first_caps.hdf5', 'r') as f:
         expected = f.root.first_capacitor_for_modules[:]
 
     first_caps = get_first_capacitor_for_modules(first_capacitor_id)
