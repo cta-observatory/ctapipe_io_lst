@@ -28,11 +28,20 @@ N_ROI = 40
 HIGH_GAIN = 0
 LOW_GAIN = 1
 LAST_RUN_WITH_OLD_FIRMWARE = 1574
-N_CHANNELS_DRS4 = 8
+N_CHANNELS_PER_DRS4 = 8
+
+# we have 8 channels per module, but only 7 are used.
+N_CHANNELS_PER_MODULE = 8
 
 # First capacitor order according Dragon v5 board data format
 CHANNEL_ORDER_HIGH_GAIN = [0, 0, 1, 1, 2, 2, 3]
 CHANNEL_ORDER_LOW_GAIN = [4, 4, 5, 5, 6, 6, 7]
+
+# on which module is a pixel?
+MODULE_INDEX = np.repeat(np.arange(N_MODULES), 7)
+
+CHANNEL_INDEX_LOW_GAIN = MODULE_INDEX * N_CHANNELS_PER_DRS4 + np.tile(CHANNEL_ORDER_LOW_GAIN, N_MODULES)
+CHANNEL_INDEX_HIGH_GAIN = MODULE_INDEX * N_CHANNELS_PER_DRS4 + np.tile(CHANNEL_ORDER_HIGH_GAIN, N_MODULES)
 
 
 def get_first_capacitor_for_modules(first_capacitor_id):
@@ -40,24 +49,14 @@ def get_first_capacitor_for_modules(first_capacitor_id):
     Get the first capacitor for each module's pixels from the
     flat first_capacitor_id array.
     '''
-    # get n_modules from the input capacitor array
-    n_modules = first_capacitor_id.size // N_CHANNELS_DRS4
-
     # first: reshape so we can access by module
-    first_capacitor_id = first_capacitor_id.reshape((-1, N_CHANNELS_DRS4))
+    first_capacitor_id = first_capacitor_id
 
-    # output array
-    fc = np.zeros((n_modules, N_GAINS, N_PIXELS_PER_MODULE), dtype=np.uint16)
-
-    for i, j in enumerate(CHANNEL_ORDER_HIGH_GAIN):
-        # transpose to make broadcasting work
-        fc.T[i, HIGH_GAIN] = first_capacitor_id[:, j]
-
-    for i, j in enumerate(CHANNEL_ORDER_LOW_GAIN):
-        # transpose to make broadcasting work
-        fc.T[i, LOW_GAIN] = first_capacitor_id[:, j]
-
-    return fc
+    fc = np.zeros((N_GAINS, N_PIXELS))
+    fc[LOW_GAIN] = first_capacitor_id[CHANNEL_INDEX_LOW_GAIN]
+    fc[HIGH_GAIN] = first_capacitor_id[CHANNEL_INDEX_HIGH_GAIN]
+    fc = fc.reshape((N_GAINS, N_MODULES, N_PIXELS_PER_MODULE))
+    return np.swapaxes(fc, 0, 1)
 
 
 class LSTR0Corrections(TelescopeComponent):
