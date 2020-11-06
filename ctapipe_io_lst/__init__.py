@@ -220,9 +220,9 @@ class LSTEventSource(EventSource):
         return False
 
     @property
-    def obs_id(self):
+    def obs_ids(self):
         # currently no obs id is available from the input files
-        return self.camera_config.configuration_id
+        return [self.camera_config.configuration_id, ]
 
     @property
     def datalevels(self):
@@ -292,7 +292,7 @@ class LSTEventSource(EventSource):
 
             self.data.count = count
             self.data.index.event_id = event.event_id
-            self.data.index.obs_id = self.obs_id
+            self.data.index.obs_id = self.obs_ids[0]
 
             # fill specific LST event data
             self.fill_lst_event_container_from_zfile(event)

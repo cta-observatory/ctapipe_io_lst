@@ -147,7 +147,6 @@ class LSTR0Corrections(TelescopeComponent):
             end = self.r1_sample_end.tel[tel_id]
             waveform = r1.waveform[..., start:end]
 
-            # apply drs4 offset subtraction
             waveform -= self.offset.tel[tel_id]
 
             # apply monitoring data corrections
@@ -243,7 +242,10 @@ class LSTR0Corrections(TelescopeComponent):
             samples,
             expected_pixel_id,
             self.first_cap[tel_id],
-            self._get_drs4_pedestal_data(self.drs4_pedestal_path.tel[tel_id]),
+            self._get_drs4_pedestal_data(
+                self.drs4_pedestal_path.tel[tel_id],
+                offset=self.offset.tel[tel_id],
+            ),
             n_modules,
         )
         event.r1.tel[tel_id].waveform = samples[:, :, :]
