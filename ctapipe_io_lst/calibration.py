@@ -49,9 +49,7 @@ def get_first_capacitor_for_modules(first_capacitor_id):
     flat first_capacitor_id array.
     '''
     # first: reshape so we can access by module
-    first_capacitor_id = first_capacitor_id
-
-    fc = np.zeros((N_GAINS, N_PIXELS))
+    fc = np.zeros((N_GAINS, N_PIXELS), dtype='uint16')
     fc[LOW_GAIN] = first_capacitor_id[CHANNEL_INDEX_LOW_GAIN]
     fc[HIGH_GAIN] = first_capacitor_id[CHANNEL_INDEX_HIGH_GAIN]
     fc = fc.reshape((N_GAINS, N_MODULES, N_PIXELS_PER_MODULE))
