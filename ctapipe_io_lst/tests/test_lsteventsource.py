@@ -1,16 +1,9 @@
-from pkg_resources import resource_filename
 import os
 from pathlib import Path
 import tempfile
 
-example_file_path = Path(resource_filename(
-    'protozfits',
-    os.path.join(
-        'tests',
-        'resources',
-        'example_LST_R1_10_evts.fits.fz'
-    )
-))
+test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
+test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz'
 
 # ADC_SAMPLES_SHAPE = (2, 14, 40)
 
@@ -20,12 +13,12 @@ def test_loop_over_events():
 
     n_events = 10
     source = LSTEventSource(
-        input_url=example_file_path,
+        input_url=test_r0_path,
         max_events=n_events
     )
 
-    for i, event in enumerate(source, start=1):
-        assert event.index.event_id == i
+    for i, event in enumerate(source):
+        assert event.count == i
         for telid in event.r0.tel.keys():
             n_gains = 2
             n_pixels = source.subarray.tels[telid].camera.geometry.n_pixels
@@ -34,30 +27,30 @@ def test_loop_over_events():
             assert event.r0.tel[telid].waveform.shape == waveform_shape
 
     # make sure max_events works
-    assert i == n_events
+    assert (i + 1) == n_events
 
 
 def test_is_compatible():
     from ctapipe_io_lst import LSTEventSource
-    assert LSTEventSource.is_compatible(example_file_path)
+    assert LSTEventSource.is_compatible(test_r0_path)
 
 
 def test_factory_for_lst_file():
     from ctapipe.io import event_source
 
-    reader = event_source(example_file_path)
+    reader = event_source(test_r0_path)
 
     # import here to see if ctapipe detects plugin
     from ctapipe_io_lst import LSTEventSource
 
     assert isinstance(reader, LSTEventSource)
-    assert reader.input_url == example_file_path
+    assert reader.input_url == test_r0_path
 
 
 def test_subarray():
     from ctapipe.io import event_source
 
-    source = event_source(example_file_path)
+    source = event_source(test_r0_path)
     subarray = source.subarray
     subarray.info()
     subarray.to_table()

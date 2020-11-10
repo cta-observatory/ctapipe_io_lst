@@ -18,7 +18,10 @@ test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibrati
 
 def test_get_first_capacitor():
     from ctapipe_io_lst import LSTEventSource
-    from ctapipe_io_lst.calibration import get_first_capacitor_for_modules
+    from ctapipe_io_lst.calibration import (
+        get_first_capacitor_for_modules,
+        N_GAINS, N_PIXELS_PER_MODULE, N_MODULES,
+    )
 
     tel_id = 1
     source = LSTEventSource(test_r0_path)
@@ -30,6 +33,9 @@ def test_get_first_capacitor():
         expected = f.root.first_capacitor_for_modules[:]
 
     first_caps = get_first_capacitor_for_modules(first_capacitor_id)
+    # we just different shape (N_MODULES, N_GAINS, N_PIXELS_PER_MODULE) before
+    first_caps = first_caps.reshape((N_GAINS, N_MODULES, N_PIXELS_PER_MODULE))
+    first_caps = np.swapaxes(first_caps, 0, 1)
     assert np.all(first_caps == expected)
 
 
@@ -42,13 +48,13 @@ def test_read_calib_file():
 
 
 def test_read_drs4_pedestal_file():
-    from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS_4, N_ROI
+    from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS_PIXEL, N_ROI
 
     pedestal = LSTR0Corrections._get_drs4_pedestal_data(test_drs4_pedestal_path)
 
-    assert pedestal.shape[-1] == N_CAPACITORS_4 + N_ROI
+    assert pedestal.shape[-1] == N_CAPACITORS_PIXEL + N_ROI
     # check circular boundary
-    assert np.all(pedestal[..., :N_ROI] == pedestal[..., N_CAPACITORS_4:])
+    assert np.all(pedestal[..., :N_ROI] == pedestal[..., N_CAPACITORS_PIXEL:])
 
     # check offset is applied
     pedestal_offset = LSTR0Corrections._get_drs4_pedestal_data(

@@ -457,29 +457,25 @@ class LSTEventSource(EventSource):
         """
         Fill with R0CameraContainer
         """
-        # verify the number of gains
-        if event.waveform.shape[0] != self.camera_config.num_pixels * self.camera_config.num_samples * self.n_gains:
-            raise ValueError(f"Number of gains not correct, waveform shape is {event.waveform.shape[0]}"
-                             f" instead of "
-                             f"{self.camera_config.num_pixels * self.camera_config.num_samples * self.n_gains}")
 
-        reshaped_waveform = np.array(
-            event.waveform
-        ).reshape(
-            self.n_gains,
-            self.camera_config.num_pixels,
-            self.camera_config.num_samples
-        )
-
-        # initialize the waveform container to zero
-        n_camera_pixels = self.subarray.tel[self.tel_id].camera.geometry.n_pixels
-        r0_container.waveform = np.zeros([self.n_gains, n_camera_pixels,
-                                          self.camera_config.num_samples], dtype=np.float32)
+        try:
+            reshaped_waveform = event.waveform.reshape(
+                self.n_gains,
+                self.camera_config.num_pixels,
+                self.camera_config.num_samples
+            )
+        except ValueError:
+            raise ValueError(
+                f"Number of gains not correct, waveform shape is {event.waveform.shape[0]}"
+                f" instead of "
+                f"{self.camera_config.num_pixels * self.camera_config.num_samples * self.n_gains}"
+            )
 
         # re-order the waveform following the expected_pixels_id values
-        # (rank = pixel id)
-        r0_container.waveform[:, self.camera_config.expected_pixels_id, :] =\
-            reshaped_waveform
+        #  could also just do waveform = reshaped_waveform[np.argsort(expected_ids)]
+        reordered_waveform = np.empty_like(reshaped_waveform)
+        reordered_waveform[:, self.camera_config.expected_pixels_id, :] = reshaped_waveform
+        r0_container.waveform = reordered_waveform
 
     def fill_r0_container_from_zfile(self, event):
         """
@@ -522,10 +518,10 @@ class LSTEventSource(EventSource):
         status_container = self.data.mon.tel[self.tel_id].pixel_status
 
         # reorder the array
-        n_camera_pixels = self.subarray.tel[self.tel_id].camera.geometry.n_pixels
-        pixel_status = np.zeros(n_camera_pixels)
-        pixel_status[self.camera_config.expected_pixels_id] = event.pixel_status
-        status_container.hardware_failing_pixels[:] = pixel_status == 0
+        expected_pixels_id = self.camera_config.expected_pixels_id
+        reordered_pixel_status = np.empty_like(event.pixel_status)
+        reordered_pixel_status[expected_pixels_id] = event.pixel_status
+        status_container.hardware_failing_pixels[:] = reordered_pixel_status == 0
 
 
 class MultiFiles:
