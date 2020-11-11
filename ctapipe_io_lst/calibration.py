@@ -109,6 +109,13 @@ class LSTR0Corrections(TelescopeComponent):
         help='Path to LST calibration file',
     ).tag(config=True)
 
+    drs4_time_calibration_path = TelescopeParameter(
+        trait=Path(exists=True, directory_ok=False),
+        help='Path to the time calibration file',
+        default_value=None,
+        allow_none=True,
+    ).tag(config=True)
+
     calib_scale_high_gain = FloatTelescopeParameter(
         default_value=1.18,
         help='High gain waveform is multiplied by this number'
@@ -138,9 +145,9 @@ class LSTR0Corrections(TelescopeComponent):
         self.mon_data = None
         self.last_readout_time = {}
         self.first_cap = {}
-        self.first_cap_time_lapse = {}
-        self.first_cap_spikes = {}
         self.first_cap_old = {}
+        self.fbn = {}
+        self.fan = {}
 
         for tel_id in self.subarray.tel:
             shape = (N_GAINS, N_PIXELS, N_CAPACITORS_PIXEL)
@@ -196,10 +203,16 @@ class LSTR0Corrections(TelescopeComponent):
             r1.waveform = waveform[r1.selected_gain_channel, pixel_index]
 
             # store calibration data needed for dl1 calibration in ctapipe
-            time_shift = np.zeros(n_pixels)
+            # first drs4 time shift (zeros if no calib file was given)
+            time_shift = self.get_drs4_time_correction(
+                tel_id, self.first_cap[tel_id], r1.selected_gain_channel
+            )
+
+            # time shift from flat fielding
             if self.mon_data is not None:
-                time_median = self.mon_data.tel[tel_id].flatfield.relative_time_median.to_value(u.ns)
-                time_shift += time_median[r1.selected_gain_channel, pixel_index]
+                time_median = self.mon_data.tel[tel_id].flatfield.relative_time_median
+                time_shift += time_median.to_value(u.ns)[r1.selected_gain_channel, pixel_index]
+
             event.calibration.tel[1].dl1.time_shift = time_shift
 
             # needed for charge scaling in ctpaipe dl1 calib
@@ -241,6 +254,42 @@ class LSTR0Corrections(TelescopeComponent):
                 next(h5_table.read(table, mon.tel[tel_id].pixel_status))
 
         return mon
+
+    @staticmethod
+    def load_drs4_time_calibration_file(path):
+        """
+        Function to load calibration file.
+        """
+        with tables.open_file(path, 'r') as f:
+            # self.n_harmonics = hf["/"].attrs['n_harm']
+            fan = f.root.fan[:]
+            fbn = f.root.fbn[:]
+
+        return fan, fbn
+
+    def load_drs4_time_calibration_file_for_tel(self, tel_id):
+        self.fan[tel_id], self.fbn[tel_id] = self.load_drs4_time_calibration_file(
+            self.drs4_time_calibration_path.tel[tel_id]
+        )
+
+    def get_drs4_time_correction(self, tel_id, first_capacitors, selected_gain_channel):
+        """
+        Return pulse time after time correction.
+        """
+
+        if self.drs4_time_calibration_path.tel[tel_id] is None:
+            return np.zeros(selected_gain_channel.shape)
+
+        # load calib file if not already done
+        if tel_id not in self.fan:
+            self.load_drs4_time_calibration_file_for_tel(tel_id)
+
+        return get_corr_time_jit(
+            first_capacitors,
+            selected_gain_channel,
+            self.fan[tel_id],
+            self.fbn[tel_id],
+        )
 
     @staticmethod
     @lru_cache(maxsize=4)
@@ -631,3 +680,24 @@ def interpolate_spike_A(waveform, gain, position, pixel):
     b = int(samples[position + 2])
     waveform[gain, pixel, position] = (samples[position - 1]) + (0.33 * (b - a))
     waveform[gain, pixel, position + 1] = (samples[position - 1]) + (0.66 * (b - a))
+
+
+@njit()
+def get_corr_time_jit(first_capacitors, selected_gain_channel, fan, fbn):
+    n_gains, n_pixels, n_harmonics = fan.shape
+    time = np.zeros(n_pixels)
+
+    for pixel in range(n_pixels):
+        gain = selected_gain_channel[pixel]
+
+        for harmonic in range(1, n_harmonics):
+            first_capacitor = first_capacitors[gain, pixel]
+
+            a = fan[gain, pixel, harmonic]
+            b = fbn[gain, pixel, harmonic]
+            omega = harmonic * (2 * np.pi / N_CAPACITORS_PIXEL)
+
+            time[pixel] += a * np.cos(omega * first_capacitor)
+            time[pixel] += b * np.sin(omega * first_capacitor)
+
+    return time

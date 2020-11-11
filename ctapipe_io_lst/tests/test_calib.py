@@ -63,6 +63,16 @@ def test_read_drs4_pedestal_file():
     assert np.all((pedestal - pedestal_offset) == 100)
 
 
+def test_read_drs_time_calibration_file():
+    from ctapipe_io_lst.calibration import LSTR0Corrections, N_GAINS, N_PIXELS
+
+    fan, fbn = LSTR0Corrections.load_drs4_time_calibration_file(test_time_calib_path)
+
+    assert fan.shape == fbn.shape
+    assert fan.shape[0] == N_GAINS
+    assert fan.shape[1] == N_PIXELS
+
+
 def test_init():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.calibration import LSTR0Corrections
@@ -115,3 +125,28 @@ def test_source_with_calibration():
     with source:
         for event in source:
             assert event.r1.tel[1].waveform is not None
+
+
+def test_source_with_all():
+    from ctapipe_io_lst import LSTEventSource
+
+    config = Config({
+        'LSTEventSource': {
+            'LSTR0Corrections': {
+                'drs4_pedestal_path': test_drs4_pedestal_path,
+                'drs4_time_calibration_path': test_time_calib_path,
+                'calibration_path': test_calib_path,
+            }
+        }
+    })
+
+    source = LSTEventSource(
+        input_url=test_r0_path,
+        config=config,
+    )
+
+    assert source.r0_r1_calibrator.mon_data is not None
+    with source:
+        for event in source:
+            assert event.r1.tel[1].waveform is not None
+            assert np.any(event.calibration.tel[1].dl1.time_shift != 0)
