@@ -53,8 +53,12 @@ def get_first_capacitor_for_modules(first_capacitor_id, expected_pixel_id=None):
 
     # reorder if provided with correct pixel order
     if expected_pixel_id is not None:
-        index_low_gain = CHANNEL_INDEX_LOW_GAIN[expected_pixel_id]
-        index_high_gain = CHANNEL_INDEX_HIGH_GAIN[expected_pixel_id]
+        # expected_pixel_id is the inverse lookup of what is needed here,
+        # so we create an empty array first and index into it.
+        index_low_gain = np.empty_like(CHANNEL_INDEX_LOW_GAIN)
+        index_low_gain[expected_pixel_id] = CHANNEL_INDEX_LOW_GAIN
+        index_high_gain = np.empty_like(CHANNEL_INDEX_HIGH_GAIN)
+        index_high_gain[expected_pixel_id] = CHANNEL_INDEX_HIGH_GAIN
     else:
         index_low_gain = CHANNEL_INDEX_LOW_GAIN
         index_high_gain = CHANNEL_INDEX_HIGH_GAIN
