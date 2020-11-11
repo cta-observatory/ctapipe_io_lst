@@ -1,15 +1,16 @@
 import numpy as np
 from astropy.io import fits
+import astropy.units as u
 from numba import jit, njit
 
 from ctapipe.core import TelescopeComponent
 from ctapipe.core.traits import (
     Path, create_class_enum_trait, IntTelescopeParameter,
-    TelescopeParameter
+    TelescopeParameter, FloatTelescopeParameter
 )
 
 from ctapipe.calib.camera import GainSelector
-from ctapipe.containers import MonitoringContainer
+from ctapipe.containers import MonitoringContainer, ArrayEventContainer
 from ctapipe.io import HDF5TableReader
 from functools import lru_cache
 import tables
@@ -108,6 +109,16 @@ class LSTR0Corrections(TelescopeComponent):
         help='Path to LST calibration file',
     ).tag(config=True)
 
+    calib_scale_high_gain = FloatTelescopeParameter(
+        default_value=1.18,
+        help='High gain waveform is multiplied by this number'
+    ).tag(config=True)
+
+    calib_scale_low_gain = FloatTelescopeParameter(
+        default_value=1.09,
+        help='Low gain waveform is multiplied by this number'
+    ).tag(config=True)
+
     gain_selector_type = create_class_enum_trait(
         GainSelector, default_value='ThresholdGainSelector'
     )
@@ -146,7 +157,7 @@ class LSTR0Corrections(TelescopeComponent):
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
 
-    def calibrate(self, event):
+    def calibrate(self, event: ArrayEventContainer):
         for tel_id, r0 in event.r0.tel.items():
             r1 = event.r1.tel[tel_id]
 
@@ -157,13 +168,16 @@ class LSTR0Corrections(TelescopeComponent):
                 event.lst.tel[tel_id].svc.pixel_ids,
             )
 
+            # apply drs4 corrections
             self.subtract_pedestal(event, tel_id)
             self.time_lapse_corr(event, tel_id)
             self.interpolate_spikes(event, tel_id)
 
+            # remove samples at beginning / end of waveform
             start = self.r1_sample_start.tel[tel_id]
             end = self.r1_sample_end.tel[tel_id]
-            waveform = r1.waveform[..., start:end]
+            r1.waveform = r1.waveform[..., start:end]
+            waveform = r1.waveform
 
             waveform -= self.offset.tel[tel_id]
 
@@ -174,9 +188,25 @@ class LSTR0Corrections(TelescopeComponent):
                 waveform *= calibration.dc_to_pe[:, :, np.newaxis]
 
             waveform = waveform.astype(np.float32)
-            r1.selected_gain_channel = self.gain_selector(r1.waveform)
-            n_pixels = waveform.shape[1]
-            r1.waveform = waveform[r1.selected_gain_channel, np.arange(n_pixels)]
+
+            # gain selection
+            r1.selected_gain_channel = self.gain_selector(waveform)
+            n_pixels = len(r1.selected_gain_channel)
+            pixel_index = np.arange(n_pixels)
+            r1.waveform = waveform[r1.selected_gain_channel, pixel_index]
+
+            # store calibration data needed for dl1 calibration in ctapipe
+            time_shift = np.zeros(n_pixels)
+            if self.mon_data is not None:
+                time_median = self.mon_data.tel[tel_id].flatfield.relative_time_median.to_value(u.ns)
+                time_shift += time_median[r1.selected_gain_channel, pixel_index]
+            event.calibration.tel[1].dl1.time_shift = time_shift
+
+            # needed for charge scaling in ctpaipe dl1 calib
+            relative_factor = np.ones(n_pixels)
+            relative_factor[r1.selected_gain_channel == HIGH_GAIN] = self.calib_scale_high_gain.tel[1]
+            relative_factor[r1.selected_gain_channel == LOW_GAIN] = self.calib_scale_low_gain.tel[1]
+            event.calibration.tel[1].dl1.relative_factor = relative_factor
 
     @staticmethod
     def _read_calibration_file(path):
