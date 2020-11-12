@@ -210,13 +210,15 @@ class LSTR0Corrections(TelescopeComponent):
 
             # time shift from flat fielding
             if self.mon_data is not None:
-                time_median = self.mon_data.tel[tel_id].flatfield.relative_time_median
-                time_shift += time_median.to_value(u.ns)[r1.selected_gain_channel, pixel_index]
+                time_corr = self.mon_data.tel[tel_id].calibration.time_correction
+                # Aime_shift is subtracted in ctapipe,
+                # time_correction but time_correction should be added
+                time_shift -= time_corr[r1.selected_gain_channel, pixel_index].to_value(u.ns)
 
             event.calibration.tel[1].dl1.time_shift = time_shift
 
             # needed for charge scaling in ctpaipe dl1 calib
-            relative_factor = np.ones(n_pixels)
+            relative_factor = np.empty(n_pixels)
             relative_factor[r1.selected_gain_channel == HIGH_GAIN] = self.calib_scale_high_gain.tel[1]
             relative_factor[r1.selected_gain_channel == LOW_GAIN] = self.calib_scale_low_gain.tel[1]
             event.calibration.tel[1].dl1.relative_factor = relative_factor
