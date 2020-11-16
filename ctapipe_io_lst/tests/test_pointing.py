@@ -32,7 +32,7 @@ def test_interpolation():
     # Tue Feb 18 21:40:20 2020 1582062020 Az 230.834 230.819 230.849 7.75551 El 10.2514 10.2485 10.2543 0.00948548 RA 86.6333 Dec 22.0144
     # Tue Feb 18 21:40:23 2020 1582062022 Az 230.896 230.881 230.912 9.03034 El 10.2632 10.2603 10.2661 0.00948689 RA 86.6333 Dec 22.0144
 
-    alt, az = pointing_source.get_pointing_position(tel_id=1, time=time)
+    pointing = pointing_source.get_pointing_position(tel_id=1, time=time)
     expected_alt = (90 - 0.5 * (10.2514 + 10.2632)) * u.deg
-    assert u.isclose(alt, expected_alt)
-    assert u.isclose(az, 0.5 * (230.834 + 230.896) * u.deg)
+    assert u.isclose(pointing.altitude, expected_alt)
+    assert u.isclose(pointing.azimuth, 0.5 * (230.834 + 230.896) * u.deg)

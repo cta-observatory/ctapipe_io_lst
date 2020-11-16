@@ -36,9 +36,9 @@ def test_is_compatible():
 
 
 def test_factory_for_lst_file():
-    from ctapipe.io import event_source
+    from ctapipe.io import EventSource
 
-    reader = event_source(test_r0_path)
+    reader = EventSource(test_r0_path)
 
     # import here to see if ctapipe detects plugin
     from ctapipe_io_lst import LSTEventSource
@@ -48,9 +48,9 @@ def test_factory_for_lst_file():
 
 
 def test_subarray():
-    from ctapipe.io import event_source
+    from ctapipe.io import EventSource
 
-    source = event_source(test_r0_path)
+    source = EventSource(test_r0_path)
     subarray = source.subarray
     subarray.info()
     subarray.to_table()

@@ -19,12 +19,14 @@ from ctapipe.instrument import (
 
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
-from ctapipe.core.traits import Int, Bool
+from ctapipe.core.traits import Int, Bool, List
 from ctapipe.containers import PixelStatusContainer
 
 from .containers import LSTArrayEventContainer
 from .version import get_version
 from .calibration import LSTR0Corrections
+from .event_time import EventTimeCalculator
+from .pointing import PointingSource
 
 
 __version__ = get_version(pep440=False)
@@ -140,7 +142,7 @@ class LSTEventSource(EventSource):
 
     n_gains = Int(
         2,
-        help='Number of gains at r0/r1 level'
+        help='Number of gains at r0 level'
     ).tag(config=True)
 
     baseline = Int(
@@ -152,6 +154,8 @@ class LSTEventSource(EventSource):
         True,
         help='Read in parallel all streams '
     ).tag(config=True)
+
+    classes = List([PointingSource, EventTimeCalculator, LSTR0Corrections])
 
     def __init__(self, input_url=None, **kwargs):
         """
@@ -210,6 +214,8 @@ class LSTEventSource(EventSource):
         self.r0_r1_calibrator = LSTR0Corrections(
             subarray=self._subarray, parent=self
         )
+        self.time_calculator = EventTimeCalculator(subarray=self.subarray, parent=self)
+        self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
 
     @property
     def subarray(self):
@@ -299,6 +305,8 @@ class LSTEventSource(EventSource):
 
             # fill general monitoring data
             self.fill_mon_container_from_zfile(event)
+            self.fill_trigger_info(self.data.trigger, event)
+            self.fill_pointing_info()
 
             # fill general R0 data
             self.fill_r0_container_from_zfile(event)
@@ -389,7 +397,6 @@ class LSTEventSource(EventSource):
 
         # if UCTS data are there
         if event_container.extdevices_presence & 2:
-
             if int(self.data.lst.tel[self.tel_id].svc.idaq_version) > 37201:
                 cdts = event.lstcam.cdts_data.view(CDTS_AFTER_37201_DTYPE)[0]
                 event_container.ucts_timestamp = cdts[0]
@@ -442,16 +449,24 @@ class LSTEventSource(EventSource):
         event_container.drs_tag = event.lstcam.drs_tag
 
     def fill_trigger_info(self, trigger, event):
-        module_rank = np.where(self.data.lst.tel[self.tel_id].svc.module_ids == 132)
-        trigger.time = (
-            self.data.lst.tel[self.tel_id].svc.date +
-            self.data.lst.tel[self.tel_id].evt.pps_counter[module_rank] +
-            self.data.lst.tel[self.tel_id].evt.tenMHz_counter[module_rank] * 10**(-7)
-        )
+        trigger.time = self.time_calculator(self.tel_id, self.data)
+        trigger.tel[self.tel_id].time = trigger.time
+
         if self.data.lst.tel[self.tel_id].evt.tib_masked_trigger > 0:
             trigger.event_type = self.data.lst.tel[self.tel_id].evt.tib_masked_trigger
         else:
             trigger.event_type = -1
+
+    def fill_pointing_info(self):
+        if self.pointing_source.drive_report_path.tel[self.tel_id] is not None:
+            pointing = self.pointing_source.get_pointing_position(
+                self.tel_id, self.data.trigger.time,
+            )
+            self.data.pointing.tel[self.tel_id] = pointing
+            self.data.pointing.array_altitude = pointing.altitude
+            self.data.pointing.array_azimuth = pointing.azimuth
+        elif self.data.count == 0:
+            self.log.warning('No drive report specified, pointing info will not be filled')
 
     def fill_r0_camera_container_from_zfile(self, r0_container, event):
         """

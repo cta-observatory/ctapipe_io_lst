@@ -152,38 +152,3 @@ def test_source_with_all():
         for event in source:
             assert event.r1.tel[1].waveform is not None
             assert np.any(event.calibration.tel[1].dl1.time_shift != 0)
-
-
-def test_stage1(tmpdir):
-    '''Test the ctapipe stage1 tool can read in LST real data using the event source'''
-    from ctapipe.tools.stage1 import Stage1Tool
-    from ctapipe.core.tool import run_tool
-
-    tmpdir = Path(tmpdir)
-    config_path = tmpdir / 'config.json'
-
-    config = {
-        'LSTEventSource': {
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': str(test_drs4_pedestal_path),
-                'drs4_time_calibration_path': str(test_time_calib_path),
-                'calibration_path': str(test_calib_path),
-            }
-        }
-    }
-    with config_path.open('w') as f:
-        json.dump(config, f)
-
-    tool = Stage1Tool()
-    output = tmpdir / "test_dl1.h5"
-
-    ret = run_tool(tool, argv=[
-        f'--input={test_r0_path}',
-        '--max-events=10',
-        f'--output={output}',
-        f'--config={config_path}',
-    ])
-    assert ret == 0
-
-    parameters = h5_table_to_astropy(output, '/dl1/event/telescope/parameters/tel_001')
-    assert len(parameters) == 10

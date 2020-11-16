@@ -1,8 +1,28 @@
 {
-    "LSTEventSource": {
-        "LSTR0Corrections": {
-            "drs4_pedestal_path": "test_data/real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits",
-            "calibration_path": "test_data/real/calibration/20200218/v05/calibration.Run2006.0000.hdf5"
-        }
+  "LSTEventSource": {
+    "LSTR0Corrections": {
+      "drs4_pedestal_path": "test_data/real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits",
+      "drs4_time_calibration_path": "test_data/real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5",
+      "calibration_path": "test_data/real/calibration/20200218/v05/calibration.Run2006.0000.hdf5",
+      "ThresholdGainSelector": {
+        "threshold": 20.9
+      }
+    },
+    "PointingSource": {
+      "drive_report_path": "test_data/real/monitoring/DrivePositioning/drive_log_20200218.txt"
     }
+  },
+  "CameraCalibrator": {
+    "image_extractor_type": "LocalPeakWindowSum",
+    "LocalPeakWindowSum": {
+      "window_shift": 4,
+      "window_width": 8
+    }
+  },
+  "TailcutsImageCleaner": {
+    "picture_threshold_pe": 6,
+    "boundary_threshold_pe": 3,
+    "keep_isolated_pixels": false,
+    "min_picture_neighbors": 1
+  }
 }

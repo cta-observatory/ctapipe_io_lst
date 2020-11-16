@@ -19,7 +19,7 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     install_requires=[
-        'astropy',
+        'astropy~=4.1',
         'ctapipe',
         'protozfits @ https://github.com/cta-observatory/protozfitsreader/archive/v1.5.0.tar.gz',
     ],

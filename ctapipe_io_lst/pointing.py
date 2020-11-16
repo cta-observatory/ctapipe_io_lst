@@ -3,6 +3,7 @@ from ctapipe.core.traits import Path, TelescopeParameter
 from astropy.table import Table
 from astropy import units as u
 from scipy.interpolate import interp1d
+from ctapipe.containers import TelescopePointingContainer
 
 
 __all__ = [
@@ -17,6 +18,7 @@ class PointingSource(TelescopeComponent):
     drive_report_path = TelescopeParameter(
         trait=Path(exists=True, directory_ok=False),
         help='Path to the LST drive report file',
+        default_value=None,
     ).tag(config=True)
 
     def __init__(self, subarray, config=None, parent=None, **kwargs):
@@ -54,6 +56,9 @@ class PointingSource(TelescopeComponent):
 
     def _read_drive_report_for_tel(self, tel_id):
         path = self.drive_report_path.tel[tel_id]
+        if path is None:
+            raise ValueError(f'No drive report given for telescope {tel_id}')
+
         self.log.info(f'Loading drive report "{path}" for tel_id={tel_id}')
         self.drive_report[tel_id] = self._read_drive_report(path)
 
@@ -84,4 +89,7 @@ class PointingSource(TelescopeComponent):
         alt = u.Quantity(self.interp_alt[tel_id](time.unix), u.deg)
         az = u.Quantity(self.interp_az[tel_id](time.unix), u.deg)
 
-        return alt, az
+        return TelescopePointingContainer(
+            altitude=alt.to(u.rad),
+            azimuth=az.to(u.rad),
+        )
