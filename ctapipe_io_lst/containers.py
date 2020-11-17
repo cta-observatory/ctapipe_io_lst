@@ -15,9 +15,8 @@ __all__ = [
     'LSTCameraContainer',
     'LSTContainer',
     'LSTMonitoringContainer',
-    'LSTDataContainer'
+    'LSTArrayEventContainer',
 ]
-
 
 
 class LSTDriveContainer(Container):

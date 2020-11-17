@@ -243,8 +243,9 @@ class EventTimeCalculator(TelescopeComponent):
         # event does not have proper UCTS info.
         if (ucts_time - dragon_time) > 1e-6:
             self.log.warning(
-                f'Found UCTS jump, dragon time: {dragon_time:.07f}'
-                f', delta: {ucts_time - dragon_time:.7f} s'
+                f'Found UCTS jump in event {event.index.event_id}'
+                f', dragon time: {dragon_time:.07f}'
+                f', delta: {(ucts_time - dragon_time) * 1e6:.1f} µs'
             )
             self.previous_ucts_times[tel_id].appendleft(ucts_time)
             self.previous_ucts_trigger_types[tel_id].appendleft(ucts_trigger_type)
