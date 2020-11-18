@@ -468,6 +468,9 @@ class LSTEventSource(EventSource):
         # they are reported as physics events, here a heuristic identifies
         # those events.
         # this does only work if data is calibrated
+        if self.array_event.trigger.event_type != EventType.SUBARRAY:
+            return
+
         tel_id = self.tel_id
         pixel_sum = array_event.r1.tel[tel_id].waveform.sum(axis=1)
 
