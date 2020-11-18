@@ -16,10 +16,11 @@ from ctapipe.instrument import (
     CameraGeometry,
     OpticsDescription,
 )
+from enum import IntFlag, auto
 
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
-from ctapipe.core.traits import Int, Bool, List
+from ctapipe.core.traits import Int, Bool, List, Float
 from ctapipe.containers import PixelStatusContainer, EventType
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
@@ -38,6 +39,20 @@ from .anyarray_dtypes import (
 
 __version__ = get_version(pep440=False)
 __all__ = ['LSTEventSource']
+
+
+class TriggerBits(IntFlag):
+    '''See TIB User manual'''
+    MONO = auto()
+    STEREO = auto()
+    CALIBRATION = auto()
+    SINGLE_PE = auto()
+    SOFTWARE = auto()
+    PEDESTAL = auto()
+    SLOW_CONTROL = auto()
+
+    PHYSICS = MONO | STEREO
+    OTHER = CALIBRATION | SINGLE_PE | SOFTWARE | PEDESTAL | SLOW_CONTROL
 
 
 OPTICS = OpticsDescription(
@@ -124,23 +139,32 @@ class LSTEventSource(EventSource):
         help='Read in parallel all streams '
     ).tag(config=True)
 
-    min_flatfield_mean = Int(
-        default_value=5000,
+    min_flatfield_pe = Float(
+        default_value=50,
         help=(
-            'Events with higher mean of pixel sums are classified as flatfield'
-            ', if std is also lower than `max_flatfield_std`.'
-            ' Defaults correspond to filter setting 5.2'
+            'Events with that have more than ``min_flatfield_pixel_fraction``'
+            ' of the pixels inside [``min_flatfield_pe``, ``max_flatfield_pe``]'
+            ' get tagged as EventType.FLATFIELD'
         ),
     ).tag(config=True)
 
-    max_flatfield_std = Int(
-        default_value=300,
+    max_flatfield_pe = Float(
+        default_value=110.0,
         help=(
-            'Events with lower std of pixel sums are classified as flatfield'
-            ', if mean is also lower than `min_flatfield_mean`.'
-            ' Defaults correspond to filter setting 5.2'
+            'Events with that have more than ``min_flatfield_pixel_fraction``'
+            ' of the pixels inside [``min_flatfield_pe``, ``max_flatfield_pe``]'
+            ' get tagged as EventType.FLATFIELD'
         ),
     ).tag(config=True)
+
+    min_flatfield_pixel_fraction = Float(
+        default_value=0.9,
+        help=(
+            'Events with that have more than ``min_flatfield_pixel_fraction``'
+            ' of the pixels inside [``min_flatfield_pe``, ``max_flatfield_pe``]'
+            ' get tagged as EventType.FLATFIELD'
+        ),
+    )
 
     classes = List([PointingSource, EventTimeCalculator, LSTR0Corrections])
 
@@ -450,17 +474,19 @@ class LSTEventSource(EventSource):
         trigger.tel[tel_id].time = trigger.time
 
         trigger_bits = array_event.lst.tel[tel_id].evt.ucts_trigger_type
-        # first bit mono trigger, second stereo. If *only* those two are set,
-        # we assume it's a physics event
-        if trigger_bits & 0b11 and not (trigger_bits >> 2):
+        # first bit mono trigger, second stereo.
+        # If *only* those two are set, we assume it's a physics event
+        # for all other we only check if the flag is present
+        if (trigger_bits & TriggerBits.PHYSICS) and not (trigger_bits & TriggerBits.OTHER):
             trigger.event_type = EventType.SUBARRAY
-        elif trigger_bits & 0b100:
+        if trigger_bits & TriggerBits.CALIBRATION:
             trigger.event_type = EventType.FLATFIELD
-        elif trigger_bits & 0b1000:
-            trigger.event_type = EventType.SINGLE_PE
-        elif trigger_bits & 0b1_0000:
+        elif trigger_bits & TriggerBits.PEDESTAL:
             trigger.event_type = EventType.SKY_PEDESTAL
+        elif trigger_bits & TriggerBits.SINGLE_PE:
+            trigger.event_type = EventType.SINGLE_PE
         else:
+            self.log.warning(f'Event {array_event.index.event_id} has unknown event type, trigger: {trigger_bits:08b}')
             trigger.event_type = EventType.UNKNOWN
 
     def tag_flatfield_events(self, array_event):
@@ -468,24 +494,19 @@ class LSTEventSource(EventSource):
         # they are reported as physics events, here a heuristic identifies
         # those events.
         # this does only work if data is calibrated
-        if self.array_event.trigger.event_type != EventType.SUBARRAY:
+        if array_event.trigger.event_type != EventType.SUBARRAY:
             return
 
         tel_id = self.tel_id
-        pixel_sum = array_event.r1.tel[tel_id].waveform.sum(axis=1)
+        image = array_event.r1.tel[tel_id].waveform.sum(axis=1)
+        in_range = (image >= self.min_flatfield_pe) & (image <= self.max_flatfield_pe)
 
-        mean, std = pixel_sum.mean(), pixel_sum.std()
-        mean_check = mean > self.min_flatfield_mean
-        std_check = std < self.max_flatfield_std
-
-        self.log.debug(f'Flatfield checks: {mean:.1f} ± {std:.1f}')
-
-        if std_check and mean_check:
-            self.log.info(
+        if np.count_nonzero(in_range) >= self.min_flatfield_pixel_fraction * image.size:
+            self.log.debug(
                 'Setting event type of event'
                 f' {array_event.index.event_id} to FLATFIELD'
             )
-            array_event.trigger.event_type == EventType.FLATFIELD
+            array_event.trigger.event_type = EventType.FLATFIELD
 
     def fill_pointing_info(self, array_event):
         tel_id = self.tel_id
