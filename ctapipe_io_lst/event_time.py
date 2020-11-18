@@ -225,7 +225,7 @@ class EventTimeCalculator(TelescopeComponent):
             self.previous_ucts_trigger_types[tel_id].append(current_ucts_trigger_type)
 
             lst.evt.ucts_trigger_type = ucts_trigger_type
-            lst.evt.ucts_timestamp = ucts_time * 1e9
+            lst.evt.ucts_timestamp = ucts_timestamp
 
         # Now check consistency of UCTS and Dragon times. If
         # UCTS time is ahead of Dragon time by more than
@@ -249,7 +249,10 @@ class EventTimeCalculator(TelescopeComponent):
             )
             self.previous_ucts_times[tel_id].appendleft(ucts_time)
             self.previous_ucts_trigger_types[tel_id].appendleft(ucts_trigger_type)
-            ucts_trigger_type = -1
+
+            # fall back to dragon time / tib trigger
+            lst.evt.ucts_timestamp = dragon_time * 1e9
+            lst.evt.ucts_trigger_type = lst.evt.tib_masked_trigger
 
         # Select the timestamps to be used for pointing interpolation
         if self.timestamp.tel[tel_id] == "ucts":

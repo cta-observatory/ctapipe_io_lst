@@ -20,7 +20,7 @@ from ctapipe.instrument import (
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Int, Bool, List
-from ctapipe.containers import PixelStatusContainer
+from ctapipe.containers import PixelStatusContainer, EventType
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
 from .version import get_version
@@ -49,6 +49,20 @@ OPTICS = OpticsDescription(
 )
 
 
+def get_channel_info(pixel_status):
+    '''
+    Extract the channel info bits from the pixel_status array.
+    See R1 data model, https://forge.in2p3.fr/boards/313/topics/3033
+
+    Returns
+    -------
+    channel_status: ndarray[uint8]
+        0: pixel not read out (defect)
+        1: high-gain read out
+        2: low-gain read out
+        3: both gains read out
+    '''
+    return (pixel_status & 0b1100) >> 2
 
 
 def load_camera_geometry(version=4):
@@ -108,6 +122,24 @@ class LSTEventSource(EventSource):
     multi_streams = Bool(
         True,
         help='Read in parallel all streams '
+    ).tag(config=True)
+
+    min_flatfield_mean = Int(
+        default_value=5000,
+        help=(
+            'Events with higher mean of pixel sums are classified as flatfield'
+            ', if std is also lower than `max_flatfield_std`.'
+            ' Defaults correspond to filter setting 5.2'
+        ),
+    ).tag(config=True)
+
+    max_flatfield_std = Int(
+        default_value=300,
+        help=(
+            'Events with lower std of pixel sums are classified as flatfield'
+            ', if mean is also lower than `min_flatfield_mean`.'
+            ' Defaults correspond to filter setting 5.2'
+        ),
     ).tag(config=True)
 
     classes = List([PointingSource, EventTimeCalculator, LSTR0Corrections])
@@ -260,14 +292,18 @@ class LSTEventSource(EventSource):
             # fill specific LST event data
             self.fill_lst_event_container(array_event, zfits_event)
 
+            # fill trigger info (needs r0 and lst specifics)
+            self.fill_trigger_info(array_event, zfits_event)
+
             # fill general monitoring data
             self.fill_mon_container(array_event, zfits_event)
-            self.fill_trigger_info(array_event, zfits_event)
             self.fill_pointing_info(array_event)
-            # self.fill_event_type(array_event)
 
             if self.r0_r1_calibrator.drs4_pedestal_path.tel[self.tel_id] is not None:
                 self.r0_r1_calibrator.calibrate(array_event)
+
+                # tagging flat field events needs r1
+                self.tag_flatfield_events(array_event)
 
             yield array_event
 
@@ -413,10 +449,40 @@ class LSTEventSource(EventSource):
         trigger.time = self.time_calculator(tel_id, array_event)
         trigger.tel[tel_id].time = trigger.time
 
-        if array_event.lst.tel[tel_id].evt.tib_masked_trigger > 0:
-            trigger.event_type = array_event.lst.tel[tel_id].evt.tib_masked_trigger
+        trigger_bits = array_event.lst.tel[tel_id].evt.ucts_trigger_type
+        # first bit mono trigger, second stereo. If *only* those two are set,
+        # we assume it's a physics event
+        if trigger_bits & 0b11 and not (trigger_bits >> 2):
+            trigger.event_type = EventType.SUBARRAY
+        elif trigger_bits & 0b100:
+            trigger.event_type = EventType.FLATFIELD
+        elif trigger_bits & 0b1000:
+            trigger.event_type = EventType.SINGLE_PE
+        elif trigger_bits & 0b1_0000:
+            trigger.event_type = EventType.SKY_PEDESTAL
         else:
-            trigger.event_type = -1
+            trigger.event_type = EventType.UNKNOWN
+
+    def tag_flatfield_events(self, array_event):
+        # currently, tagging of flat field events does not work,
+        # they are reported as physics events, here a heuristic identifies
+        # those events.
+        # this does only work if data is calibrated
+        tel_id = self.tel_id
+        pixel_sum = array_event.r1.tel[tel_id].waveform.sum(axis=1)
+
+        mean, std = pixel_sum.mean(), pixel_sum.std()
+        mean_check = mean > self.min_flatfield_mean
+        std_check = std < self.max_flatfield_std
+
+        self.log.debug(f'Flatfield checks: {mean:.1f} ± {std:.1f}')
+
+        if std_check and mean_check:
+            self.log.info(
+                'Setting event type of event'
+                f' {array_event.index.event_id} to FLATFIELD'
+            )
+            array_event.trigger.event_type == EventType.FLATFIELD
 
     def fill_pointing_info(self, array_event):
         tel_id = self.tel_id
@@ -502,9 +568,12 @@ class LSTEventSource(EventSource):
 
         # reorder the array
         expected_pixels_id = self.camera_config.expected_pixels_id
+
         reordered_pixel_status = np.empty_like(zfits_event.pixel_status)
         reordered_pixel_status[expected_pixels_id] = zfits_event.pixel_status
-        status_container.hardware_failing_pixels[:] = reordered_pixel_status == 0
+
+        channel_info = get_channel_info(reordered_pixel_status)
+        status_container.hardware_failing_pixels[:] = channel_info == 0
 
 
 class MultiFiles:

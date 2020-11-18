@@ -15,35 +15,18 @@ from ctapipe.io import HDF5TableReader
 from functools import lru_cache
 import tables
 
+
+from .constants import (
+    N_GAINS, N_PIXELS, N_MODULES, N_ROI, LOW_GAIN, HIGH_GAIN,
+    N_PIXELS_PER_MODULE, N_CAPACITORS_PIXEL, N_CAPACITORS_CHANNEL,
+    CHANNEL_INDEX_LOW_GAIN, CHANNEL_INDEX_HIGH_GAIN,
+    LAST_RUN_WITH_OLD_FIRMWARE, CLOCK_FREQUENCY_KHZ
+)
+
 __all__ = [
     'LSTR0Corrections',
 ]
 
-N_GAINS = 2
-N_MODULES = 265
-N_PIXELS_PER_MODULE = 7
-N_PIXELS = N_MODULES * N_PIXELS_PER_MODULE
-N_CAPACITORS_CHANNEL = 1024
-# 4 drs4 channels are cascaded for each pixel
-N_CAPACITORS_PIXEL = 4 * N_CAPACITORS_CHANNEL
-N_ROI = 40
-HIGH_GAIN = 0
-LOW_GAIN = 1
-LAST_RUN_WITH_OLD_FIRMWARE = 1574
-CLOCK_FREQUENCY_KHZ = 133e3
-
-# we have 8 channels per module, but only 7 are used.
-N_CHANNELS_PER_MODULE = 8
-
-# First capacitor order according Dragon v5 board data format
-CHANNEL_ORDER_HIGH_GAIN = [0, 0, 1, 1, 2, 2, 3]
-CHANNEL_ORDER_LOW_GAIN = [4, 4, 5, 5, 6, 6, 7]
-
-# on which module is a pixel?
-MODULE_INDEX = np.repeat(np.arange(N_MODULES), 7)
-
-CHANNEL_INDEX_LOW_GAIN = MODULE_INDEX * N_CHANNELS_PER_MODULE + np.tile(CHANNEL_ORDER_LOW_GAIN, N_MODULES)
-CHANNEL_INDEX_HIGH_GAIN = MODULE_INDEX * N_CHANNELS_PER_MODULE + np.tile(CHANNEL_ORDER_HIGH_GAIN, N_MODULES)
 
 
 def get_first_capacitor_for_modules(first_capacitor_id, expected_pixel_id=None):
