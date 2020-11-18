@@ -19,7 +19,8 @@ matrix:
       os: linux
       env:
         - PYTHON_VERSION=3.7
-        - CTAPIPE_VERSION=master
+        - CTAPIPE_VERSION=0.10.0
+        - USE_PYPI=true
 
   # allow_failures:
   #   - name: ctapipe=master
@@ -42,7 +43,12 @@ install:
   - python --version | grep $PYTHON_VERSION
 
   # we install ctapipe using pip to be able to select any commit, e.g. the current master
-  - pip install git+https://github.com/cta-observatory/ctapipe@$CTAPIPE_VERSION
+  - |
+    if [[ "$USE_PYPI" == "true" ]]; then
+      pip install ctapipe==$CTAPIPE_VERSION
+    else
+      pip install git+https://github.com/cta-observatory/ctapipe@$CTAPIPE_VERSION
+    fi
   - pip install -e .
 
 before_script:
