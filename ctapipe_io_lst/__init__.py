@@ -108,7 +108,7 @@ def read_pulse_shapes():
     # with a dummy one in order to disable the charge corrections in the charge extractor
     infilename = resource_filename(
         'ctapipe_io_lst',
-        'resources/no_corrections_pulse_LST.dat'
+        'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat'
     )
 
     data = np.genfromtxt(infilename, dtype='float', comments='#')
