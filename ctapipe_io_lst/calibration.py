@@ -1,7 +1,10 @@
+from functools import lru_cache
+
 import numpy as np
 from astropy.io import fits
 import astropy.units as u
 from numba import jit, njit
+import tables
 
 from ctapipe.core import TelescopeComponent
 from ctapipe.core.traits import (
@@ -9,11 +12,9 @@ from ctapipe.core.traits import (
     TelescopeParameter, FloatTelescopeParameter
 )
 
-from ctapipe.calib.camera import GainSelector
+from ctapipe.calib.camera.gainselection import GainSelector, ThresholdGainSelector
 from ctapipe.containers import MonitoringContainer, ArrayEventContainer
 from ctapipe.io import HDF5TableReader
-from functools import lru_cache
-import tables
 
 
 from .constants import (
@@ -26,7 +27,6 @@ from .constants import (
 __all__ = [
     'LSTR0Corrections',
 ]
-
 
 
 def get_first_capacitor_for_modules(first_capacitor_id, expected_pixel_id=None):
@@ -110,7 +110,8 @@ class LSTR0Corrections(TelescopeComponent):
     ).tag(config=True)
 
     gain_selector_type = create_class_enum_trait(
-        GainSelector, default_value='ThresholdGainSelector'
+        GainSelector,
+        default_value='ThresholdGainSelector',
     )
 
     def __init__(self, subarray, config=None, parent=None, **kwargs):
@@ -140,9 +141,20 @@ class LSTR0Corrections(TelescopeComponent):
             self.first_cap[tel_id] = np.zeros(shape, dtype=int)
             self.first_cap_old[tel_id] = np.zeros(shape, dtype=int)
 
+        # set the right default for our default selector, change back afterwards
+        # to not impact other code.
+        old_default = ThresholdGainSelector.threshold.default_value
+        ThresholdGainSelector.threshold.default_value = 20.9
         self.gain_selector = GainSelector.from_name(
             self.gain_selector_type, parent=self
         )
+
+        # to make sure it is accessed and the default is set before setting back
+        if isinstance(self.gain_selector, ThresholdGainSelector):
+            self.log.debug(
+                f'Using gain selection threshold: {self.gain_selector.threshold}'
+            )
+        ThresholdGainSelector.threshold.default_value = old_default
 
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
