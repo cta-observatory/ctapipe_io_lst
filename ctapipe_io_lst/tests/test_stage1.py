@@ -2,7 +2,8 @@ from pathlib import Path
 import json
 import os
 
-from ctapipe.io.astropy_helpers import h5_table_to_astropy
+from ctapipe.io import read_table
+from ctapipe.containers import EventType
 
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
@@ -31,6 +32,20 @@ def test_stage1(tmpdir):
             'PointingSource': {
                 'drive_report_path': str(test_drive_report)
             }
+        },
+        "CameraCalibrator": {
+            "image_extractor_type": "LocalPeakWindowSum",
+            "LocalPeakWindowSum": {
+                "window_shift": 4,
+                "window_width": 8,
+                "apply_integration_correction": False,
+            }
+        },
+        "TailcutsImageCleaner": {
+            "picture_threshold_pe": 6,
+            "boundary_threshold_pe": 3,
+            "keep_isolated_pixels": False,
+            "min_picture_neighbors": 1,
         }
     }
     with config_path.open('w') as f:
@@ -47,5 +62,11 @@ def test_stage1(tmpdir):
     ])
     assert ret == 0
 
-    parameters = h5_table_to_astropy(output, '/dl1/event/telescope/parameters/tel_001')
+    # test our custom default works
+    assert tool.event_source.r0_r1_calibrator.gain_selector.threshold == 20.9
+
+    parameters = read_table(output, '/dl1/event/telescope/parameters/tel_001')
     assert len(parameters) == 10
+
+    trigger = read_table(output, '/dl1/event/subarray/trigger')
+    assert EventType.UNKNOWN.value not in trigger['event_type']
