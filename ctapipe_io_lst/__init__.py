@@ -477,7 +477,7 @@ class LSTEventSource(EventSource):
         # first bit mono trigger, second stereo.
         # If *only* those two are set, we assume it's a physics event
         # for all other we only check if the flag is present
-        if (trigger_bits | TriggerBits.PHYSICS) and not (trigger_bits & TriggerBits.OTHER):
+        if (trigger_bits & TriggerBits.PHYSICS) and not (trigger_bits & TriggerBits.OTHER):
             trigger.event_type = EventType.SUBARRAY
         elif trigger_bits & TriggerBits.CALIBRATION:
             trigger.event_type = EventType.FLATFIELD
