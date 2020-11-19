@@ -210,13 +210,13 @@ class LSTR0Corrections(TelescopeComponent):
                 # time_correction but time_correction should be added
                 time_shift -= time_corr[r1.selected_gain_channel, pixel_index].to_value(u.ns)
 
-            event.calibration.tel[1].dl1.time_shift = time_shift
+            event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
             # needed for charge scaling in ctpaipe dl1 calib
             relative_factor = np.empty(n_pixels)
-            relative_factor[r1.selected_gain_channel == HIGH_GAIN] = self.calib_scale_high_gain.tel[1]
-            relative_factor[r1.selected_gain_channel == LOW_GAIN] = self.calib_scale_low_gain.tel[1]
-            event.calibration.tel[1].dl1.relative_factor = relative_factor
+            relative_factor[r1.selected_gain_channel == HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
+            relative_factor[r1.selected_gain_channel == LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
+            event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
 
     @staticmethod
     def _read_calibration_file(path):
