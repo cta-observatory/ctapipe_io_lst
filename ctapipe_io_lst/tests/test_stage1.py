@@ -7,17 +7,22 @@ from ctapipe.containers import EventType
 
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
-test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz'
+test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0201.fits.fz'
 test_calib_path = test_data / 'real/calibration/20200218/v05/calibration.Run2006.0000.hdf5'
 test_drs4_pedestal_path = test_data / 'real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits'
 test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5'
 test_drive_report = test_data / 'real/monitoring/DrivePositioning/drive_log_20200218.txt'
+test_night_summary = test_data / 'real/monitoring/NightSummary/NightSummary_20200218.txt'
 
 
 def test_stage1(tmpdir):
     '''Test the ctapipe stage1 tool can read in LST real data using the event source'''
     from ctapipe.tools.stage1 import Stage1Tool
     from ctapipe.core.tool import run_tool
+    from ctapipe_io_lst.event_time import read_night_summary
+
+    summary = read_night_summary(test_night_summary)
+    run_info = summary.loc[2008]
 
     tmpdir = Path(tmpdir)
     config_path = tmpdir / 'config.json'
@@ -31,6 +36,12 @@ def test_stage1(tmpdir):
             },
             'PointingSource': {
                 'drive_report_path': str(test_drive_report)
+            },
+            'EventTimeCalculator': {
+                'ucts_t0_dragon': int(run_info['ucts_t0_dragon']),
+                'dragon_counter0': int(run_info['dragon_counter0']),
+                'ucts_t0_tib': int(run_info['ucts_t0_tib']),
+                'tib_counter0': int(run_info['tib_counter0']),
             }
         },
         "CameraCalibrator": {
@@ -56,7 +67,6 @@ def test_stage1(tmpdir):
 
     ret = run_tool(tool, argv=[
         f'--input={test_r0_path}',
-        '--max-events=10',
         f'--output={output}',
         f'--config={config_path}',
     ])
@@ -66,7 +76,7 @@ def test_stage1(tmpdir):
     assert tool.event_source.r0_r1_calibrator.gain_selector.threshold == 20.9
 
     parameters = read_table(output, '/dl1/event/telescope/parameters/tel_001')
-    assert len(parameters) == 10
+    assert len(parameters) == 447
 
     trigger = read_table(output, '/dl1/event/subarray/trigger')
     assert EventType.UNKNOWN.value not in trigger['event_type']

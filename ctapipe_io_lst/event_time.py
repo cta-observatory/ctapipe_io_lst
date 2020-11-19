@@ -1,6 +1,7 @@
 from ctapipe.core import TelescopeComponent
 from ctapipe.core.traits import TelescopeParameter, Enum, Int, Bool
 from astropy.time import Time
+from astropy.table import Table
 import numpy as np
 from collections import deque, defaultdict
 
@@ -31,6 +32,32 @@ def calc_tib_time(lst_event_container, reference):
         + lst_event_container.evt.tib_pps_counter
         + lst_event_container.evt.tib_tenMHz_counter * 1e-7
     )
+
+
+def datetime_cols_to_time(date, time):
+    return Time(np.char.add(
+        date,
+        np.char.add('T', time)
+    ))
+
+
+def read_night_summary(path):
+    summary = Table.read(
+        str(path),
+        format='ascii.basic',
+        delimiter=' ',
+        header_start=0,
+        data_start=0,
+        names=[
+            'run', 'n_subruns', 'run_type', 'date', 'time',
+            'first_valid_event_dragon', 'ucts_t0_dragon', 'dragon_counter0',
+            'first_valid_event_tib', 'ucts_t0_tib', 'tib_counter0',
+        ],
+        guess=False,
+    )
+    summary.add_index(['run'])
+    summary['timestamp'] = datetime_cols_to_time(summary['date'], summary['time'])
+    return summary
 
 
 class EventTimeCalculator(TelescopeComponent):
