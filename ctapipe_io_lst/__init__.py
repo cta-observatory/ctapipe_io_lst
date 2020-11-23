@@ -24,7 +24,7 @@ from ctapipe.core.traits import Int, Bool, List, Float
 from ctapipe.containers import PixelStatusContainer, EventType
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
-from .version import get_version
+from .version import __version__
 from .calibration import LSTR0Corrections
 from .event_time import EventTimeCalculator
 from .pointing import PointingSource
@@ -39,8 +39,7 @@ from .constants import (
     HIGH_GAIN
 )
 
-__version__ = get_version(pep440=False)
-__all__ = ['LSTEventSource']
+__all__ = ['LSTEventSource', '__version__']
 
 
 class TriggerBits(IntFlag):

@@ -1,0 +1,6 @@
+include README.rst
+include setup.cfg
+
+exclude ctapipe/_dev_version.py
+
+global-exclude *.pyc *.o

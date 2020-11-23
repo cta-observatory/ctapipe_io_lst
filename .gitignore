@@ -1,6 +1,6 @@
 test_data
 .pytest_cache
-ctapipe_io_lst/_version_cache.py
+ctapipe_io_lst/_version.py
 
 # Compiled files
 *.py[co]
