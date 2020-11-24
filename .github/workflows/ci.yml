@@ -41,6 +41,15 @@ jobs:
           pip install -e .
           git describe --tags
 
+      - name: Download test data
+        env:
+          TEST_DATA_USER: ${{ secrets.test_data_user }}
+          TEST_DATA_PASSWORD: ${{ secrets.test_data_password }}
+        run: |
+          ./download_test_data.sh
+
+
+
       - name: Tests
         run: |
           # github actions starts a new shell for each "step", so we need to 
