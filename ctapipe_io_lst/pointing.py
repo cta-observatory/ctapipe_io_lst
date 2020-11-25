@@ -4,11 +4,14 @@ from astropy.table import Table
 from astropy import units as u
 from scipy.interpolate import interp1d
 from ctapipe.containers import TelescopePointingContainer
+import numpy as np
 
 
 __all__ = [
     'PointingSource'
 ]
+
+NAN_ANGLE = np.nan * u.deg
 
 
 class PointingSource(TelescopeComponent):
@@ -26,6 +29,8 @@ class PointingSource(TelescopeComponent):
         self.drive_report = {}
         self.interp_az = {}
         self.interp_alt = {}
+        self.interp_ra = {}
+        self.interp_dec = {}
 
     @staticmethod
     def _read_drive_report(path):
@@ -71,7 +76,16 @@ class PointingSource(TelescopeComponent):
             90 - self.drive_report[tel_id]['zenith_avg'],
         )
 
-    def get_pointing_position(self, tel_id, time):
+        self.interp_ra[tel_id] = interp1d(
+            self.drive_report[tel_id]['unix_time'],
+            self.drive_report[tel_id]['target_ra'],
+        )
+        self.interp_dec[tel_id] = interp1d(
+            self.drive_report[tel_id]['unix_time'],
+            self.drive_report[tel_id]['target_dec'],
+        )
+
+    def get_pointing_position_altaz(self, tel_id, time):
         """
         Calculating pointing positions by interpolation
 
@@ -93,3 +107,17 @@ class PointingSource(TelescopeComponent):
             altitude=alt.to(u.rad),
             azimuth=az.to(u.rad),
         )
+
+    def get_pointing_position_icrs(self, tel_id, time):
+        if tel_id not in self.drive_report:
+            self._read_drive_report_for_tel(tel_id)
+
+        ra = u.Quantity(self.interp_ra[tel_id](time.unix), u.deg)
+        dec = u.Quantity(self.interp_dec[tel_id](time.unix), u.deg)
+
+        # drive reports contain 0 / 0 if not tracking ICRS coordinates
+        # TODO: hope we never really observe ra=0°, dec=0°
+        if ra != 0.0 and dec != 0.0:
+            return ra, dec
+
+        return NAN_ANGLE, NAN_ANGLE

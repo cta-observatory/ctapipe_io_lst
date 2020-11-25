@@ -516,12 +516,18 @@ class LSTEventSource(EventSource):
         # only do it when a drive report has been given.
         if self.pointing_source.drive_report_path.tel[tel_id] is not None:
 
-            pointing = self.pointing_source.get_pointing_position(
+            pointing = self.pointing_source.get_pointing_position_altaz(
                 tel_id, array_event.trigger.time,
             )
             array_event.pointing.tel[tel_id] = pointing
             array_event.pointing.array_altitude = pointing.altitude
             array_event.pointing.array_azimuth = pointing.azimuth
+
+            ra, dec = self.pointing_source.get_pointing_position_icrs(
+                tel_id, array_event.trigger_time
+            )
+            array_event.pointing.array_ra = ra
+            array_event.pointing.array_dec = dec
 
         elif array_event.count == 0:
             # but make a warning on the first event if it is missing
