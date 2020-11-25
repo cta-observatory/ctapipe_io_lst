@@ -10,7 +10,8 @@ resource_dir = Path(pkg_resources.resource_filename(
 ))
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
-test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz'
+test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0000_first50.fits.fz'
+test_r0_calib_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz'
 test_calib_path = test_data / 'real/calibration/20200218/v05/calibration.Run2006.0000.hdf5'
 test_drs4_pedestal_path = test_data / 'real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits'
 test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5'
@@ -48,13 +49,13 @@ def test_read_calib_file():
 
 
 def test_read_drs4_pedestal_file():
-    from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS_PIXEL, N_ROI
+    from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS_PIXEL, N_SAMPLES
 
     pedestal = LSTR0Corrections._get_drs4_pedestal_data(test_drs4_pedestal_path)
 
-    assert pedestal.shape[-1] == N_CAPACITORS_PIXEL + N_ROI
+    assert pedestal.shape[-1] == N_CAPACITORS_PIXEL + N_SAMPLES
     # check circular boundary
-    assert np.all(pedestal[..., :N_ROI] == pedestal[..., N_CAPACITORS_PIXEL:])
+    assert np.all(pedestal[..., :N_SAMPLES] == pedestal[..., N_CAPACITORS_PIXEL:])
 
     # check offset is applied
     pedestal_offset = LSTR0Corrections._get_drs4_pedestal_data(
@@ -150,3 +151,31 @@ def test_source_with_all():
         for event in source:
             assert event.r1.tel[1].waveform is not None
             assert np.any(event.calibration.tel[1].dl1.time_shift != 0)
+
+
+def test_no_gain_selection():
+    from ctapipe_io_lst import LSTEventSource
+    from ctapipe_io_lst.constants import N_PIXELS, N_GAINS, N_SAMPLES
+
+    config = Config({
+        'LSTEventSource': {
+            'LSTR0Corrections': {
+                'drs4_pedestal_path': test_drs4_pedestal_path,
+                'drs4_time_calibration_path': test_time_calib_path,
+                'calibration_path': test_calib_path,
+                'select_gain': False,
+            }
+        }
+    })
+
+    source = LSTEventSource(
+        input_url=test_r0_calib_path,
+        config=config,
+    )
+
+    assert source.r0_r1_calibrator.mon_data is not None
+    with source:
+        for event in source:
+            assert event.r1.tel[1].waveform is not None
+            assert event.r1.tel[1].waveform.ndim == 3
+            assert event.r1.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES - 4)

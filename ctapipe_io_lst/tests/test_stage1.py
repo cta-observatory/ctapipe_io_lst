@@ -74,7 +74,7 @@ def test_stage1(tmpdir):
     assert ret == 0
 
     # test our custom default works
-    assert tool.event_source.r0_r1_calibrator.gain_selector.threshold == 20.9
+    assert tool.event_source.r0_r1_calibrator.gain_selector.threshold == 40.0
 
     parameters = read_table(output, '/dl1/event/telescope/parameters/tel_001')
     assert len(parameters) == 200
