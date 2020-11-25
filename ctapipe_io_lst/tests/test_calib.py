@@ -19,7 +19,7 @@ test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibrati
 def test_get_first_capacitor():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.calibration import (
-        get_first_capacitor_for_modules,
+        get_first_capacitors_for_pixels,
         N_GAINS, N_PIXELS_PER_MODULE, N_MODULES,
     )
 
@@ -32,7 +32,7 @@ def test_get_first_capacitor():
     with tables.open_file(resource_dir / 'first_caps.hdf5', 'r') as f:
         expected = f.root.first_capacitor_for_modules[:]
 
-    first_caps = get_first_capacitor_for_modules(first_capacitor_id)
+    first_caps = get_first_capacitors_for_pixels(first_capacitor_id)
     # we just different shape (N_MODULES, N_GAINS, N_PIXELS_PER_MODULE) before
     first_caps = first_caps.reshape((N_GAINS, N_MODULES, N_PIXELS_PER_MODULE))
     first_caps = np.swapaxes(first_caps, 0, 1)
