@@ -3,7 +3,9 @@ from pathlib import Path
 import tempfile
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
-test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz'
+test_r0_dir = test_data / 'real/R0/20200218'
+test_r0_path = test_r0_dir / 'LST-1.1.Run02006.0004.fits.fz'
+test_r0_path_all_streams = test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz'
 
 # ADC_SAMPLES_SHAPE = (2, 14, 40)
 
@@ -28,6 +30,20 @@ def test_loop_over_events():
 
     # make sure max_events works
     assert (i + 1) == n_events
+
+
+def test_multifile():
+    from ctapipe_io_lst import LSTEventSource
+
+    source = LSTEventSource(input_url=test_r0_path_all_streams)
+    assert len(set(source.file_list)) == 4
+
+    for i, event in enumerate(source):
+        # make sure all events are present and in the correct order
+        assert event.index.event_id == i + 1
+
+    # make sure we get all events from all streams (50 per stream)
+    assert (i + 1) == 200
 
 
 def test_is_compatible():
