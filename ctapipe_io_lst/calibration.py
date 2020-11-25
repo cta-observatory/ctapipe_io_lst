@@ -144,7 +144,7 @@ class LSTR0Corrections(TelescopeComponent):
         # set the right default for our default selector, change back afterwards
         # to not impact other code.
         old_default = ThresholdGainSelector.threshold.default_value
-        ThresholdGainSelector.threshold.default_value = 20.9
+        ThresholdGainSelector.threshold.default_value = 40
         self.gain_selector = GainSelector.from_name(
             self.gain_selector_type, parent=self
         )
