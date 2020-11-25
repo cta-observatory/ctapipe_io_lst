@@ -4,10 +4,11 @@ import os
 
 from ctapipe.io import read_table
 from ctapipe.containers import EventType
+import numpy as np
 
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
-test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0201.fits.fz'
+test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0000_first50.fits.fz'
 test_calib_path = test_data / 'real/calibration/20200218/v05/calibration.Run2006.0000.hdf5'
 test_drs4_pedestal_path = test_data / 'real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits'
 test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5'
@@ -76,7 +77,14 @@ def test_stage1(tmpdir):
     assert tool.event_source.r0_r1_calibrator.gain_selector.threshold == 20.9
 
     parameters = read_table(output, '/dl1/event/telescope/parameters/tel_001')
-    assert len(parameters) == 447
+    assert len(parameters) == 200
 
     trigger = read_table(output, '/dl1/event/subarray/trigger')
-    assert EventType.UNKNOWN.value not in trigger['event_type']
+
+    event_type_counts = np.bincount(trigger['event_type'])
+
+    # one pedestal and flat field expected each, rest should be physics data
+    assert event_type_counts.sum() == 200
+    assert event_type_counts[EventType.FLATFIELD.value] == 1
+    assert event_type_counts[EventType.SKY_PEDESTAL.value] == 1
+    assert event_type_counts[EventType.SUBARRAY.value] == 198
