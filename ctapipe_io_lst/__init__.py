@@ -524,7 +524,7 @@ class LSTEventSource(EventSource):
             array_event.pointing.array_azimuth = pointing.azimuth
 
             ra, dec = self.pointing_source.get_pointing_position_icrs(
-                tel_id, array_event.trigger_time
+                tel_id, array_event.trigger.time
             )
             array_event.pointing.array_ra = ra
             array_event.pointing.array_dec = dec
