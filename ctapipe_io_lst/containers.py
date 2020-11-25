@@ -147,4 +147,3 @@ class LSTArrayEventContainer(ArrayEventContainer):
     Data container including LST and monitoring information
     """
     lst = Field(LSTContainer(), "LST specific Information")
-    mon = Field(MonitoringContainer(), "container for LST monitoring data (MON)")
