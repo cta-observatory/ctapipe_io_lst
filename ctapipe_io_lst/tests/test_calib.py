@@ -4,8 +4,6 @@ from traitlets.config import Config
 import numpy as np
 import tables
 import pkg_resources
-import json
-from ctapipe.io.astropy_helpers import h5_table_to_astropy
 
 resource_dir = Path(pkg_resources.resource_filename(
     'ctapipe_io_lst', 'tests/resources'

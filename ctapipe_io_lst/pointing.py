@@ -12,9 +12,7 @@ __all__ = [
 
 
 class PointingSource(TelescopeComponent):
-    """
-    Provides access to pointing information stored in LST drive reports.
-    """
+    """Provides access to pointing information stored in LST drive reports."""
     drive_report_path = TelescopeParameter(
         trait=Path(exists=True, directory_ok=False),
         help='Path to the LST drive report file',
@@ -22,6 +20,8 @@ class PointingSource(TelescopeComponent):
     ).tag(config=True)
 
     def __init__(self, subarray, config=None, parent=None, **kwargs):
+        '''Initialize PointingSource'''
+
         super().__init__(subarray, config=config, parent=parent, **kwargs)
         self.drive_report = {}
         self.interp_az = {}

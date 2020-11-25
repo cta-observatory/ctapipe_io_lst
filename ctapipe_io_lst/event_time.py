@@ -1,5 +1,5 @@
 from ctapipe.core import TelescopeComponent
-from ctapipe.core.traits import TelescopeParameter, Enum, Int, Bool
+from ctapipe.core.traits import TelescopeParameter, Enum, Int as _Int, Bool
 from astropy.time import Time
 from astropy.table import Table
 import numpy as np
@@ -10,7 +10,7 @@ CENTRAL_MODULE = 132
 
 
 # fix for https://github.com/ipython/traitlets/issues/637
-class Int(Int):
+class Int(_Int):
     def validate(self, obj, value):
         if value is None and self.allow_none is True:
             return value
@@ -62,7 +62,10 @@ def read_night_summary(path):
 
 class EventTimeCalculator(TelescopeComponent):
     '''
-    From low-level counter / time information compute the correct event timestamp
+    Class to calculate event times from low-level counter information.
+
+    Also keeps track of "UCTS jumps", where UCTS info goes missing for
+    a certain event and all following info has to be shifted.
     '''
 
     timestamp = TelescopeParameter(
@@ -95,6 +98,7 @@ class EventTimeCalculator(TelescopeComponent):
     use_first_event = Bool(default_value=True).tag(config=True)
 
     def __init__(self, subarray, config=None, parent=None, **kwargs):
+        '''Initialize EventTimeCalculator'''
         super().__init__(subarray=subarray, config=config, parent=parent, **kwargs)
 
         self.first_valid_ucts = dict()

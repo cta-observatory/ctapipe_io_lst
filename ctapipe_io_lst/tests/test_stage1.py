@@ -17,7 +17,7 @@ test_night_summary = test_data / 'real/monitoring/NightSummary/NightSummary_2020
 
 
 def test_stage1(tmpdir):
-    '''Test the ctapipe stage1 tool can read in LST real data using the event source'''
+    """Test the ctapipe stage1 tool can read in LST real data using the event source"""
     from ctapipe.tools.stage1 import Stage1Tool
     from ctapipe.core.tool import run_tool
     from ctapipe_io_lst.event_time import read_night_summary

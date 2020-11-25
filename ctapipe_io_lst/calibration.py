@@ -29,10 +29,24 @@ __all__ = [
 ]
 
 
-def get_first_capacitor_for_modules(first_capacitor_id, expected_pixel_id=None):
+def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
     '''
-    Get the first capacitor for each module's pixels from the
-    flat first_capacitor_id array.
+    Get the first capacitor for each pixel / gain
+
+    Parameters
+    ----------
+    first_capacitor_id: np.ndarray
+        First capacitor array as delivered by the event builder,
+        containing first capacitors for each DRS4 chip.
+    expected_pixel_id: np.ndarray
+        Array of the pixel ids corresponding to the positions in
+        the data array.
+        If given, will be used to reorder the start cells to pixel id order.
+
+    Returns
+    -------
+    fc: np.ndarray
+        First capacitors for each pixel in each gain, shape (N_GAINS, N_PIXELS)
     '''
 
     # reorder if provided with correct pixel order
@@ -160,12 +174,12 @@ class LSTR0Corrections(TelescopeComponent):
             self.mon_data = self._read_calibration_file(self.calibration_path)
 
     def calibrate(self, event: ArrayEventContainer):
-        for tel_id, r0 in event.r0.tel.items():
+        for tel_id in event.r0.tel:
             r1 = event.r1.tel[tel_id]
 
             # update first caps
             self.first_cap_old[tel_id][:] = self.first_cap[tel_id][:]
-            self.first_cap[tel_id] = get_first_capacitor_for_modules(
+            self.first_cap[tel_id] = get_first_capacitors_for_pixels(
                 event.lst.tel[tel_id].evt.first_capacitor_id,
                 event.lst.tel[tel_id].svc.pixel_ids,
             )
@@ -681,7 +695,7 @@ def interpolate_spike_A(waveform, gain, position, pixel):
 
 @njit()
 def get_corr_time_jit(first_capacitors, selected_gain_channel, fan, fbn):
-    n_gains, n_pixels, n_harmonics = fan.shape
+    _n_gains, n_pixels, n_harmonics = fan.shape
     time = np.zeros(n_pixels)
 
     for pixel in range(n_pixels):

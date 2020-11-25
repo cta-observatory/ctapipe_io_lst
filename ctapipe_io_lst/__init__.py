@@ -42,7 +42,9 @@ __all__ = ['LSTEventSource']
 
 
 class TriggerBits(IntFlag):
-    '''See TIB User manual'''
+    '''
+    See TIB User manual
+    '''
     MONO = auto()
     STEREO = auto()
     CALIBRATION = auto()
