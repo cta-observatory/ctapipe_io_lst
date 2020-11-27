@@ -131,11 +131,6 @@ class LSTEventSource(EventSource):
         help='Number of gains at r0 level'
     ).tag(config=True)
 
-    baseline = Int(
-        400,
-        help='r0 waveform baseline (default from EvB v3)'
-    ).tag(config=True)
-
     multi_streams = Bool(
         True,
         help='Read in parallel all streams '
@@ -175,8 +170,6 @@ class LSTEventSource(EventSource):
         Parameters
         ----------
         n_gains = number of gains expected in input file
-
-        baseline = baseline to be subtracted at r1 level (not used for the moment)
 
         multi_streams = enable the reading of input files from all streams
 
