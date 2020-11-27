@@ -131,7 +131,7 @@ class LSTR0Corrections(TelescopeComponent):
     gain_selection_threshold = Float(
         default_value=40,
         help='Threshold for the ThresholdGainSelector.'
-    )
+    ).tag(config=True)
 
     def __init__(self, subarray, config=None, parent=None, **kwargs):
         """
