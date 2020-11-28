@@ -49,22 +49,17 @@ def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
         First capacitors for each pixel in each gain, shape (N_GAINS, N_PIXELS)
     '''
 
-    # reorder if provided with correct pixel order
-    if expected_pixel_id is not None:
-        # expected_pixel_id is the inverse lookup of what is needed here,
-        # so we create an empty array first and index into it.
-        index_low_gain = np.empty_like(CHANNEL_INDEX_LOW_GAIN)
-        index_low_gain[expected_pixel_id] = CHANNEL_INDEX_LOW_GAIN
-        index_high_gain = np.empty_like(CHANNEL_INDEX_HIGH_GAIN)
-        index_high_gain[expected_pixel_id] = CHANNEL_INDEX_HIGH_GAIN
-    else:
-        index_low_gain = CHANNEL_INDEX_LOW_GAIN
-        index_high_gain = CHANNEL_INDEX_HIGH_GAIN
-
-    # first: reshape so we can access by module
     fc = np.zeros((N_GAINS, N_PIXELS), dtype='uint16')
-    fc[LOW_GAIN] = first_capacitor_id[index_low_gain]
-    fc[HIGH_GAIN] = first_capacitor_id[index_high_gain]
+
+    low_gain = first_capacitor_id[CHANNEL_INDEX_LOW_GAIN]
+    high_gain = first_capacitor_id[CHANNEL_INDEX_HIGH_GAIN]
+
+    if expected_pixel_id is None:
+        fc[LOW_GAIN] = low_gain
+        fc[HIGH_GAIN] = high_gain
+    else:
+        fc[LOW_GAIN, expected_pixel_id] = low_gain
+        fc[HIGH_GAIN, expected_pixel_id] = high_gain
 
     return fc
 
@@ -126,6 +121,14 @@ class LSTR0Corrections(TelescopeComponent):
     select_gain = Bool(
         default_value=True,
         help='Set to False to keep both gains.'
+    ).tag(config=True)
+
+    add_calibration_timeshift = Bool(
+        default_value=True,
+        help=(
+            'If true, time correction from the calibration'
+            ' file is added to calibration.dl1.time'
+        ),
     ).tag(config=True)
 
     gain_selection_threshold = Float(
@@ -224,7 +227,7 @@ class LSTR0Corrections(TelescopeComponent):
             )
 
             # time shift from flat fielding
-            if self.mon_data is not None:
+            if self.mon_data is not None and self.add_calibration_timeshift:
                 time_corr = self.mon_data.tel[tel_id].calibration.time_correction
                 # Aime_shift is subtracted in ctapipe,
                 # time_correction but time_correction should be added
@@ -287,7 +290,6 @@ class LSTR0Corrections(TelescopeComponent):
         Function to load calibration file.
         """
         with tables.open_file(path, 'r') as f:
-            # self.n_harmonics = hf["/"].attrs['n_harm']
             fan = f.root.fan[:]
             fbn = f.root.fbn[:]
 
@@ -751,10 +753,12 @@ def calc_fourier_time_correction(first_capacitor, fan, fbn):
     n_harmonics = len(fan)
 
     time = 0
+    first_capacitor = first_capacitor % N_CAPACITORS_CHANNEL
+
     for harmonic in range(1, n_harmonics):
         a = fan[harmonic]
         b = fbn[harmonic]
-        omega = harmonic * (2 * np.pi / N_CAPACITORS_PIXEL)
+        omega = harmonic * (2 * np.pi / N_CAPACITORS_CHANNEL)
 
         time += a * np.cos(omega * first_capacitor)
         time += b * np.sin(omega * first_capacitor)
