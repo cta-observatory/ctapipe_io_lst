@@ -466,6 +466,7 @@ class LSTEventSource(EventSource):
 
         trigger = array_event.trigger
         trigger.time = self.time_calculator(tel_id, array_event)
+        trigger.tels_with_data = [tel_id]
         trigger.tel[tel_id].time = trigger.time
 
         trigger_bits = array_event.lst.tel[tel_id].evt.ucts_trigger_type
