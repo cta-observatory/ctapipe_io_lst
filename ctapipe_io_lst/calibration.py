@@ -132,7 +132,7 @@ class LSTR0Corrections(TelescopeComponent):
     ).tag(config=True)
 
     gain_selection_threshold = Float(
-        default_value=40,
+        default_value=3500,
         help='Threshold for the ThresholdGainSelector.'
     ).tag(config=True)
 
@@ -200,7 +200,15 @@ class LSTR0Corrections(TelescopeComponent):
 
             waveform -= self.offset.tel[tel_id]
 
-            # apply monitoring data corrections
+            # do gain selection before converting to pe
+            # like eventbuilder will do
+            if self.select_gain:
+                selected_gain_channel = self.gain_selector(waveform)
+            else:
+                selected_gain_channel = None
+
+            # apply monitoring data corrections,
+            # subtract pedestal and convert to pe
             if self.mon_data is not None:
                 calibration = self.mon_data.tel[tel_id].calibration
                 waveform -= calibration.pedestal_per_sample[:, :, np.newaxis]
@@ -209,15 +217,12 @@ class LSTR0Corrections(TelescopeComponent):
             waveform = waveform.astype(np.float32)
             n_gains, n_pixels, n_samples = waveform.shape
 
-            select_gain = self.select_gain
-            if select_gain:
-                selected_gain_channel = self.gain_selector(waveform)
+            if selected_gain_channel is not None:
                 pixel_index = np.arange(n_pixels)
                 r1.waveform = waveform[selected_gain_channel, pixel_index]
                 r1.selected_gain_channel = selected_gain_channel
             else:
                 r1.waveform = waveform
-                selected_gain_channel = None
 
             # store calibration data needed for dl1 calibration in ctapipe
             # first drs4 time shift (zeros if no calib file was given)
@@ -229,9 +234,9 @@ class LSTR0Corrections(TelescopeComponent):
             # time shift from flat fielding
             if self.mon_data is not None and self.add_calibration_timeshift:
                 time_corr = self.mon_data.tel[tel_id].calibration.time_correction
-                # Aime_shift is subtracted in ctapipe,
-                # time_correction but time_correction should be added
-                if select_gain:
+                # time_shift is subtracted in ctapipe,
+                # but time_correction should be added
+                if selected_gain_channel is not None:
                     time_shift -= time_corr[r1.selected_gain_channel, pixel_index].to_value(u.ns)
                 else:
                     time_shift -= time_corr.to_value(u.ns)
@@ -239,7 +244,7 @@ class LSTR0Corrections(TelescopeComponent):
             event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
             # needed for charge scaling in ctpaipe dl1 calib
-            if select_gain:
+            if selected_gain_channel is not None:
                 relative_factor = np.empty(n_pixels)
                 relative_factor[r1.selected_gain_channel == HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
                 relative_factor[r1.selected_gain_channel == LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
