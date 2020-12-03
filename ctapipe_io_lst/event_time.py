@@ -1,5 +1,6 @@
 from ctapipe.core import TelescopeComponent
-from ctapipe.core.traits import TelescopeParameter, Enum, Int as _Int, Bool
+from ctapipe.core.traits import TelescopeParameter
+from traitlets import Enum, Int as _Int, Bool
 from astropy.time import Time
 from astropy.table import Table
 import numpy as np
@@ -101,9 +102,7 @@ class EventTimeCalculator(TelescopeComponent):
         '''Initialize EventTimeCalculator'''
         super().__init__(subarray=subarray, config=config, parent=parent, **kwargs)
 
-        self.first_valid_ucts = dict()
-        self.first_valid_ucts_tib = dict()
-        self.previous_ucts_times = defaultdict(deque)
+        self.previous_ucts_timestamps = defaultdict(deque)
         self.previous_ucts_trigger_types = defaultdict(deque)
 
         self._has_reference = {}
@@ -117,10 +116,10 @@ class EventTimeCalculator(TelescopeComponent):
 
         for tel_id in self.subarray.tel:
             self._has_reference[tel_id] = all([
-                self.ucts_t0_dragon.tel[tel_id],
-                self.dragon_counter0.tel[tel_id],
-                self.ucts_t0_tib.tel[tel_id],
-                self.tib_counter0.tel[tel_id],
+                self.ucts_t0_dragon.tel[tel_id] is not None,
+                self.dragon_counter0.tel[tel_id] is not None,
+                self.ucts_t0_tib.tel[tel_id] is not None,
+                self.tib_counter0.tel[tel_id] is not None,
             ])
 
             if self._has_reference[tel_id]:
@@ -162,14 +161,9 @@ class EventTimeCalculator(TelescopeComponent):
             if lst.evt.extdevices_presence & 2:
                 # UCTS presence flag is OK
                 ucts_timestamp = lst.evt.ucts_timestamp
-                ucts_time = ucts_timestamp * 1e-9  # secs
-
-                if tel_id not in self.first_valid_ucts:
-                    self.first_valid_ucts[tel_id] = ucts_time
-
-                if tel_id not in self.first_valid_ucts_tib and lst.evt.extdevices_presence & 1:
-                    self.first_valid_ucts_tib[tel_id] = ucts_time
+                ucts_time = ucts_timestamp * 1e-9
             else:
+                ucts_timestamp = -1
                 ucts_time = np.nan
 
         # first event and values not passed
@@ -181,8 +175,6 @@ class EventTimeCalculator(TelescopeComponent):
                 )
 
             ucts_timestamp = lst.evt.ucts_timestamp
-            ucts_time = ucts_timestamp * 1e-9  # secs
-
             initial_dragon_counter = (
                 int(1e9) * lst.evt.pps_counter[central_module_index]
                 + 100 * lst.evt.tenMHz_counter[central_module_index]
@@ -214,6 +206,7 @@ class EventTimeCalculator(TelescopeComponent):
                 f' tib_counter: {initial_tib_counter}'
             )
 
+            ucts_time = ucts_timestamp * 1e-9
             tib_time = ucts_time
             dragon_time = ucts_time
             self._has_reference[tel_id] = True
@@ -241,19 +234,16 @@ class EventTimeCalculator(TelescopeComponent):
         # types, previous_ucts_trigger_type
         ucts_trigger_type = lst.evt.ucts_trigger_type
 
-        if len(self.previous_ucts_times[tel_id]) > 0:
-            # keep the time & trigger type read for this
-            # event (which really correspond to a later event):
-            current_ucts_time = ucts_time
-            current_ucts_trigger_type = ucts_trigger_type
+        if len(self.previous_ucts_timestamps[tel_id]) > 0:
+            # put the current values last in the queue, for later use:
+            self.previous_ucts_timestamps[tel_id].append(ucts_timestamp)
+            self.previous_ucts_trigger_types[tel_id].append(ucts_trigger_type)
 
             # get the correct time for the current event from the queue
-            ucts_time = self.previous_ucts_times[tel_id].popleft()
+            ucts_timestamp = self.previous_ucts_timestamps[tel_id].popleft()
             ucts_trigger_type = self.previous_ucts_trigger_types[tel_id].popleft()
+            ucts_time = ucts_timestamp * 1e-9
 
-            # now put the current values last in the queue, for later use:
-            self.previous_ucts_times[tel_id].append(current_ucts_time)
-            self.previous_ucts_trigger_types[tel_id].append(current_ucts_trigger_type)
 
             lst.evt.ucts_trigger_type = ucts_trigger_type
             lst.evt.ucts_timestamp = ucts_timestamp
@@ -278,11 +268,12 @@ class EventTimeCalculator(TelescopeComponent):
                 f', dragon time: {dragon_time:.07f}'
                 f', delta: {(ucts_time - dragon_time) * 1e6:.1f} µs'
             )
-            self.previous_ucts_times[tel_id].appendleft(ucts_time)
+            self.previous_ucts_timestamps[tel_id].appendleft(ucts_timestamp)
             self.previous_ucts_trigger_types[tel_id].appendleft(ucts_trigger_type)
 
             # fall back to dragon time / tib trigger
-            lst.evt.ucts_timestamp = dragon_time * 1e9
+            ucts_time = dragon_time
+            lst.evt.ucts_timestamp = int(dragon_time * 1e9)
             lst.evt.ucts_trigger_type = lst.evt.tib_masked_trigger
 
         # Select the timestamps to be used for pointing interpolation
@@ -294,6 +285,8 @@ class EventTimeCalculator(TelescopeComponent):
 
         elif self.timestamp.tel[tel_id] == "tib":
             timestamp = Time(tib_time, format='unix_tai')
+        else:
+            raise ValueError('Unknown timestamp requested')
 
         self.log.debug(f'tib: {tib_time:.7f}, dragon: {dragon_time:.7f}, ucts: {ucts_time:.7f}')
 

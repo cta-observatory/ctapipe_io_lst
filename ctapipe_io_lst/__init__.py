@@ -278,10 +278,11 @@ class LSTEventSource(EventSource):
         # LSTs telescope position taken from MC from the moment
         tel_positions = {tel_id: [50., 50., 16] * u.m}
 
-        subarray = SubarrayDescription(f"LST-{tel_id} subarray")
-        subarray.tel_descriptions = tel_descriptions
-        subarray.positions = tel_positions
-        subarray.tel[tel_id] = lst_tel_descr
+        subarray = SubarrayDescription(
+            name=f"LST-{tel_id} subarray",
+            tel_descriptions=tel_descriptions,
+            tel_positions=tel_positions,
+        )
 
         return subarray
 
