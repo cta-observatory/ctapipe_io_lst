@@ -366,19 +366,14 @@ class LSTR0Corrections(TelescopeComponent):
         event : `ctapipe` event-container
         tel_id : id of the telescope
         """
-        n_modules = event.lst.tel[tel_id].svc.num_modules
-        expected_pixel_id = event.lst.tel[tel_id].svc.pixel_ids
-
         samples = event.r0.tel[tel_id].waveform.astype(np.float32)
         samples = subtract_pedestal_jit(
             samples,
-            expected_pixel_id,
             self.first_cap[tel_id],
             self._get_drs4_pedestal_data(
                 self.drs4_pedestal_path.tel[tel_id],
                 offset=self.offset.tel[tel_id],
             ),
-            n_modules,
         )
         event.r1.tel[tel_id].waveform = samples[:, :, :]
 
@@ -460,19 +455,14 @@ class LSTR0Corrections(TelescopeComponent):
         ----------
         waveform : ndarray
             Waveform stored in a numpy array of shape
-            (n_gain, n_pix, n_samples).
-        expected_pixel_id: ndarray
-            Array stored expected pixel id
-            (n_pix*n_modules).
+            (N_GAINS, N_PIXELS, N_SAMPLES).
         fc : ndarray
             Value of first capacitor stored in a numpy array of shape
-            (n_clus, n_gain, n_pix).
+            (N_GAINS, N_PIXELS).
         fc_old : ndarray
             Value of first capacitor from previous event
             stored in a numpy array of shape
-            (n_clus, n_gain, n_pix).
-        n_modules : int
-            Number of modules
+            (N_GAINS, N_PIXELS).
         """
         LAST_IN_FIRST_HALF = N_CAPACITORS_CHANNEL // 2 - 1
 
@@ -507,26 +497,22 @@ class LSTR0Corrections(TelescopeComponent):
     @njit()
     def interpolate_pseudo_pulses_data_from_20181010_to_20191104(waveform, fc, fc_old):
         """
-        Interpolate Spike A & B.
+        Interpolate Spike A
         This is function for data from 2018/10/10 to 2019/11/04 with old firmware.
         Change waveform array.
+
         Parameters
         ----------
         waveform : ndarray
             Waveform stored in a numpy array of shape
-            (n_gain, n_pix, n_samples).
-        expected_pixel_id: ndarray
-            Array stored expected pixel id
-            (n_pix*n_modules).
+            (N_GAINS, N_PIXELS, N_SAMPLES).
         fc : ndarray
             Value of first capacitor stored in a numpy array of shape
-            (n_clus, n_gain, n_pix).
+            (N_GAINS, N_PIXELS).
         fc_old : ndarray
             Value of first capacitor from previous event
             stored in a numpy array of shape
-            (n_clus, n_gain, n_pix).
-        n_modules : int
-            Number of modules
+            (N_GAINS, N_PIXELS).
         """
         roi_size = 40
         size1drs = 1024
@@ -558,10 +544,8 @@ class LSTR0Corrections(TelescopeComponent):
 @njit()
 def subtract_pedestal_jit(
     event_waveform,
-    expected_pixel_id,
     first_capacitors,
     pedestal_value_array,
-    n_modules
 ):
     """
     Numba function to subtract the drs4 pedestal.
@@ -571,13 +555,10 @@ def subtract_pedestal_jit(
     waveform = np.zeros(event_waveform.shape)
 
     for gain in range(N_GAINS):
-        for pixel_index in range(N_PIXELS):
+        for pixel_id in range(N_PIXELS):
             # waveform is already reordered to pixel ids,
             # the first caps are not, so we need to translate here.
-            pixel_id = expected_pixel_id[pixel_index]
-
-            first_cap = first_capacitors[gain, pixel_index]
-
+            first_cap = first_capacitors[gain, pixel_id]
             pedestal = pedestal_value_array[gain, pixel_id, first_cap:first_cap + N_SAMPLES]
             waveform[gain, pixel_id] = event_waveform[gain, pixel_id] - pedestal
     return waveform
