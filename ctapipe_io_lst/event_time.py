@@ -7,6 +7,29 @@ import numpy as np
 from collections import deque, defaultdict
 
 
+try:
+    # should be in astropy 4.3
+    from astropy.time.formats import TimeUnixPTP
+except ImportError:
+    from astropy.time.formats import TimeUnix
+
+    class TimeUnixPTP(TimeUnix):
+        '''
+        The UCTS system uses White Rabbit / PTP, which uses the epoch
+        "1970-01-01 00:00:00 TAI" = "1969-12-31T23:59:52.000 UTC".
+
+        This is incompatible (and off by 8s) to the definition of format "unix_tai"
+        in astropy >= 4.1, which is using
+        "1970-01-01 00:00:08 TAI" = "1969-12-31 23:59:59.999918 UTC"
+
+        This class adds support for parsing the ucts format using
+        ``time = Time(ucts_time, format="unix_ptp")``
+        '''
+        name = 'unix_ptp'
+        epoch_val = '1970-01-01 00:00:00'
+        epoch_scale = 'tai'
+
+
 CENTRAL_MODULE = 132
 
 
@@ -278,13 +301,13 @@ class EventTimeCalculator(TelescopeComponent):
 
         # Select the timestamps to be used for pointing interpolation
         if self.timestamp.tel[tel_id] == "ucts":
-            timestamp = Time(ucts_time, format='unix_tai')
+            timestamp = Time(ucts_time, format='unix_ptp')
 
         elif self.timestamp.tel[tel_id] == "dragon":
-            timestamp = Time(dragon_time, format='unix_tai')
+            timestamp = Time(dragon_time, format='unix_ptp')
 
         elif self.timestamp.tel[tel_id] == "tib":
-            timestamp = Time(tib_time, format='unix_tai')
+            timestamp = Time(tib_time, format='unix_ptp')
         else:
             raise ValueError('Unknown timestamp requested')
 
