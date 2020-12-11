@@ -386,8 +386,11 @@ class LSTR0Corrections(TelescopeComponent):
         event : `ctapipe` event-container
         tel_id : id of the telescope
         """
-        run_id = event.lst.tel[tel_id].svc.configuration_id
-        local_clock_counter = event.lst.tel[tel_id].evt.local_clock_counter
+        lst = event.lst.tel[tel_id]
+
+        # reorder to actual module order
+        local_clock_counter = np.empty_like(lst.evt.local_clock_counter)
+        local_clock_counter[lst.svc.module_ids] = lst.evt.local_clock_counter
 
         # If R1 container exists, update it inplace
         if isinstance(event.r1.tel[tel_id].waveform, np.ndarray):
@@ -401,6 +404,7 @@ class LSTR0Corrections(TelescopeComponent):
         # We have 2 functions: one for data from 2018/10/10 to 2019/11/04 and
         # one for data from 2019/11/05 (from Run 1574) after update firmware.
         # The old readout (before 2019/11/05) is shifted by 1 cell.
+        run_id = event.lst.tel[tel_id].svc.configuration_id
         if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
             time_laps_corr = do_time_lapse_corr
         else:
@@ -569,16 +573,16 @@ def do_time_lapse_corr(
     waveform,
     local_clock_counter,
     fc,
-    last_time_array,
+    last_readout_time,
 ):
     """
     Numba function for time lapse baseline correction.
     Change waveform array.
     """
-    for module in range(N_MODULES):
-        time_now = local_clock_counter[module]
+    for gain in range(N_GAINS):
+        for module in range(N_MODULES):
+            time_now = local_clock_counter[module]
 
-        for gain in range(N_GAINS):
             for pixel_in_module in range(N_PIXELS_PER_MODULE):
                 pixel_index = module * N_PIXELS_PER_MODULE + pixel_in_module
                 first_capacitor = fc[gain, pixel_index]
@@ -587,8 +591,8 @@ def do_time_lapse_corr(
                     capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
 
                     # apply correction if last readout available
-                    if last_time_array[gain, pixel_index, capacitor] > 0:
-                        time_diff = time_now - last_time_array[gain, pixel_index, capacitor]
+                    if last_readout_time[gain, pixel_index, capacitor] > 0:
+                        time_diff = time_now - last_readout_time[gain, pixel_index, capacitor]
                         time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
 
                         # FIXME: Why only for values < 100 ms, negligible otherwise?
@@ -596,7 +600,7 @@ def do_time_lapse_corr(
                             waveform[gain, pixel_index, sample] -= ped_time(time_diff_ms)
 
                     # update the last read time
-                    last_time_array[gain, pixel_index, capacitor] = time_now
+                    last_readout_time[gain, pixel_index, capacitor] = time_now
 
                 # now the magic of Dragon,
                 # extra conditions on the number of capacitor times being updated
@@ -610,14 +614,14 @@ def do_time_lapse_corr(
                         start = first_capacitor + N_CAPACITORS_CHANNEL
                         end = start + 12
                         for capacitor in range(start, end):
-                            last_time_array[gain, pixel_index, capacitor % N_CAPACITORS_PIXEL] = time_now
+                            last_readout_time[gain, pixel_index, capacitor % N_CAPACITORS_PIXEL] = time_now
 
                     elif first_capacitor_in_channel >= 1013:
                         start = first_capacitor + N_CAPACITORS_CHANNEL
                         channel = first_capacitor // N_CAPACITORS_CHANNEL
                         end = (channel + 2) * N_CAPACITORS_CHANNEL
                         for capacitor in range(start, end):
-                            last_time_array[gain, pixel_index, capacitor % N_CAPACITORS_PIXEL] = time_now
+                            last_readout_time[gain, pixel_index, capacitor % N_CAPACITORS_PIXEL] = time_now
 
 
 @jit()
@@ -625,7 +629,7 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
     waveform,
     local_clock_counter,
     fc,
-    last_time_array,
+    last_readout_time,
 ):
     """
     Numba function for time lapse baseline correction.
@@ -633,10 +637,10 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
     Change waveform array.
     """
 
-    for module in range(N_MODULES):
-        time_now = local_clock_counter[module]
+    for gain in range(N_GAINS):
+        for module in range(N_MODULES):
+            time_now = local_clock_counter[module]
 
-        for gain in range(N_GAINS):
             for pixel_in_module in range(N_PIXELS):
                 pixel_index = module * N_PIXELS_PER_MODULE + pixel_in_module
                 first_capacitor = fc[gain, pixel_index]
@@ -644,15 +648,15 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
                 for sample in range(N_SAMPLES):
                     capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
 
-                    if last_time_array[gain, pixel_index, capacitor] > 0:
-                        time_diff = time_now - last_time_array[gain, pixel_index, capacitor]
+                    if last_readout_time[gain, pixel_index, capacitor] > 0:
+                        time_diff = time_now - last_readout_time[gain, pixel_index, capacitor]
                         time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
 
                         if time_diff_ms < 100:
                             waveform[gain, pixel_index, sample] -= ped_time(time_diff_ms)
 
                 for sample in range(-1, N_SAMPLES - 1):
-                    last_time_array[gain, pixel_index, capacitor] = time_now
+                    last_readout_time[gain, pixel_index, capacitor] = time_now
 
                 # now the magic of Dragon,
                 # if the ROI is in the last quarter of each DRS4
@@ -665,14 +669,14 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
                         start = first_capacitor + N_CAPACITORS_CHANNEL - 1
                         end = first_capacitor + N_CAPACITORS_CHANNEL + 11
                         for capacitor in range(start, end):
-                            last_time_array[gain, pixel_index, capacitor % N_CAPACITORS_PIXEL] = time_now
+                            last_readout_time[gain, pixel_index, capacitor % N_CAPACITORS_PIXEL] = time_now
 
                     elif first_capacitor % N_CAPACITORS_CHANNEL >= 1013:
                         start = first_capacitor + N_CAPACITORS_CHANNEL
                         channel = first_capacitor // N_CAPACITORS_CHANNEL
                         end = (channel + 2) * N_CAPACITORS_CHANNEL
                         for capacitor in range(start, end):
-                            last_time_array[gain, pixel_index, capacitor % N_CAPACITORS_PIXEL] = time_now
+                            last_readout_time[gain, pixel_index, capacitor % N_CAPACITORS_PIXEL] = time_now
 
 
 @njit(cache=True)
