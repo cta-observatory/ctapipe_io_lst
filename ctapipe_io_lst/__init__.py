@@ -329,8 +329,8 @@ class LSTEventSource(EventSource):
             self.tag_flatfield_events(array_event)
 
             # gain select and calibrate to pe
-            #if self.r0_r1_calibrator.calibration_path is not None:
-            #    self.r0_r1_calibrator.calibrate(array_event)
+            if self.r0_r1_calibrator.calibration_path is not None:
+                self.r0_r1_calibrator.calibrate(array_event)
 
             yield array_event
 
