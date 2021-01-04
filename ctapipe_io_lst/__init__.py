@@ -325,8 +325,8 @@ class LSTEventSource(EventSource):
             if self.r0_r1_calibrator.drs4_pedestal_path.tel[self.tel_id] is not None:
                 self.r0_r1_calibrator.drs4_correct(array_event)
 
-            # tagging flat field events
-            self.tag_flatfield_events(array_event)
+                # tagging flat field events
+                self.tag_flatfield_events(array_event)
 
             # gain select and calibrate to pe
             if self.r0_r1_calibrator.calibration_path is not None:
