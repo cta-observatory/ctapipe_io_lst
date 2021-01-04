@@ -176,7 +176,9 @@ class LSTR0Corrections(TelescopeComponent):
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
 
-    def drs4_correct(self, event: ArrayEventContainer):
+    def apply_drs4_corrections(self, event: ArrayEventContainer):
+        self.update_first_capacitors(event)
+
         for tel_id in event.r0.tel:
             r1 = event.r1.tel[tel_id]
 
@@ -199,6 +201,15 @@ class LSTR0Corrections(TelescopeComponent):
             waveform = r1.waveform
 
             waveform -= self.offset.tel[tel_id]
+
+    def update_first_capacitors(self, event: ArrayEventContainer):
+        for tel_id in event.r0.tel:
+            lst = event.lst.tel[tel_id]
+            self.first_cap_old[tel_id] = self.first_cap[tel_id]
+            self.first_cap[tel_id] = get_first_capacitors_for_pixels(
+                lst.evt.first_capacitor_id,
+                lst.svc.pixel_ids,
+            )
 
     def calibrate(self, event: ArrayEventContainer):
         for tel_id in event.r0.tel:

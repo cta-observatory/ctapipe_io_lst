@@ -323,7 +323,7 @@ class LSTEventSource(EventSource):
 
             # apply low level corrections
             if self.r0_r1_calibrator.drs4_pedestal_path.tel[self.tel_id] is not None:
-                self.r0_r1_calibrator.drs4_correct(array_event)
+                self.r0_r1_calibrator.apply_drs4_corrections(array_event)
 
                 # tagging flat field events
                 self.tag_flatfield_events(array_event)
