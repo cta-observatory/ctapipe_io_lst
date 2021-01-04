@@ -176,7 +176,7 @@ class LSTR0Corrections(TelescopeComponent):
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
 
-    def calibrate(self, event: ArrayEventContainer):
+    def drs4_correct(self, event: ArrayEventContainer):
         for tel_id in event.r0.tel:
             r1 = event.r1.tel[tel_id]
 
@@ -199,6 +199,11 @@ class LSTR0Corrections(TelescopeComponent):
             waveform = r1.waveform
 
             waveform -= self.offset.tel[tel_id]
+
+    def calibrate(self, event: ArrayEventContainer):
+        for tel_id in event.r0.tel:
+            r1 = event.r1.tel[tel_id]
+            waveform = r1.waveform
 
             # do gain selection before converting to pe
             # like eventbuilder will do

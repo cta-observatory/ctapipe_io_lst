@@ -35,7 +35,9 @@ from .anyarray_dtypes import (
     DRAGON_COUNTERS_DTYPE,
     TIB_DTYPE,
 )
-
+from .constants import (
+    HIGH_GAIN
+)
 
 __version__ = get_version(pep440=False)
 __all__ = ['LSTEventSource']
@@ -136,20 +138,20 @@ class LSTEventSource(EventSource):
         help='Read in parallel all streams '
     ).tag(config=True)
 
-    min_flatfield_pe = Float(
-        default_value=50,
+    min_flatfield_adc = Float(
+        default_value=4000.0,
         help=(
             'Events with that have more than ``min_flatfield_pixel_fraction``'
-            ' of the pixels inside [``min_flatfield_pe``, ``max_flatfield_pe``]'
+            ' of the pixels inside [``min_flatfield_adc``, ``max_flatfield_adc``]'
             ' get tagged as EventType.FLATFIELD'
         ),
     ).tag(config=True)
 
-    max_flatfield_pe = Float(
-        default_value=110.0,
+    max_flatfield_adc = Float(
+        default_value=12000.0,
         help=(
             'Events with that have more than ``min_flatfield_pixel_fraction``'
-            ' of the pixels inside [``min_flatfield_pe``, ``max_flatfield_pe``]'
+            ' of the pixels inside [``min_flatfield_adc``, ``max_flatfield_adc``]'
             ' get tagged as EventType.FLATFIELD'
         ),
     ).tag(config=True)
@@ -319,11 +321,16 @@ class LSTEventSource(EventSource):
             self.fill_mon_container(array_event, zfits_event)
             self.fill_pointing_info(array_event)
 
+            # apply low level corrections
             if self.r0_r1_calibrator.drs4_pedestal_path.tel[self.tel_id] is not None:
-                self.r0_r1_calibrator.calibrate(array_event)
+                self.r0_r1_calibrator.drs4_correct(array_event)
 
-                # tagging flat field events needs r1
-                self.tag_flatfield_events(array_event)
+            # tagging flat field events
+            self.tag_flatfield_events(array_event)
+
+            # gain select and calibrate to pe
+            if self.r0_r1_calibrator.calibration_path is not None:
+                self.r0_r1_calibrator.calibrate(array_event)
 
             yield array_event
 
@@ -495,8 +502,8 @@ class LSTEventSource(EventSource):
             return
 
         tel_id = self.tel_id
-        image = array_event.r1.tel[tel_id].waveform.sum(axis=1)
-        in_range = (image >= self.min_flatfield_pe) & (image <= self.max_flatfield_pe)
+        image = array_event.r1.tel[tel_id].waveform[HIGH_GAIN].sum(axis=1)
+        in_range = (image >= self.min_flatfield_adc) & (image <= self.max_flatfield_adc)
 
         if np.count_nonzero(in_range) >= self.min_flatfield_pixel_fraction * image.size:
             self.log.debug(
