@@ -202,6 +202,13 @@ class LSTR0Corrections(TelescopeComponent):
 
             waveform -= self.offset.tel[tel_id]
 
+            # store calibration data needed for dl1 calibration in ctapipe
+            # first drs4 time shift (zeros if no calib file was given)
+            event.calibration.tel[tel_id].dl1.time_shift = self.get_drs4_time_correction(
+                tel_id, self.first_cap[tel_id],
+                selected_gain_channel=None,
+            )
+
     def update_first_capacitors(self, event: ArrayEventContainer):
         for tel_id in event.r0.tel:
             lst = event.lst.tel[tel_id]
@@ -241,24 +248,18 @@ class LSTR0Corrections(TelescopeComponent):
                 r1.waveform = waveform
                 r1.selected_gain_channel = None
 
-            # store calibration data needed for dl1 calibration in ctapipe
-            # first drs4 time shift (zeros if no calib file was given)
-            time_shift = self.get_drs4_time_correction(
-                tel_id, self.first_cap[tel_id],
-                selected_gain_channel=selected_gain_channel,
-            )
 
-            # time shift from flat fielding
+            # add the time shift from flat fielding
             if self.mon_data is not None and self.add_calibration_timeshift:
                 time_corr = self.mon_data.tel[tel_id].calibration.time_correction
                 # time_shift is subtracted in ctapipe,
                 # but time_correction should be added
                 if selected_gain_channel is not None:
-                    time_shift -= time_corr[r1.selected_gain_channel, pixel_index].to_value(u.ns)
+                    event.calibration.tel[tel_id].dl1.time_shift[r1.selected_gain_channel, pixel_index] -= time_corr[r1.selected_gain_channel, pixel_index].to_value(u.ns)
                 else:
-                    time_shift -= time_corr.to_value(u.ns)
+                    event.calibration.tel[tel_id].dl1.time_shift -= time_corr.to_value(u.ns)
 
-            event.calibration.tel[tel_id].dl1.time_shift = time_shift
+
 
             # needed for charge scaling in ctpaipe dl1 calib
             if selected_gain_channel is not None:
