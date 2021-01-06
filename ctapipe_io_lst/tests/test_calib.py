@@ -179,3 +179,30 @@ def test_no_gain_selection():
             assert event.r1.tel[1].waveform is not None
             assert event.r1.tel[1].waveform.ndim == 3
             assert event.r1.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES - 4)
+
+
+def test_no_gain_selection_no_drs4time_calib():
+    from ctapipe_io_lst import LSTEventSource
+    from ctapipe_io_lst.constants import N_PIXELS, N_GAINS, N_SAMPLES
+
+    config = Config({
+        'LSTEventSource': {
+            'LSTR0Corrections': {
+                'drs4_pedestal_path': test_drs4_pedestal_path,
+                'calibration_path': test_calib_path,
+                'select_gain': False,
+            }
+        }
+    })
+
+    source = LSTEventSource(
+        input_url=test_r0_calib_path,
+        config=config,
+    )
+
+    assert source.r0_r1_calibrator.mon_data is not None
+    with source:
+        for event in source:
+            assert event.r1.tel[1].waveform is not None
+            assert event.r1.tel[1].waveform.ndim == 3
+            assert event.r1.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES - 4)
