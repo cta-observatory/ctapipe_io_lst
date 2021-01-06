@@ -232,13 +232,14 @@ class LSTR0Corrections(TelescopeComponent):
 
             waveform = waveform.astype(np.float32)
             n_gains, n_pixels, n_samples = waveform.shape
+            pixel_index = np.arange(n_pixels)
 
             if selected_gain_channel is not None:
-                pixel_index = np.arange(n_pixels)
                 r1.waveform = waveform[selected_gain_channel, pixel_index]
                 r1.selected_gain_channel = selected_gain_channel
             else:
                 r1.waveform = waveform
+                r1.selected_gain_channel = None
 
             # store calibration data needed for dl1 calibration in ctapipe
             # first drs4 time shift (zeros if no calib file was given)
@@ -327,7 +328,10 @@ class LSTR0Corrections(TelescopeComponent):
         """
 
         if self.drs4_time_calibration_path.tel[tel_id] is None:
-            return np.zeros(selected_gain_channel.shape)
+            if selected_gain_channel is None:
+                return np.zeros((N_GAINS, N_PIXELS))
+            else:
+                return np.zeros(N_PIXELS)
 
         # load calib file if not already done
         if tel_id not in self.fan:
