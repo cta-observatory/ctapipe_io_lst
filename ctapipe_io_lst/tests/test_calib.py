@@ -21,7 +21,7 @@ def test_get_first_capacitor():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.calibration import (
         get_first_capacitors_for_pixels,
-        N_GAINS, N_PIXELS_PER_MODULE, N_MODULES,
+        N_GAINS, N_PIXELS_MODULE, N_MODULES,
     )
 
     tel_id = 1
@@ -34,8 +34,10 @@ def test_get_first_capacitor():
         expected = f.root.first_capacitor_for_modules[:]
 
     first_caps = get_first_capacitors_for_pixels(first_capacitor_id)
-    # we just different shape (N_MODULES, N_GAINS, N_PIXELS_PER_MODULE) before
-    first_caps = first_caps.reshape((N_GAINS, N_MODULES, N_PIXELS_PER_MODULE))
+
+    # we used a different shape (N_MODULES, N_GAINS, N_PIXELS_MODULE) before
+    # so have to reshape to be able to compare
+    first_caps = first_caps.reshape((N_GAINS, N_MODULES, N_PIXELS_MODULE))
     first_caps = np.swapaxes(first_caps, 0, 1)
     assert np.all(first_caps == expected)
 

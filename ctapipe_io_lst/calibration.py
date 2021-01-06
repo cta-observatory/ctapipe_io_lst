@@ -19,7 +19,7 @@ from ctapipe.io import HDF5TableReader
 
 from .constants import (
     N_GAINS, N_PIXELS, N_MODULES, N_SAMPLES, LOW_GAIN, HIGH_GAIN,
-    N_PIXELS_PER_MODULE, N_CAPACITORS_PIXEL, N_CAPACITORS_CHANNEL,
+    N_PIXELS_MODULE, N_CAPACITORS_PIXEL, N_CAPACITORS_CHANNEL,
     CHANNEL_INDEX_LOW_GAIN, CHANNEL_INDEX_HIGH_GAIN,
     LAST_RUN_WITH_OLD_FIRMWARE, CLOCK_FREQUENCY_KHZ
 )
@@ -364,7 +364,7 @@ class LSTR0Corrections(TelescopeComponent):
         using the configured path without reading it each time.
         """
         pedestal_data = np.empty(
-            (N_GAINS, N_PIXELS_PER_MODULE * N_MODULES, N_CAPACITORS_PIXEL + N_SAMPLES),
+            (N_GAINS, N_PIXELS_MODULE * N_MODULES, N_CAPACITORS_PIXEL + N_SAMPLES),
             dtype=np.int16
         )
         with fits.open(path) as f:
@@ -603,8 +603,8 @@ def do_time_lapse_corr(
         for module in range(N_MODULES):
             time_now = local_clock_counter[module]
 
-            for pixel_in_module in range(N_PIXELS_PER_MODULE):
-                pixel_index = module * N_PIXELS_PER_MODULE + pixel_in_module
+            for pixel_in_module in range(N_PIXELS_MODULE):
+                pixel_index = module * N_PIXELS_MODULE + pixel_in_module
                 first_capacitor = first_capacitors[gain, pixel_index]
 
                 for sample in range(N_SAMPLES):
@@ -662,7 +662,7 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
             time_now = local_clock_counter[module]
 
             for pixel_in_module in range(N_PIXELS):
-                pixel_index = module * N_PIXELS_PER_MODULE + pixel_in_module
+                pixel_index = module * N_PIXELS_MODULE + pixel_in_module
                 first_capacitor = first_capacitors[gain, pixel_index]
 
                 for sample in range(N_SAMPLES):
