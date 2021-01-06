@@ -3,7 +3,7 @@ from functools import lru_cache
 import numpy as np
 from astropy.io import fits
 import astropy.units as u
-from numba import jit, njit
+from numba import njit
 import tables
 
 from ctapipe.core import TelescopeComponent
@@ -588,7 +588,7 @@ def subtract_pedestal_jit(
 def do_time_lapse_corr(
     waveform,
     local_clock_counter,
-    fc,
+    first_capacitors,
     last_readout_time,
 ):
     """
@@ -601,7 +601,7 @@ def do_time_lapse_corr(
 
             for pixel_in_module in range(N_PIXELS_PER_MODULE):
                 pixel_index = module * N_PIXELS_PER_MODULE + pixel_in_module
-                first_capacitor = fc[gain, pixel_index]
+                first_capacitor = first_capacitors[gain, pixel_index]
 
                 for sample in range(N_SAMPLES):
                     capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
@@ -640,11 +640,11 @@ def do_time_lapse_corr(
                             last_readout_time[gain, pixel_index, capacitor % N_CAPACITORS_PIXEL] = time_now
 
 
-@jit()
+@njit(cache=True)
 def do_time_lapse_corr_data_from_20181010_to_20191104(
     waveform,
     local_clock_counter,
-    fc,
+    first_capacitors,
     last_readout_time,
 ):
     """
@@ -659,7 +659,7 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
 
             for pixel_in_module in range(N_PIXELS):
                 pixel_index = module * N_PIXELS_PER_MODULE + pixel_in_module
-                first_capacitor = fc[gain, pixel_index]
+                first_capacitor = first_capacitors[gain, pixel_index]
 
                 for sample in range(N_SAMPLES):
                     capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
@@ -672,6 +672,7 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
                             waveform[gain, pixel_index, sample] -= ped_time(time_diff_ms)
 
                 for sample in range(-1, N_SAMPLES - 1):
+                    capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
                     last_readout_time[gain, pixel_index, capacitor] = time_now
 
                 # now the magic of Dragon,
@@ -707,7 +708,7 @@ def ped_time(timediff):
 
     # new values at 20 degC, provided by Yokiho Kobayashi 2/3/2020
     # see also Yokiho's talk in https://indico.cta-observatory.org/event/2664/
-    return 32.99 * np.power(timediff, -0.22) - 11.9
+    return 32.99 * timediff**(-0.22) - 11.9
 
 
 @njit(cache=True)
