@@ -255,7 +255,8 @@ class LSTR0Corrections(TelescopeComponent):
                 # time_shift is subtracted in ctapipe,
                 # but time_correction should be added
                 if selected_gain_channel is not None:
-                    event.calibration.tel[tel_id].dl1.time_shift[r1.selected_gain_channel, pixel_index] -= time_corr[r1.selected_gain_channel, pixel_index].to_value(u.ns)
+                    event.calibration.tel[tel_id].dl1.time_shift = event.calibration.tel[tel_id].dl1.time_shift[r1.selected_gain_channel, pixel_index]
+                    event.calibration.tel[tel_id].dl1.time_shift -= time_corr[r1.selected_gain_channel, pixel_index].to_value(u.ns)
                 else:
                     event.calibration.tel[tel_id].dl1.time_shift -= time_corr.to_value(u.ns)
 
