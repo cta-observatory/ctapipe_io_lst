@@ -467,7 +467,7 @@ class LSTR0Corrections(TelescopeComponent):
             event.r1.tel[tel_id].waveform = waveform
 
     @staticmethod
-    @njit()
+    @njit(cache=True)
     def interpolate_pseudo_pulses(waveform, fc, fc_old):
         """
         Interpolate Spike type A. Modifies waveform in place
@@ -515,7 +515,7 @@ class LSTR0Corrections(TelescopeComponent):
                             interpolate_spike_A(waveform, gain, spike_A_position, pixel)
 
     @staticmethod
-    @njit()
+    @njit(cache=True)
     def interpolate_pseudo_pulses_data_from_20181010_to_20191104(waveform, fc, fc_old):
         """
         Interpolate Spike A
@@ -562,7 +562,7 @@ class LSTR0Corrections(TelescopeComponent):
         return waveform
 
 
-@njit()
+@njit(cache=True)
 def subtract_pedestal_jit(
     event_waveform,
     first_capacitors,
@@ -585,7 +585,7 @@ def subtract_pedestal_jit(
     return waveform
 
 
-@njit()
+@njit(cache=True)
 def do_time_lapse_corr(
     waveform,
     local_clock_counter,
