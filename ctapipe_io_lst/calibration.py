@@ -157,7 +157,7 @@ class LSTR0Corrections(TelescopeComponent):
 
         for tel_id in self.subarray.tel:
             shape = (N_GAINS, N_PIXELS, N_CAPACITORS_PIXEL)
-            self.last_readout_time[tel_id] = np.zeros(shape)
+            self.last_readout_time[tel_id] = np.zeros(shape, dtype='uint64')
 
             shape = (N_GAINS, N_PIXELS)
             self.first_cap[tel_id] = np.zeros(shape, dtype=int)
