@@ -182,13 +182,6 @@ class LSTR0Corrections(TelescopeComponent):
         for tel_id in event.r0.tel:
             r1 = event.r1.tel[tel_id]
 
-            # update first caps
-            self.first_cap_old[tel_id] = self.first_cap[tel_id]
-            self.first_cap[tel_id] = get_first_capacitors_for_pixels(
-                event.lst.tel[tel_id].evt.first_capacitor_id,
-                event.lst.tel[tel_id].svc.pixel_ids,
-            )
-
             # apply drs4 corrections
             self.subtract_pedestal(event, tel_id)
             self.time_lapse_corr(event, tel_id)
