@@ -5,7 +5,6 @@ from astropy.time import Time
 from astropy.table import Table
 import numpy as np
 from collections import deque, defaultdict
-import warnings
 import astropy.version
 
 from astropy.time import TimeUnixTai
