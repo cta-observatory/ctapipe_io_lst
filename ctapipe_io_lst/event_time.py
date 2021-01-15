@@ -5,29 +5,17 @@ from astropy.time import Time
 from astropy.table import Table
 import numpy as np
 from collections import deque, defaultdict
+import warnings
+import astropy.version
+
+from astropy.time import TimeUnixTai
 
 
-try:
-    # should be in astropy 4.3
-    from astropy.time.formats import TimeUnixPTP
-except ImportError:
-    from astropy.time.formats import TimeUnix
+if astropy.version.major == 4 and astropy.version.minor <= 2 and astropy.version.bugfix <= 0:
+    # fix for astropy #11245
+    TimeUnixTai.epoch_val = '1970-01-01 00:00:00.0'
+    TimeUnixTai.epoch_scale = 'tai'
 
-    class TimeUnixPTP(TimeUnix):
-        '''
-        The UCTS system uses White Rabbit / PTP, which uses the epoch
-        "1970-01-01 00:00:00 TAI" = "1969-12-31T23:59:52.000 UTC".
-
-        This is incompatible (and off by 8s) to the definition of format "unix_tai"
-        in astropy >= 4.1, which is using
-        "1970-01-01 00:00:08 TAI" = "1969-12-31 23:59:59.999918 UTC"
-
-        This class adds support for parsing the ucts format using
-        ``time = Time(ucts_time, format="unix_ptp")``
-        '''
-        name = 'unix_ptp'
-        epoch_val = '1970-01-01 00:00:00'
-        epoch_scale = 'tai'
 
 
 CENTRAL_MODULE = 132
@@ -205,7 +193,7 @@ class EventTimeCalculator(TelescopeComponent):
 
             self._ucts_t0_dragon[tel_id] = ucts_timestamp
             self._dragon_counter0[tel_id] = initial_dragon_counter
-            self.log.info(
+            self.log.critical(
                 'Using first event as time reference for dragon.'
                 f' UCTS timestamp: {ucts_timestamp}'
                 f' dragon_counter: {initial_dragon_counter}'
@@ -223,7 +211,7 @@ class EventTimeCalculator(TelescopeComponent):
             )
             self._ucts_t0_tib[tel_id] = ucts_timestamp
             self._tib_counter0[tel_id] = initial_tib_counter
-            self.log.info(
+            self.log.critical(
                 'Using first event as time reference for TIB.'
                 f' UCTS timestamp: {ucts_timestamp}'
                 f' tib_counter: {initial_tib_counter}'
@@ -301,13 +289,13 @@ class EventTimeCalculator(TelescopeComponent):
 
         # Select the timestamps to be used for pointing interpolation
         if self.timestamp.tel[tel_id] == "ucts":
-            timestamp = Time(ucts_time, format='unix_ptp')
+            timestamp = Time(ucts_time, format='unix_tai')
 
         elif self.timestamp.tel[tel_id] == "dragon":
-            timestamp = Time(dragon_time, format='unix_ptp')
+            timestamp = Time(dragon_time, format='unix_tai')
 
         elif self.timestamp.tel[tel_id] == "tib":
-            timestamp = Time(tib_time, format='unix_ptp')
+            timestamp = Time(tib_time, format='unix_tai')
         else:
             raise ValueError('Unknown timestamp requested')
 

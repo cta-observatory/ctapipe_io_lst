@@ -12,6 +12,11 @@ test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
 test_night_summary = test_data / 'real/monitoring/NightSummary/NightSummary_20200218.txt'
 
 
+def test_time_unix_tai():
+    t = Time('2020-01-01T00:00:00', scale='utc')
+    assert (t.unix_tai - t.unix) == 37
+
+
 def test_read_night_summary():
     from ctapipe_io_lst.event_time import read_night_summary
 
