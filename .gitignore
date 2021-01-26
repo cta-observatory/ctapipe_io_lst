@@ -1,6 +1,5 @@
 test_data
 .pytest_cache
-ctapipe_io_lst/_version.py
 
 # Compiled files
 *.py[co]
@@ -10,7 +9,7 @@ ctapipe_io_lst/_version.py
 __pycache__
 
 # ignore version cache file (generated automatically when setup.py is run)
-ctapipe/_version_cache.py
+ctapipe_io_lst/_version_cache.py
 
 # Ignore .c files by default to avoid including generated code. If you want to
 # add a non-generated .c extension, use `git add -f filename.c`.
