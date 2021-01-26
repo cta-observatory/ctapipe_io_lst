@@ -4,7 +4,7 @@ Container structures for data that should be read or written to disk
 from astropy import units as u
 from numpy import nan
 from ctapipe.core import Container, Field, Map
-from ctapipe.containers import DataContainer, MonitoringContainer
+from ctapipe.containers import ArrayEventContainer, MonitoringContainer
 
 
 __all__ = [
@@ -15,9 +15,8 @@ __all__ = [
     'LSTCameraContainer',
     'LSTContainer',
     'LSTMonitoringContainer',
-    'LSTDataContainer'
+    'LSTArrayEventContainer',
 ]
-
 
 
 class LSTDriveContainer(Container):
@@ -121,7 +120,7 @@ class LSTMonitoringContainer(Container):
     e.g. the pointing data
     """
     drive = Field(LSTDriveContainer(), "container for LST drive reports")
-     
+
 
 class LSTCameraContainer(Container):
     """
@@ -136,7 +135,6 @@ class LSTContainer(Container):
     """
     Storage for the LSTCameraContainer for each telescope
     """
-    tels_with_data = Field([], "list of telescopes with data")
 
     # create the camera container
     tel = Field(
@@ -144,9 +142,8 @@ class LSTContainer(Container):
         "map of tel_id to LSTTelContainer")
 
 
-class LSTDataContainer(DataContainer):
+class LSTArrayEventContainer(ArrayEventContainer):
     """
     Data container including LST and monitoring information
     """
     lst = Field(LSTContainer(), "LST specific Information")
-    mon = Field(MonitoringContainer(), "container for LST monitoring data (MON)")

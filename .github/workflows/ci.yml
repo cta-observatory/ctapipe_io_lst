@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7, ]
-        ctapipe-version: [v0.8.0]
+        python-version: [3.7]
+        ctapipe-version: [v0.10.0]
 
     steps:
       - uses: actions/checkout@v2
@@ -40,6 +40,15 @@ jobs:
           pip install pytest-cov "git+https://github.com/cta-observatory/ctapipe@$CTAPIPE_VERSION"
           pip install -e .
           git describe --tags
+
+      - name: Download test data
+        env:
+          TEST_DATA_USER: ${{ secrets.test_data_user }}
+          TEST_DATA_PASSWORD: ${{ secrets.test_data_password }}
+        run: |
+          ./download_test_data.sh
+
+
 
       - name: Tests
         run: |
