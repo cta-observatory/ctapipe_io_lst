@@ -165,7 +165,7 @@ class LSTEventSource(EventSource):
         ),
     )
 
-    classes = List([PointingSource, EventTimeCalculator, LSTR0Corrections])
+    classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
         """
