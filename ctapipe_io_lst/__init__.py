@@ -479,16 +479,21 @@ class LSTEventSource(EventSource):
 
         lst = array_event.lst.tel[tel_id]
         tib_available = lst.evt.extdevices_presence & 1
+        ucts_available = lst.evt.extdevices_presence & 2
 
         # tib seems to be more reliable when available
         if tib_available:
             trigger_bits = lst.evt.tib_masked_trigger
-
-        else:
+        elif ucts_available:
             trigger_bits = lst.evt.ucts_trigger_type
-
-        if lst.evt.ucts_trigger_type == 42:
-            self.log.warning('Event with UCTS trigger_type 42 found. Probably means unreliable or shifted UCTS data.')
+            if lst.evt.ucts_trigger_type == 42:
+                self.log.warning(
+                    'Event with UCTS trigger_type 42 found.'
+                    ' Probably means unreliable or shifted UCTS data.'
+                )
+        else:
+            self.log.warning('No trigger info available.')
+            return
 
         # first bit mono trigger, second stereo.
         # If *only* those two are set, we assume it's a physics event
