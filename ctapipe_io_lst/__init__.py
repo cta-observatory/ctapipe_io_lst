@@ -162,7 +162,7 @@ class LSTEventSource(EventSource):
             ' of the pixels inside [``min_flatfield_pe``, ``max_flatfield_pe``]'
             ' get tagged as EventType.FLATFIELD'
         ),
-    )
+    ).tag(config=True)
 
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
