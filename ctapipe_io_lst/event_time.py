@@ -156,6 +156,9 @@ class EventTimeCalculator(TelescopeComponent):
         # data comes in random module order, svc contains actual order
         central_module_index = np.where(lst.svc.module_ids == CENTRAL_MODULE)[0][0]
 
+        tib_available = lst.evt.extdevices_presence & 1
+        ucts_available = lst.evt.extdevices_presence & 2
+
         if self._has_reference[tel_id]:
             # Dragon/TIB timestamps based on a valid absolute reference UCTS timestamp
             dragon_time = calc_dragon_time(
@@ -168,8 +171,7 @@ class EventTimeCalculator(TelescopeComponent):
                 reference=1e-9 * (self._ucts_t0_tib[tel_id] - self._tib_counter0[tel_id])
             )
 
-            if lst.evt.extdevices_presence & 2:
-                # UCTS presence flag is OK
+            if ucts_available:
                 ucts_timestamp = lst.evt.ucts_timestamp
                 ucts_time = ucts_timestamp * 1e-9
             else:
@@ -178,7 +180,7 @@ class EventTimeCalculator(TelescopeComponent):
 
         # first event and values not passed
         else:
-            if not lst.evt.extdevices_presence & 2:
+            if not ucts_available:
                 raise ValueError(
                     'Timestamp reference should be extracted from first event'
                     ' but UCTS not available'
@@ -198,7 +200,7 @@ class EventTimeCalculator(TelescopeComponent):
                 f' dragon_counter: {initial_dragon_counter}'
             )
 
-            if not lst.evt.extdevices_presence & 1 and self.timestamp == 'tib':
+            if not tib_available and self.timestamp == 'tib':
                 raise ValueError(
                     'TIB is selected for timestamp, no external reference given'
                     ' and first event has not TIB info'
@@ -253,7 +255,6 @@ class EventTimeCalculator(TelescopeComponent):
             ucts_timestamp = self.previous_ucts_timestamps[tel_id].popleft()
             ucts_trigger_type = self.previous_ucts_trigger_types[tel_id].popleft()
             ucts_time = ucts_timestamp * 1e-9
-
 
             lst.evt.ucts_trigger_type = ucts_trigger_type
             lst.evt.ucts_timestamp = ucts_timestamp
