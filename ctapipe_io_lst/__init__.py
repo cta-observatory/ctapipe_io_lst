@@ -239,7 +239,7 @@ class LSTEventSource(EventSource):
 
     @property
     def datalevels(self):
-        if self.r0_r1_calibrator.drs4_pedestal_path.tel[self.tel_id] is not None:
+        if self.r0_r1_calibrator.calibration_path is not None:
             return (DataLevel.R0, DataLevel.R1)
         return (DataLevel.R0, )
 
