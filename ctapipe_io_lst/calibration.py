@@ -628,11 +628,8 @@ def do_time_lapse_corr(
                         start = first_capacitor + N_CAPACITORS_CHANNEL
                         end = start + 12
 
-                        # FIXME This reproduces bug cta-observatory/cta-lstchain#559
-                        # corrected version commented below.
-                        last_readout_time[gain, pixel_id, (start % N_CAPACITORS_PIXEL) : (end % N_CAPACITORS_PIXEL)] = time_now
-                        # for capacitor in range(start, end):
-                        #     last_readout_time[gain, pixel_id, capacitor % N_CAPACITORS_PIXEL] = time_now
+                        for capacitor in range(start, end):
+                            last_readout_time[gain, pixel_id, capacitor % N_CAPACITORS_PIXEL] = time_now
 
                     elif first_capacitor_in_channel >= 1013:
                         start = first_capacitor + N_CAPACITORS_CHANNEL
