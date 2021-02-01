@@ -86,5 +86,6 @@ def test_stage1(tmpdir):
     # one pedestal and flat field expected each, rest should be physics data
     assert event_type_counts.sum() == 200
     assert event_type_counts[EventType.FLATFIELD.value] == 1
-    assert event_type_counts[EventType.SKY_PEDESTAL.value] == 1
-    assert event_type_counts[EventType.SUBARRAY.value] == 198
+    assert event_type_counts[EventType.SKY_PEDESTAL.value] == 2
+    assert event_type_counts[EventType.SUBARRAY.value] == 197
+    assert tool.event_source.ucts_42_found
