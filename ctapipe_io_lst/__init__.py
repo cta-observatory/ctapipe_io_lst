@@ -224,6 +224,9 @@ class LSTEventSource(EventSource):
         self.time_calculator = EventTimeCalculator(subarray=self.subarray, parent=self)
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
 
+        # by default, use ucts if available
+        self.ucts_42_found = False
+
     @property
     def subarray(self):
         return self._subarray
@@ -481,15 +484,21 @@ class LSTEventSource(EventSource):
         tib_available = lst.evt.extdevices_presence & 1
         ucts_available = lst.evt.extdevices_presence & 2
 
-        # tib seems to be more reliable when available
-        if tib_available:
+        # Since at least June 2020, ucts should be more reliable
+        # before there were runs when ucts was missing or was shifted
+        # by one event after an event with ucts_trigger_type == 42.
+        # In case that happens we swtich to tib triggers
+        if tib_available and self.ucts_42_found:
             trigger_bits = lst.evt.tib_masked_trigger
-        elif ucts_available:
+
+        elif ucts_available and not self.ucts_42_found:
             trigger_bits = lst.evt.ucts_trigger_type
             if lst.evt.ucts_trigger_type == 42:
+                self.ucts_42_found = True
                 self.log.warning(
                     'Event with UCTS trigger_type 42 found.'
                     ' Probably means unreliable or shifted UCTS data.'
+                    ' Switching to TIB if available.'
                 )
         else:
             self.log.warning('No trigger info available.')
