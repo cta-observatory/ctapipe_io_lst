@@ -169,7 +169,7 @@ class LSTEventSource(EventSource):
         help=(
             'Default source for trigger type information.'
             ' For older data, tib might be the better choice but for data newer'
-            ' than 2020-07, ucts is the preferred option. The source will still'
+            ' than 2020-06-25, ucts is the preferred option. The source will still'
             ' fallback to the other device if the chosen default device is not '
             ' available'
         )
@@ -515,7 +515,7 @@ class LSTEventSource(EventSource):
             self.log.warning(
                 'Event with UCTS trigger_type 42 found.'
                 ' Probably means unreliable or shifted UCTS data.'
-                ' Switching to TIB if available.'
+                ' Consider switching to TIB using `default_trigger_type="tib"`'
             )
 
         # first bit mono trigger, second stereo.
