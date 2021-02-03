@@ -43,7 +43,7 @@ def test_stage1(tmpdir):
                 'dragon_counter0': int(run_info['dragon_counter0']),
                 'ucts_t0_tib': int(run_info['ucts_t0_tib']),
                 'tib_counter0': int(run_info['tib_counter0']),
-            }
+            },
         },
         "CameraCalibrator": {
             "image_extractor_type": "LocalPeakWindowSum",
@@ -86,6 +86,5 @@ def test_stage1(tmpdir):
     # one pedestal and flat field expected each, rest should be physics data
     assert event_type_counts.sum() == 200
     assert event_type_counts[EventType.FLATFIELD.value] == 1
-    assert event_type_counts[EventType.SKY_PEDESTAL.value] == 2
-    assert event_type_counts[EventType.SUBARRAY.value] == 197
-    assert tool.event_source.ucts_42_found
+    assert event_type_counts[EventType.SKY_PEDESTAL.value] == 1
+    assert event_type_counts[EventType.SUBARRAY.value] == 198

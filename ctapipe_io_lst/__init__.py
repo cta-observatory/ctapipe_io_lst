@@ -20,7 +20,7 @@ from enum import IntFlag, auto
 
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
-from ctapipe.core.traits import Int, Bool, List, Float
+from ctapipe.core.traits import Int, Bool, List, Float, Enum
 from ctapipe.containers import PixelStatusContainer, EventType
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
@@ -164,6 +164,17 @@ class LSTEventSource(EventSource):
         ),
     ).tag(config=True)
 
+    default_trigger_type = Enum(
+        ['ucts', 'tib'], default_value='ucts',
+        help=(
+            'Default source for trigger type information.'
+            ' For older data, tib might be the better choice but for data newer'
+            ' than 2020-07, ucts is the preferred option. The source will still'
+            ' fallback to the other device if the chosen default device is not '
+            ' available'
+        )
+    ).tag(config=True)
+
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
@@ -223,9 +234,6 @@ class LSTEventSource(EventSource):
         )
         self.time_calculator = EventTimeCalculator(subarray=self.subarray, parent=self)
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
-
-        # by default, use ucts if available
-        self.ucts_42_found = False
 
     @property
     def subarray(self):
@@ -317,7 +325,7 @@ class LSTEventSource(EventSource):
             self.fill_lst_event_container(array_event, zfits_event)
 
             # fill trigger info (needs r0 and lst specifics)
-            self.fill_trigger_info(array_event, zfits_event)
+            self.fill_trigger_info(array_event)
 
             # fill general monitoring data
             self.fill_mon_container(array_event, zfits_event)
@@ -472,7 +480,7 @@ class LSTEventSource(EventSource):
         lst_evt.drs_tag_status = zfits_event.lstcam.drs_tag_status
         lst_evt.drs_tag = zfits_event.lstcam.drs_tag
 
-    def fill_trigger_info(self, array_event, zfits_event):
+    def fill_trigger_info(self, array_event):
         tel_id = self.tel_id
 
         trigger = array_event.trigger
@@ -484,25 +492,31 @@ class LSTEventSource(EventSource):
         tib_available = lst.evt.extdevices_presence & 1
         ucts_available = lst.evt.extdevices_presence & 2
 
-        # Since at least June 2020, ucts should be more reliable
-        # before there were runs when ucts was missing or was shifted
-        # by one event after an event with ucts_trigger_type == 42.
-        # In case that happens we swtich to tib triggers
-        if tib_available and self.ucts_42_found:
+        # decide which source to use, if both are available,
+        # the option decides, if not, fallback to the avilable source
+        # if no source available, warn and do not fill trigger info
+        if tib_available and ucts_available:
+            if self.default_trigger_type == 'ucts':
+                trigger_bits = lst.evt.ucts_trigger_type
+            else:
+                trigger_bits = lst.evt.tib_masked_trigger
+
+        elif tib_available:
             trigger_bits = lst.evt.tib_masked_trigger
 
-        elif ucts_available and not self.ucts_42_found:
+        elif ucts_available:
             trigger_bits = lst.evt.ucts_trigger_type
-            if lst.evt.ucts_trigger_type == 42:
-                self.ucts_42_found = True
-                self.log.warning(
-                    'Event with UCTS trigger_type 42 found.'
-                    ' Probably means unreliable or shifted UCTS data.'
-                    ' Switching to TIB if available.'
-                )
+
         else:
             self.log.warning('No trigger info available.')
             return
+
+        if ucts_available and lst.evt.ucts_trigger_type == 42:
+            self.log.warning(
+                'Event with UCTS trigger_type 42 found.'
+                ' Probably means unreliable or shifted UCTS data.'
+                ' Switching to TIB if available.'
+            )
 
         # first bit mono trigger, second stereo.
         # If *only* those two are set, we assume it's a physics event
