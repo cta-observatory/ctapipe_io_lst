@@ -43,7 +43,7 @@ def test_stage1(tmpdir):
                 'dragon_counter0': int(run_info['dragon_counter0']),
                 'ucts_t0_tib': int(run_info['ucts_t0_tib']),
                 'tib_counter0': int(run_info['tib_counter0']),
-            }
+            },
         },
         "CameraCalibrator": {
             "image_extractor_type": "LocalPeakWindowSum",
