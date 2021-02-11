@@ -136,11 +136,6 @@ class LSTR0Corrections(TelescopeComponent):
         help='Threshold for the ThresholdGainSelector.'
     ).tag(config=True)
 
-    calibrate_ff_and_ped = Bool(
-        default_value=True,
-        help=('To be set to True for calibration processing')
-    ).tag(config=True)
-
     def __init__(self, subarray, config=None, parent=None, **kwargs):
         """
         The R0 calibrator for LST data.
@@ -210,12 +205,6 @@ class LSTR0Corrections(TelescopeComponent):
             )
 
     def calibrate(self, event: ArrayEventContainer):
-
-        if ((event.trigger.event_type == EventType.FLATFIELD or
-             event.trigger.event_type == EventType.SKY_PEDESTAL) and
-            not self.calibrate_ff_and_ped):
-            return
-
 
         for tel_id in event.r0.tel:
             r1 = event.r1.tel[tel_id]

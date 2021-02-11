@@ -175,6 +175,11 @@ class LSTEventSource(EventSource):
         )
     ).tag(config=True)
 
+    calibrate_flatfields_and_pedestals = Bool(
+        default_value=True,
+        help='To be set to True for calibration processing'
+    ).tag(config=True)
+
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
@@ -341,7 +346,13 @@ class LSTEventSource(EventSource):
 
             # gain select and calibrate to pe
             if self.r0_r1_calibrator.calibration_path is not None:
-                self.r0_r1_calibrator.calibrate(array_event)
+
+                # skip flatfield and pedestal events if asked
+                if (not (array_event.trigger.event_type == EventType.FLATFIELD or
+                    array_event.trigger.event_type == EventType.SKY_PEDESTAL) or
+                         self.calibrate_flatfields_and_pedestals):
+
+                    self.r0_r1_calibrator.calibrate(array_event)
 
             yield array_event
 

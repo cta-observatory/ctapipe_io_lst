@@ -180,7 +180,7 @@ class EventTimeCalculator(TelescopeComponent):
 
         # first event and values not passed
         else:
-            if not ucts_available and self.timestamp == 'ucts':
+            if not ucts_available:
                 raise ValueError(
                     'Timestamp reference should be extracted from first event'
                     ' but UCTS not available'
