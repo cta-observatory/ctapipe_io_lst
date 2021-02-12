@@ -348,10 +348,10 @@ class LSTEventSource(EventSource):
             if self.r0_r1_calibrator.calibration_path is not None:
 
                 # skip flatfield and pedestal events if asked
-                if (not (array_event.trigger.event_type == EventType.FLATFIELD or
-                    array_event.trigger.event_type == EventType.SKY_PEDESTAL) or
-                         self.calibrate_flatfields_and_pedestals):
-
+                if (
+                    array_event.trigger.event_type not in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}
+                        or self.calibrate_flatfields_and_pedestals
+                ):
                     self.r0_r1_calibrator.calibrate(array_event)
 
             yield array_event
