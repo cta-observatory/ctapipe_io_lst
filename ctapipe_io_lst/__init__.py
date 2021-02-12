@@ -6,6 +6,7 @@ import numpy as np
 from astropy import units as u
 from pkg_resources import resource_filename
 import os
+from astropy.time import Time
 from os import listdir
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
@@ -175,6 +176,16 @@ class LSTEventSource(EventSource):
         )
     ).tag(config=True)
 
+    calibrate_flatfields_and_pedestals = Bool(
+        default_value=True,
+        help='To be set to True for calibration processing'
+    ).tag(config=True)
+
+    fill_timestamp = Bool(
+        default_value=True,
+        help='To be set to False for data without ucts info'
+    ).tag(config=True)
+
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
@@ -341,7 +352,13 @@ class LSTEventSource(EventSource):
 
             # gain select and calibrate to pe
             if self.r0_r1_calibrator.calibration_path is not None:
-                self.r0_r1_calibrator.calibrate(array_event)
+
+                # skip flatfield and pedestal events if asked
+                if (
+                    array_event.trigger.event_type not in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}
+                        or self.calibrate_flatfields_and_pedestals
+                ):
+                    self.r0_r1_calibrator.calibrate(array_event)
 
             yield array_event
 
@@ -484,7 +501,10 @@ class LSTEventSource(EventSource):
         tel_id = self.tel_id
 
         trigger = array_event.trigger
-        trigger.time = self.time_calculator(tel_id, array_event)
+        if self.fill_timestamp:
+            trigger.time = self.time_calculator(tel_id, array_event)
+        else:
+            trigger.time = Time(0, format='mjd', scale='tai')
         trigger.tels_with_trigger = [tel_id]
         trigger.tel[tel_id].time = trigger.time
 

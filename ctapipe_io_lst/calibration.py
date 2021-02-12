@@ -13,7 +13,7 @@ from ctapipe.core.traits import (
 )
 
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
-from ctapipe.containers import MonitoringContainer, ArrayEventContainer
+from ctapipe.containers import MonitoringContainer, ArrayEventContainer, EventType
 from ctapipe.io import HDF5TableReader
 
 
@@ -205,6 +205,7 @@ class LSTR0Corrections(TelescopeComponent):
             )
 
     def calibrate(self, event: ArrayEventContainer):
+
         for tel_id in event.r0.tel:
             r1 = event.r1.tel[tel_id]
             waveform = r1.waveform
