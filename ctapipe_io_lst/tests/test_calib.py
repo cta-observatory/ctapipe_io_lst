@@ -15,6 +15,7 @@ test_r0_calib_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz
 test_calib_path = test_data / 'real/calibration/20200218/v05/calibration.Run2006.0000.hdf5'
 test_drs4_pedestal_path = test_data / 'real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits'
 test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5'
+test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
 
 
 def test_get_first_capacitor():
@@ -154,6 +155,34 @@ def test_source_with_all():
             assert event.r1.tel[1].waveform is not None
             assert np.any(event.calibration.tel[1].dl1.time_shift != 0)
 
+
+def test_missing_module():
+    from ctapipe_io_lst import LSTEventSource
+    from ctapipe_io_lst.constants import N_PIXELS_MODULE, N_SAMPLES
+
+    config = Config({
+        'LSTEventSource': {
+            'fill_timestamp': False,  #  ucts not available
+            'LSTR0Corrections': {
+                'drs4_pedestal_path': test_drs4_pedestal_path,
+                'drs4_time_calibration_path': test_time_calib_path,
+                'calibration_path': test_calib_path,
+            }
+        }
+    })
+
+    source = LSTEventSource(
+        input_url=test_missing_module_path,
+        config=config,
+    )
+
+    assert source.r0_r1_calibrator.mon_data is not None
+    with source:
+        for event in source:
+            waveform = event.r1.tel[1].waveform
+            assert waveform is not None
+            assert np.count_nonzero(np.isnan(waveform)) == N_PIXELS_MODULE * (N_SAMPLES - 4)
+            assert np.all(np.isnan(waveform[514]))
 
 def test_no_gain_selection():
     from ctapipe_io_lst import LSTEventSource

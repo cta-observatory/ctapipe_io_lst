@@ -1,11 +1,15 @@
+import numpy as np
 import os
 from pathlib import Path
 import tempfile
+from ctapipe_io_lst.constants import N_GAINS, N_PIXELS_MODULE, N_SAMPLES
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_dir = test_data / 'real/R0/20200218'
 test_r0_path = test_r0_dir / 'LST-1.1.Run02006.0004.fits.fz'
 test_r0_path_all_streams = test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz'
+
+test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
 
 # ADC_SAMPLES_SHAPE = (2, 14, 40)
 
@@ -73,3 +77,17 @@ def test_subarray():
 
     with tempfile.NamedTemporaryFile(suffix='.h5') as f:
         subarray.to_hdf(f.name)
+
+
+def test_missing_modules():
+    from ctapipe.io import EventSource
+    source = EventSource(test_missing_module_path, fill_timestamp=False)
+
+    fill = np.iinfo(np.uint16).max
+    for event in source:
+        # one module missing, so 7 pixels
+        assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE
+        assert np.count_nonzero(event.r0.tel[1].waveform == fill) == N_PIXELS_MODULE * N_SAMPLES * N_GAINS
+
+        # 514 is one of the missing pixels
+        assert np.all(event.r0.tel[1].waveform[:, 514] == fill)

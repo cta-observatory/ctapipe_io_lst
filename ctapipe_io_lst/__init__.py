@@ -37,7 +37,7 @@ from .anyarray_dtypes import (
     TIB_DTYPE,
 )
 from .constants import (
-    HIGH_GAIN
+    HIGH_GAIN, N_PIXELS, N_MODULES, N_SAMPLES
 )
 
 __all__ = ['LSTEventSource', '__version__']
@@ -617,7 +617,9 @@ class LSTEventSource(EventSource):
 
         # re-order the waveform following the expected_pixels_id values
         #  could also just do waveform = reshaped_waveform[np.argsort(expected_ids)]
-        reordered_waveform = np.empty_like(reshaped_waveform)
+        dtype = reshaped_waveform.dtype
+        fill = np.iinfo(dtype).max
+        reordered_waveform = np.full((self.n_gains, N_PIXELS, N_SAMPLES), fill, dtype=dtype)
         reordered_waveform[:, self.camera_config.expected_pixels_id, :] = reshaped_waveform
         r0_container.waveform = reordered_waveform
 
@@ -643,13 +645,13 @@ class LSTEventSource(EventSource):
         container = array_event.mon
         mon_camera_container = container.tel[self.tel_id]
 
-        # initialize the container
-        status_container = PixelStatusContainer()
-        n_camera_pixels = self.subarray.tel[self.tel_id].camera.geometry.n_pixels
-        status_container.hardware_failing_pixels = np.zeros((self.n_gains, n_camera_pixels), dtype=bool)
-        status_container.pedestal_failing_pixels = np.zeros((self.n_gains, n_camera_pixels), dtype=bool)
-        status_container.flatfield_failing_pixels = np.zeros((self.n_gains, n_camera_pixels), dtype=bool)
-
+        shape = (self.n_gains, N_PIXELS)
+        # all pixels broken by default
+        status_container = PixelStatusContainer(
+            hardware_failing_pixels=np.ones(shape, dtype=bool),
+            pedestal_failing_pixels=np.ones(shape, dtype=bool),
+            flatfield_failing_pixels=np.ones(shape, dtype=bool),
+        )
         mon_camera_container.pixel_status = status_container
 
     def fill_mon_container(self, array_event, zfits_event):
@@ -663,11 +665,11 @@ class LSTEventSource(EventSource):
         # reorder the array
         expected_pixels_id = self.camera_config.expected_pixels_id
 
-        reordered_pixel_status = np.empty_like(zfits_event.pixel_status)
+        reordered_pixel_status = np.zeros(N_PIXELS, dtype=zfits_event.pixel_status.dtype)
         reordered_pixel_status[expected_pixels_id] = zfits_event.pixel_status
 
         channel_info = get_channel_info(reordered_pixel_status)
-        status_container.hardware_failing_pixels[:] = channel_info == 0
+        status_container.hardware_failing_pixels = channel_info == 0
 
 
 class MultiFiles:
