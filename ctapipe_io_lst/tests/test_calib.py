@@ -15,7 +15,7 @@ test_r0_calib_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz
 test_calib_path = test_data / 'real/calibration/20200218/v05/calibration.Run2006.0000.hdf5'
 test_drs4_pedestal_path = test_data / 'real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits'
 test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5'
-test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03369.0000_first50.fits.fz'
+test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
 
 
 def test_get_first_capacitor():

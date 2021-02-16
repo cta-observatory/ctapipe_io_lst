@@ -9,7 +9,7 @@ test_r0_dir = test_data / 'real/R0/20200218'
 test_r0_path = test_r0_dir / 'LST-1.1.Run02006.0004.fits.fz'
 test_r0_path_all_streams = test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz'
 
-test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03369.0000_first50.fits.fz'
+test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
 
 # ADC_SAMPLES_SHAPE = (2, 14, 40)
 
