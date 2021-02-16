@@ -37,7 +37,7 @@ from .anyarray_dtypes import (
     TIB_DTYPE,
 )
 from .constants import (
-    HIGH_GAIN, N_PIXELS, N_GAINS, N_MODULES, N_SAMPLES
+    HIGH_GAIN, N_PIXELS, N_MODULES, N_SAMPLES
 )
 
 __all__ = ['LSTEventSource', '__version__']
@@ -619,7 +619,7 @@ class LSTEventSource(EventSource):
         #  could also just do waveform = reshaped_waveform[np.argsort(expected_ids)]
         dtype = reshaped_waveform.dtype
         fill = np.iinfo(dtype).max
-        reordered_waveform = np.full((N_GAINS, N_PIXELS, N_SAMPLES), fill, dtype=dtype)
+        reordered_waveform = np.full((self.n_gains, N_PIXELS, N_SAMPLES), fill, dtype=dtype)
         reordered_waveform[:, self.camera_config.expected_pixels_id, :] = reshaped_waveform
         r0_container.waveform = reordered_waveform
 
@@ -645,7 +645,7 @@ class LSTEventSource(EventSource):
         container = array_event.mon
         mon_camera_container = container.tel[self.tel_id]
 
-        shape = (N_GAINS, N_PIXELS)
+        shape = (self.n_gains, N_PIXELS)
         # all pixels broken by default
         status_container = PixelStatusContainer(
             hardware_failing_pixels=np.ones(shape, dtype=bool),
