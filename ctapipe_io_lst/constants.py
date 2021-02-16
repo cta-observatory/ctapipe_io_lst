@@ -20,9 +20,3 @@ N_CHANNELS_MODULE = 8
 # First capacitor order according Dragon v5 board data format
 CHANNEL_ORDER_HIGH_GAIN = [0, 0, 1, 1, 2, 2, 3]
 CHANNEL_ORDER_LOW_GAIN = [4, 4, 5, 5, 6, 6, 7]
-
-# on which module is a pixel?
-MODULE_INDEX = np.repeat(np.arange(N_MODULES), 7)
-
-CHANNEL_INDEX_LOW_GAIN = MODULE_INDEX * N_CHANNELS_MODULE + np.tile(CHANNEL_ORDER_LOW_GAIN, N_MODULES)
-CHANNEL_INDEX_HIGH_GAIN = MODULE_INDEX * N_CHANNELS_MODULE + np.tile(CHANNEL_ORDER_HIGH_GAIN, N_MODULES)

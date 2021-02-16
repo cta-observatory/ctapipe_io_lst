@@ -20,13 +20,21 @@ from ctapipe.io import HDF5TableReader
 from .constants import (
     N_GAINS, N_PIXELS, N_MODULES, N_SAMPLES, LOW_GAIN, HIGH_GAIN,
     N_PIXELS_MODULE, N_CAPACITORS_PIXEL, N_CAPACITORS_CHANNEL,
-    CHANNEL_INDEX_LOW_GAIN, CHANNEL_INDEX_HIGH_GAIN,
-    LAST_RUN_WITH_OLD_FIRMWARE, CLOCK_FREQUENCY_KHZ
+    LAST_RUN_WITH_OLD_FIRMWARE, CLOCK_FREQUENCY_KHZ,
+    CHANNEL_ORDER_LOW_GAIN, CHANNEL_ORDER_HIGH_GAIN, N_CHANNELS_MODULE
 )
 
 __all__ = [
     'LSTR0Corrections',
 ]
+
+
+@lru_cache()
+def pixel_channel_indices(n_modules):
+    module_index = np.repeat(np.arange(n_modules), 7)
+    low_gain = module_index * N_CHANNELS_MODULE + np.tile(CHANNEL_ORDER_LOW_GAIN, n_modules)
+    high_gain = module_index * N_CHANNELS_MODULE + np.tile(CHANNEL_ORDER_HIGH_GAIN, n_modules)
+    return low_gain, high_gain
 
 
 def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
@@ -51,8 +59,11 @@ def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
 
     fc = np.zeros((N_GAINS, N_PIXELS), dtype='uint16')
 
-    low_gain = first_capacitor_id[CHANNEL_INDEX_LOW_GAIN]
-    high_gain = first_capacitor_id[CHANNEL_INDEX_HIGH_GAIN]
+    n_modules = first_capacitor_id.size // N_CHANNELS_MODULE
+
+    low_gain_channels, high_gain_channels = pixel_channel_indices(n_modules)
+    low_gain = first_capacitor_id[low_gain_channels]
+    high_gain = first_capacitor_id[high_gain_channels]
 
     if expected_pixel_id is None:
         fc[LOW_GAIN] = low_gain
@@ -195,6 +206,9 @@ class LSTR0Corrections(TelescopeComponent):
 
             waveform -= self.offset.tel[tel_id]
 
+            mon = event.mon.tel[tel_id]
+            waveform[:, mon.pixel_status.hardware_failing_pixels] = np.nan
+
     def update_first_capacitors(self, event: ArrayEventContainer):
         for tel_id in event.r0.tel:
             lst = event.lst.tel[tel_id]
@@ -223,6 +237,9 @@ class LSTR0Corrections(TelescopeComponent):
                 calibration = self.mon_data.tel[tel_id].calibration
                 waveform -= calibration.pedestal_per_sample[:, :, np.newaxis]
                 waveform *= calibration.dc_to_pe[:, :, np.newaxis]
+
+            mon = event.mon.tel[tel_id]
+            waveform[:, mon.pixel_status.hardware_failing_pixels] = np.nan
 
             waveform = waveform.astype(np.float32)
             n_gains, n_pixels, n_samples = waveform.shape
@@ -381,6 +398,7 @@ class LSTR0Corrections(TelescopeComponent):
         tel_id : id of the telescope
         """
         samples = event.r0.tel[tel_id].waveform.astype(np.float32)
+
         samples = subtract_pedestal_jit(
             samples,
             self.first_cap[tel_id],
@@ -591,8 +609,9 @@ def do_time_lapse_corr(
     Numba function for time lapse baseline correction.
     Change waveform array.
     """
+    n_modules = len(expected_pixels_id) // N_PIXELS_MODULE
     for gain in range(N_GAINS):
-        for module in range(N_MODULES):
+        for module in range(n_modules):
             time_now = local_clock_counter[module]
 
             for pixel_in_module in range(N_PIXELS_MODULE):
@@ -654,8 +673,9 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
     Change waveform array.
     """
 
+    n_modules = len(expected_pixels_id) // N_PIXELS_MODULE
     for gain in range(N_GAINS):
-        for module in range(N_MODULES):
+        for module in range(n_modules):
             time_now = local_clock_counter[module]
 
             for pixel_in_module in range(N_PIXELS):
