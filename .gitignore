@@ -9,6 +9,7 @@ test_data
 __pycache__
 
 # ignore version cache file (generated automatically when setup.py is run)
+ctapipe_io_lst/_version.py
 ctapipe_io_lst/_version_cache.py
 
 # Ignore .c files by default to avoid including generated code. If you want to
