@@ -25,5 +25,6 @@ wget \
 	--password="$TEST_DATA_PASSWORD" \
 	--no-verbose \
 	--recursive \
+	--timestamping \
 	--directory-prefix=test_data \
 	"$TEST_DATA_URL"
