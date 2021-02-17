@@ -1,15 +1,27 @@
 {
+  "EventSource": {
+    "input_url": "test_data/real/R0/20200218/LST-1.1.Run02008.0000_first50.fits.fz"
+  },
   "LSTEventSource": {
     "LSTR0Corrections": {
       "drs4_pedestal_path": "test_data/real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits",
       "drs4_time_calibration_path": "test_data/real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5",
-      "calibration_path": "test_data/real/calibration/20200218/v05/calibration.Run2006.0000.hdf5"
+      "calibration_path": "test_data/real/calibration/20200218/v05/calibration.Run2006.0000.hdf5",
+      "gain_selection_threshold": 3500,
+      "add_calibration_timeshift": true
     },
     "PointingSource": {
       "drive_report_path": "test_data/real/monitoring/DrivePositioning/drive_log_20200218.txt"
+    },
+    "EventTimeCalculator": {
+      "ucts_t0_dragon": 1582059789516351903,
+      "dragon_counter0": 2516351600,
+      "ucts_t0_tib": 1582059789516351903,
+      "tib_counter0": 25163512007450940400
     }
   },
   "CameraCalibrator": {
+    "apply_waveform_time_shift": false,
     "image_extractor_type": "LocalPeakWindowSum",
     "LocalPeakWindowSum": {
       "window_shift": 4,
