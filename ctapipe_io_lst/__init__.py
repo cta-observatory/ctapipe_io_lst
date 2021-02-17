@@ -21,7 +21,7 @@ from enum import IntFlag, auto
 
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
-from ctapipe.core.traits import Int, Bool, List, Float, Enum
+from ctapipe.core.traits import Int, Bool, Float, Enum
 from ctapipe.containers import PixelStatusContainer, EventType
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
@@ -37,7 +37,7 @@ from .anyarray_dtypes import (
     TIB_DTYPE,
 )
 from .constants import (
-    HIGH_GAIN, N_PIXELS, N_MODULES, N_SAMPLES
+    HIGH_GAIN, N_PIXELS, N_SAMPLES
 )
 
 __all__ = ['LSTEventSource', '__version__']
@@ -669,7 +669,7 @@ class LSTEventSource(EventSource):
         reordered_pixel_status[expected_pixels_id] = zfits_event.pixel_status
 
         channel_info = get_channel_info(reordered_pixel_status)
-        status_container.hardware_failing_pixels = channel_info == 0
+        status_container.hardware_failing_pixels[:] = channel_info == 0
 
 
 class MultiFiles:

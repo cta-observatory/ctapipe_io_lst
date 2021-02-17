@@ -13,7 +13,7 @@ from ctapipe.core.traits import (
 )
 
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
-from ctapipe.containers import MonitoringContainer, ArrayEventContainer, EventType
+from ctapipe.containers import MonitoringContainer, ArrayEventContainer
 from ctapipe.io import HDF5TableReader
 
 
@@ -207,7 +207,7 @@ class LSTR0Corrections(TelescopeComponent):
             waveform -= self.offset.tel[tel_id]
 
             mon = event.mon.tel[tel_id]
-            waveform[:, mon.pixel_status.hardware_failing_pixels] = np.nan
+            waveform[mon.pixel_status.hardware_failing_pixels] = np.nan
 
     def update_first_capacitors(self, event: ArrayEventContainer):
         for tel_id in event.r0.tel:
@@ -239,7 +239,7 @@ class LSTR0Corrections(TelescopeComponent):
                 waveform *= calibration.dc_to_pe[:, :, np.newaxis]
 
             mon = event.mon.tel[tel_id]
-            waveform[:, mon.pixel_status.hardware_failing_pixels] = np.nan
+            waveform[mon.pixel_status.hardware_failing_pixels] = np.nan
 
             waveform = waveform.astype(np.float32)
             n_gains, n_pixels, n_samples = waveform.shape
