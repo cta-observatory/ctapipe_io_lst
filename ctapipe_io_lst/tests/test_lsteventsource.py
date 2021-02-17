@@ -31,6 +31,7 @@ def test_loop_over_events():
             n_samples = event.lst.tel[telid].svc.num_samples
             waveform_shape = (n_gains, n_pixels, n_samples)
             assert event.r0.tel[telid].waveform.shape == waveform_shape
+            assert event.mon.tel[telid].pixel_status.hardware_failing_pixels.shape == (n_gains, n_pixels)
 
     # make sure max_events works
     assert (i + 1) == n_events
@@ -86,7 +87,7 @@ def test_missing_modules():
     fill = np.iinfo(np.uint16).max
     for event in source:
         # one module missing, so 7 pixels
-        assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE
+        assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
         assert np.count_nonzero(event.r0.tel[1].waveform == fill) == N_PIXELS_MODULE * N_SAMPLES * N_GAINS
 
         # 514 is one of the missing pixels

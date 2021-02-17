@@ -669,7 +669,7 @@ class LSTEventSource(EventSource):
         reordered_pixel_status[expected_pixels_id] = zfits_event.pixel_status
 
         channel_info = get_channel_info(reordered_pixel_status)
-        status_container.hardware_failing_pixels = channel_info == 0
+        status_container.hardware_failing_pixels[:] = channel_info == 0
 
 
 class MultiFiles:
