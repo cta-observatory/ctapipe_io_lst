@@ -649,8 +649,8 @@ class LSTEventSource(EventSource):
         # all pixels broken by default
         status_container = PixelStatusContainer(
             hardware_failing_pixels=np.ones(shape, dtype=bool),
-            pedestal_failing_pixels=np.ones(shape, dtype=bool),
-            flatfield_failing_pixels=np.ones(shape, dtype=bool),
+            pedestal_failing_pixels=np.zeros(shape, dtype=bool),
+            flatfield_failing_pixels=np.zeros(shape, dtype=bool),
         )
         mon_camera_container.pixel_status = status_container
 
