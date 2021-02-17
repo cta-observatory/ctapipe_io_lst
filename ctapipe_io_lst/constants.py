@@ -1,6 +1,3 @@
-import numpy as np
-
-
 N_GAINS = 2
 N_MODULES = 265
 N_PIXELS_MODULE = 7

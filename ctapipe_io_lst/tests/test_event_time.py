@@ -1,4 +1,3 @@
-from ctapipe_io_lst import event_time
 import os
 from pathlib import Path
 import numpy as np

@@ -21,7 +21,7 @@ from enum import IntFlag, auto
 
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
-from ctapipe.core.traits import Int, Bool, List, Float, Enum
+from ctapipe.core.traits import Int, Bool, Float, Enum
 from ctapipe.containers import PixelStatusContainer, EventType
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
@@ -37,7 +37,7 @@ from .anyarray_dtypes import (
     TIB_DTYPE,
 )
 from .constants import (
-    HIGH_GAIN, N_PIXELS, N_MODULES, N_SAMPLES
+    HIGH_GAIN, N_PIXELS, N_SAMPLES
 )
 
 __all__ = ['LSTEventSource', '__version__']

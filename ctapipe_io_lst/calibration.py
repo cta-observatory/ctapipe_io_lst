@@ -13,7 +13,7 @@ from ctapipe.core.traits import (
 )
 
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
-from ctapipe.containers import MonitoringContainer, ArrayEventContainer, EventType
+from ctapipe.containers import MonitoringContainer, ArrayEventContainer
 from ctapipe.io import HDF5TableReader
 
 
