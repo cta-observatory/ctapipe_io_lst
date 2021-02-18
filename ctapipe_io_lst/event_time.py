@@ -7,11 +7,13 @@ import numpy as np
 from collections import deque, defaultdict
 import astropy.version
 
-from astropy.time import TimeUnixTai
+from astropy.time import TimeUnixTai, TimeFromEpoch
 
 
 if astropy.version.major == 4 and astropy.version.minor <= 2 and astropy.version.bugfix <= 0:
-    # fix for astropy #11245
+    # clear the cache to not depend on import orders
+    TimeFromEpoch.__dict__['_epoch']._cache.clear()
+    # fix for astropy #11245, epoch was wrong by 8 seconds
     TimeUnixTai.epoch_val = '1970-01-01 00:00:00.0'
     TimeUnixTai.epoch_scale = 'tai'
 
