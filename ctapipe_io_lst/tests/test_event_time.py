@@ -9,6 +9,17 @@ from ctapipe_io_lst.constants import N_MODULES
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
 test_night_summary = test_data / 'real/monitoring/NightSummary/NightSummary_20200218.txt'
+test_night_summary_with_nans = test_data / 'real/monitoring/NightSummary/NightSummary_20201215.txt'
+
+
+int_cols = [
+    'first_valid_event_dragon',
+    'ucts_t0_dragon',
+    'dragon_counter0',
+    'first_valid_event_tib',
+    'ucts_t0_tib',
+    'tib_counter0',
+]
 
 
 def test_time_unix_tai():
@@ -20,7 +31,22 @@ def test_read_night_summary():
     from ctapipe_io_lst.event_time import read_night_summary
 
     summary = read_night_summary(test_night_summary)
-    assert summary['ucts_t0_dragon'].dtype == int
+
+    for col in int_cols:
+        assert summary[col].dtype == np.int64
+
+
+def test_read_night_summary_missing():
+    from ctapipe_io_lst.event_time import read_night_summary
+
+    summary = read_night_summary(test_night_summary_with_nans)
+    for col in int_cols:
+        assert summary[col].dtype == np.int64
+
+    assert len(summary) == 26
+    assert isinstance(summary['timestamp'], Time)
+    assert np.ma.is_masked(summary['tib_counter0'])
+    assert np.count_nonzero(summary['tib_counter0'].mask) == 12
 
 
 def test_ucts_jumps():
