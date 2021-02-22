@@ -4,7 +4,6 @@ import numpy as np
 import astropy.version
 from astropy.io.ascii import convert_numpy
 from astropy.table import Table
-from astropy.table import Table
 from astropy.time import Time, TimeUnixTai, TimeFromEpoch
 
 from ctapipe.core import TelescopeComponent
