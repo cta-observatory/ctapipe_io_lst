@@ -22,6 +22,7 @@ if astropy.version.major == 4 and astropy.version.minor <= 2 and astropy.version
 
 
 CENTRAL_MODULE = 132
+INVALID_TIME = Time(0, format='mjd', scale='tai')
 
 
 # fix for https://github.com/ipython/traitlets/issues/637
@@ -141,6 +142,7 @@ class EventTimeCalculator(TelescopeComponent):
         default_value=None,
         help='UCTS timestamp of a valid ucts/tib counter combination'
     ).tag(config=True)
+
     tib_counter0 = TelescopeParameter(
         Int(allow_none=True),
         default_value=None,
@@ -156,7 +158,8 @@ class EventTimeCalculator(TelescopeComponent):
         self.previous_ucts_timestamps = defaultdict(deque)
         self.previous_ucts_trigger_types = defaultdict(deque)
 
-        self._has_reference = {}
+        self._has_tib_reference = {}
+        self._has_dragon_reference = {}
 
         # we cannot __setitem__ telescope lookup values, so we store them
         # in non-trait private values
@@ -166,19 +169,28 @@ class EventTimeCalculator(TelescopeComponent):
         self._tib_counter0 = {}
 
         for tel_id in self.subarray.tel:
-            self._has_reference[tel_id] = all([
-                self.ucts_t0_dragon.tel[tel_id] is not None,
-                self.dragon_counter0.tel[tel_id] is not None,
-                self.ucts_t0_tib.tel[tel_id] is not None,
-                self.tib_counter0.tel[tel_id] is not None,
-            ])
+            self._has_dragon_reference[tel_id] = (
+                self.ucts_t0_dragon.tel[tel_id] is not None
+                and self.dragon_counter0.tel[tel_id] is not None
+            )
 
-            if self._has_reference[tel_id]:
+            if self._has_dragon_reference[tel_id]:
                 self._ucts_t0_dragon[tel_id] = self.ucts_t0_dragon.tel[tel_id]
                 self._dragon_counter0[tel_id] = self.dragon_counter0.tel[tel_id]
+
+
+            self._has_tib_reference[tel_id] = (
+                self.ucts_t0_tib.tel[tel_id] is not None
+                and self.tib_counter0.tel[tel_id] is not None
+            )
+            if self._has_tib_reference:
                 self._ucts_t0_tib[tel_id] = self.ucts_t0_tib.tel[tel_id]
                 self._tib_counter0[tel_id] = self.tib_counter0.tel[tel_id]
-            else:
+
+            if (
+                (self.timestamp == "dragon" and not self._has_dragon_reference[tel_id])
+                or (self.timestamp == "tib" and not self._has_tib_reference[tel_id])
+            ):
                 if not self.use_first_event:
                     raise ValueError(
                         'No external reference timestamps/counter values provided'
@@ -200,34 +212,21 @@ class EventTimeCalculator(TelescopeComponent):
         tib_available = lst.evt.extdevices_presence & 1
         ucts_available = lst.evt.extdevices_presence & 2
 
-        if self._has_reference[tel_id]:
-            # Dragon/TIB timestamps based on a valid absolute reference UCTS timestamp
-            dragon_time = calc_dragon_time(
-                lst, central_module_index,
-                reference=1e-9 * (self._ucts_t0_dragon[tel_id] - self._dragon_counter0[tel_id])
+        if not ucts_available:
+            self.log.warning(
+                f'Cannot calculate timestamp for obs_id={event.index.obs_id}'
+                f', event_id={event.index.event_id}, tel_id={tel_id}. UCTS unavailable.'
             )
+            return INVALID_TIME
 
-            tib_time = calc_tib_time(
-                lst,
-                reference=1e-9 * (self._ucts_t0_tib[tel_id] - self._tib_counter0[tel_id])
-            )
 
-            if ucts_available:
-                ucts_timestamp = lst.evt.ucts_timestamp
-                ucts_time = ucts_timestamp * 1e-9
-            else:
-                ucts_timestamp = -1
-                ucts_time = np.nan
+        ucts_timestamp = lst.evt.ucts_timestamp
+        ucts_time = ucts_timestamp * 1e-9
+        tib_time = np.nan
+        dragon_time = np.nan
 
         # first event and values not passed
-        else:
-            if not ucts_available:
-                raise ValueError(
-                    'Timestamp reference should be extracted from first event'
-                    ' but UCTS not available'
-                )
-
-            ucts_timestamp = lst.evt.ucts_timestamp
+        if not self._has_dragon_reference[tel_id] and not self._has_tib_reference[tel_id]:
             initial_dragon_counter = (
                 int(1e9) * lst.evt.pps_counter[central_module_index]
                 + 100 * lst.evt.tenMHz_counter[central_module_index]
@@ -240,6 +239,8 @@ class EventTimeCalculator(TelescopeComponent):
                 f' UCTS timestamp: {ucts_timestamp}'
                 f' dragon_counter: {initial_dragon_counter}'
             )
+            dragon_time = ucts_time
+            self._has_dragon_reference[tel_id] = True
 
             if not tib_available and self.timestamp == 'tib':
                 raise ValueError(
@@ -247,22 +248,34 @@ class EventTimeCalculator(TelescopeComponent):
                     ' and first event has not TIB info'
                 )
 
-            initial_tib_counter = (
-                int(1e9) * lst.evt.tib_pps_counter
-                + 100 * lst.evt.tib_tenMHz_counter
-            )
-            self._ucts_t0_tib[tel_id] = ucts_timestamp
-            self._tib_counter0[tel_id] = initial_tib_counter
-            self.log.critical(
-                'Using first event as time reference for TIB.'
-                f' UCTS timestamp: {ucts_timestamp}'
-                f' tib_counter: {initial_tib_counter}'
-            )
+            if tib_available:
+                initial_tib_counter = (
+                    int(1e9) * lst.evt.tib_pps_counter
+                    + 100 * lst.evt.tib_tenMHz_counter
+                )
+                self._ucts_t0_tib[tel_id] = ucts_timestamp
+                self._tib_counter0[tel_id] = initial_tib_counter
+                self.log.critical(
+                    'Using first event as time reference for TIB.'
+                    f' UCTS timestamp: {ucts_timestamp}'
+                    f' tib_counter: {initial_tib_counter}'
+                )
 
-            ucts_time = ucts_timestamp * 1e-9
-            tib_time = ucts_time
-            dragon_time = ucts_time
-            self._has_reference[tel_id] = True
+                tib_time = ucts_time
+                self._has_tib_reference[tel_id] = True
+        else:
+            if self._has_dragon_reference[tel_id]:
+                # Dragon/TIB timestamps based on a valid absolute reference UCTS timestamp
+                dragon_time = calc_dragon_time(
+                    lst, central_module_index,
+                    reference=1e-9 * (self._ucts_t0_dragon[tel_id] - self._dragon_counter0[tel_id])
+                )
+
+            if self._has_tib_reference[tel_id] and tib_available:
+                tib_time = calc_tib_time(
+                    lst,
+                    reference=1e-9 * (self._ucts_t0_tib[tel_id] - self._tib_counter0[tel_id])
+                )
 
         # Due to a DAQ bug, sometimes there are 'jumps' in the
         # UCTS info in the raw files. After one such jump,
@@ -326,7 +339,15 @@ class EventTimeCalculator(TelescopeComponent):
             # fall back to dragon time / tib trigger
             ucts_time = dragon_time
             lst.evt.ucts_timestamp = int(dragon_time * 1e9)
-            lst.evt.ucts_trigger_type = lst.evt.tib_masked_trigger
+
+            if tib_available:
+                lst.evt.ucts_trigger_type = lst.evt.tib_masked_trigger
+            else:
+                self.log.warning(
+                    'Detected ucts jump but not tib trigger info available'
+                    ', event will have no trigger information'
+                )
+                lst.evt.ucts_trigger_type = 0
 
         # Select the timestamps to be used for pointing interpolation
         if self.timestamp.tel[tel_id] == "ucts":

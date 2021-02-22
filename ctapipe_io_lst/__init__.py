@@ -27,7 +27,7 @@ from ctapipe.containers import PixelStatusContainer, EventType
 from .containers import LSTArrayEventContainer, LSTServiceContainer
 from .version import __version__
 from .calibration import LSTR0Corrections
-from .event_time import EventTimeCalculator
+from .event_time import EventTimeCalculator, INVALID_TIME
 from .pointing import PointingSource
 from .anyarray_dtypes import (
     CDTS_AFTER_37201_DTYPE,
@@ -504,7 +504,7 @@ class LSTEventSource(EventSource):
         if self.fill_timestamp:
             trigger.time = self.time_calculator(tel_id, array_event)
         else:
-            trigger.time = Time(0, format='mjd', scale='tai')
+            trigger.time = INVALID_TIME
         trigger.tels_with_trigger = [tel_id]
         trigger.tel[tel_id].time = trigger.time
 
