@@ -1,13 +1,16 @@
+from collections import deque, defaultdict
+import numpy as np
+
+import astropy.version
+from astropy.io.ascii import convert_numpy
+from astropy.table import Table
+from astropy.table import Table
+from astropy.time import Time, TimeUnixTai, TimeFromEpoch
+
 from ctapipe.core import TelescopeComponent
 from ctapipe.core.traits import TelescopeParameter
-from traitlets import Enum, Int as _Int, Bool
-from astropy.time import Time
-from astropy.table import Table
-import numpy as np
-from collections import deque, defaultdict
-import astropy.version
 
-from astropy.time import TimeUnixTai, TimeFromEpoch
+from traitlets import Enum, Int as _Int, Bool
 
 
 if astropy.version.major == 4 and astropy.version.minor <= 2 and astropy.version.bugfix <= 0:
@@ -55,6 +58,39 @@ def datetime_cols_to_time(date, time):
 
 
 def read_night_summary(path):
+    '''
+    Read a night summary file into an astropy table
+
+    Parameters
+    ----------
+    path: str or Path
+        Path to the night summary file
+
+    Returns
+    -------
+    table: Table
+        astropy table of the night summary file.
+        The columns will have the correct dtype (int64) for the counters
+        and missing values (nan in the file) are masked.
+    '''
+
+    # convertes for each column to make sure we use the correct
+    # dtypes. The counter values in ns are so large that they cannot
+    # be exactly represented by float64 values, we need int64
+    converters = {
+        'run': [convert_numpy(np.int32)],
+        'n_subruns': [convert_numpy(np.int32)],
+        'run_type': [convert_numpy(str)],
+        'date': [convert_numpy(str)],
+        'time': [convert_numpy(str)],
+        'first_valid_event_dragon': [convert_numpy(np.int64)],
+        'ucts_t0_dragon': [convert_numpy(np.int64)],
+        'dragon_counter0': [convert_numpy(np.int64)],
+        'first_valid_event_tib': [convert_numpy(np.int64)],
+        'ucts_t0_tib': [convert_numpy(np.int64)],
+        'tib_counter0': [convert_numpy(np.int64)],
+    }
+
     summary = Table.read(
         str(path),
         format='ascii.basic',
@@ -66,8 +102,12 @@ def read_night_summary(path):
             'first_valid_event_dragon', 'ucts_t0_dragon', 'dragon_counter0',
             'first_valid_event_tib', 'ucts_t0_tib', 'tib_counter0',
         ],
+        converters=converters,
+        fill_values=("nan", -1),
         guess=False,
+        fast_reader=False,
     )
+
     summary.add_index(['run'])
     summary['timestamp'] = datetime_cols_to_time(summary['date'], summary['time'])
     return summary
