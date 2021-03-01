@@ -556,11 +556,9 @@ class LSTEventSource(EventSource):
     def tag_flatfield_events(self, array_event):
         # currently, tagging of flat field events does not work,
         # they are reported as physics events, here a heuristic identifies
-        # those events.
+        # those events. Since trigger types might be wrong due to ucts errors,
+        # we try to identify flat field events in all trigger types.
         # this does only work if data is calibrated
-        if array_event.trigger.event_type != EventType.SUBARRAY:
-            return
-
         tel_id = self.tel_id
         image = array_event.r1.tel[tel_id].waveform[HIGH_GAIN].sum(axis=1)
         in_range = (image >= self.min_flatfield_adc) & (image <= self.max_flatfield_adc)
