@@ -22,12 +22,12 @@ from enum import IntFlag, auto
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Int, Bool, Float, Enum
-from ctapipe.containers import PixelStatusContainer, EventType
+from ctapipe.containers import PixelStatusContainer, EventType, NAN_TIME
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
 from .version import __version__
 from .calibration import LSTR0Corrections
-from .event_time import EventTimeCalculator, INVALID_TIME
+from .event_time import EventTimeCalculator
 from .pointing import PointingSource
 from .anyarray_dtypes import (
     CDTS_AFTER_37201_DTYPE,
@@ -504,7 +504,7 @@ class LSTEventSource(EventSource):
         if self.fill_timestamp:
             trigger.time = self.time_calculator(tel_id, array_event)
         else:
-            trigger.time = INVALID_TIME
+            trigger.time = NAN_TIME
         trigger.tels_with_trigger = [tel_id]
         trigger.tel[tel_id].time = trigger.time
 

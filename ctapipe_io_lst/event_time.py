@@ -7,7 +7,8 @@ from astropy.table import Table
 from astropy.time import Time, TimeUnixTai, TimeFromEpoch
 
 from ctapipe.core import TelescopeComponent
-from ctapipe.core.traits import TelescopeParameter
+from ctapipe.core.traits import IntTelescopeParameter, TelescopeParameter
+from ctapipe.containers import NAN_TIME
 
 from traitlets import Enum, Int as _Int, Bool
 
@@ -22,7 +23,6 @@ if astropy.version.major == 4 and astropy.version.minor <= 2 and astropy.version
 
 
 CENTRAL_MODULE = 132
-INVALID_TIME = Time(0, format='mjd', scale='tai')
 
 
 # fix for https://github.com/ipython/traitlets/issues/637
@@ -34,11 +34,11 @@ class Int(_Int):
         return super().validate(obj, value)
 
 
-def calc_dragon_time(lst_event_container, central_module_index, reference):
+def calc_dragon_time(lst_event_container, module_index, reference):
     return (
         reference
-        + lst_event_container.evt.pps_counter[central_module_index]
-        + lst_event_container.evt.tenMHz_counter[central_module_index] * 1e-7
+        + lst_event_container.evt.pps_counter[module_index]
+        + lst_event_container.evt.tenMHz_counter[module_index] * 1e-7
     )
 
 
@@ -149,6 +149,11 @@ class EventTimeCalculator(TelescopeComponent):
         help='TIB board counter value of a valid ucts/tib counter combination'
     ).tag(config=True)
 
+    dragon_module_id = IntTelescopeParameter(
+        default_value=CENTRAL_MODULE,
+        help='Module id used to calculate dragon time.',
+    ).tag(config=True)
+
     use_first_event = Bool(default_value=True).tag(config=True)
 
     def __init__(self, subarray, config=None, parent=None, **kwargs):
@@ -207,7 +212,7 @@ class EventTimeCalculator(TelescopeComponent):
         lst = event.lst.tel[tel_id]
 
         # data comes in random module order, svc contains actual order
-        central_module_index = np.where(lst.svc.module_ids == CENTRAL_MODULE)[0][0]
+        module_index = np.where(lst.svc.module_ids == self.dragon_module_id.tel[tel_id])[0][0]
 
         tib_available = lst.evt.extdevices_presence & 1
         ucts_available = lst.evt.extdevices_presence & 2
@@ -217,7 +222,7 @@ class EventTimeCalculator(TelescopeComponent):
                 f'Cannot calculate timestamp for obs_id={event.index.obs_id}'
                 f', event_id={event.index.event_id}, tel_id={tel_id}. UCTS unavailable.'
             )
-            return INVALID_TIME
+            return NAN_TIME
 
 
         ucts_timestamp = lst.evt.ucts_timestamp
@@ -228,8 +233,8 @@ class EventTimeCalculator(TelescopeComponent):
         # first event and values not passed
         if not self._has_dragon_reference[tel_id] and not self._has_tib_reference[tel_id]:
             initial_dragon_counter = (
-                int(1e9) * lst.evt.pps_counter[central_module_index]
-                + 100 * lst.evt.tenMHz_counter[central_module_index]
+                int(1e9) * lst.evt.pps_counter[module_index]
+                + 100 * lst.evt.tenMHz_counter[module_index]
             )
 
             self._ucts_t0_dragon[tel_id] = ucts_timestamp
@@ -267,7 +272,7 @@ class EventTimeCalculator(TelescopeComponent):
             if self._has_dragon_reference[tel_id]:
                 # Dragon/TIB timestamps based on a valid absolute reference UCTS timestamp
                 dragon_time = calc_dragon_time(
-                    lst, central_module_index,
+                    lst, module_index,
                     reference=1e-9 * (self._ucts_t0_dragon[tel_id] - self._dragon_counter0[tel_id])
                 )
 
