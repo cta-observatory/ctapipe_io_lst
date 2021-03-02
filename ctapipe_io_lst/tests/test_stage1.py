@@ -5,6 +5,8 @@ import os
 from ctapipe.io import read_table
 from ctapipe.containers import EventType
 import numpy as np
+from astropy.time import Time
+import astropy.units as u
 
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
@@ -39,10 +41,8 @@ def test_stage1(tmpdir):
                 'drive_report_path': str(test_drive_report)
             },
             'EventTimeCalculator': {
-                'ucts_t0_dragon': int(run_info['ucts_t0_dragon']),
-                'dragon_counter0': int(run_info['dragon_counter0']),
-                'ucts_t0_tib': int(run_info['ucts_t0_tib']),
-                'tib_counter0': int(run_info['tib_counter0']),
+                'dragon_reference_time': int(run_info['ucts_t0_dragon']),
+                'dragon_reference_counter': int(run_info['dragon_counter0']),
             },
         },
         "CameraCalibrator": {
@@ -80,6 +80,10 @@ def test_stage1(tmpdir):
     assert len(parameters) == 200
 
     trigger = read_table(output, '/dl1/event/subarray/trigger')
+
+    # test regression of event time calculation
+    first_event_time = Time(59101.95035244, format='mjd', scale='tai')
+    assert np.all((trigger['time'] - first_event_time).to_value(u.s) < 10)
 
     event_type_counts = np.bincount(trigger['event_type'])
 
