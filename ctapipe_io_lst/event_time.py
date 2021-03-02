@@ -354,18 +354,20 @@ class EventTimeCalculator(TelescopeComponent):
                 )
                 lst.evt.ucts_trigger_type = 0
 
-        # Select the timestamps to be used for pointing interpolation
-        if self.timestamp.tel[tel_id] == "ucts":
-            timestamp = Time(ucts_time, format='unix_tai')
-
-        elif self.timestamp.tel[tel_id] == "dragon":
-            timestamp = Time(dragon_time, format='unix_tai')
-
-        elif self.timestamp.tel[tel_id] == "tib":
-            timestamp = Time(tib_time, format='unix_tai')
-        else:
-            raise ValueError('Unknown timestamp requested')
-
         self.log.debug(f'tib: {tib_time:.7f}, dragon: {dragon_time:.7f}, ucts: {ucts_time:.7f}')
 
-        return timestamp
+        # Select the timestamps to be used for pointing interpolation
+        if self.timestamp.tel[tel_id] == "dragon":
+            return Time(dragon_time, format='unix_tai')
+
+        if self.timestamp.tel[tel_id] == "ucts":
+            return Time(ucts_time, format='unix_tai')
+
+        if self.timestamp.tel[tel_id] == "tib":
+            if np.isnan(tib_time):
+                self.log.warning('Tib time not available, using dragon')
+                return Time(dragon_time, format='unix_tai')
+
+            return Time(tib_time, format='unix_tai')
+
+        raise ValueError('Unknown timestamp requested')
