@@ -25,9 +25,18 @@ int_cols = [
 ]
 
 
+
 def test_time_unix_tai():
     t = Time('2020-01-01T00:00:00', scale='utc')
     assert (t.unix_tai - t.unix) == 37
+
+
+def test_time_from_unix_tai_ns():
+    from ctapipe_io_lst.event_time import time_from_unix_tai_ns
+
+    time = Time.now()
+    result = time_from_unix_tai_ns(int(time.unix_tai * 1e9))
+    assert np.isclose((result - time).to_value(u.us), 0, atol=0.5)
 
 
 def test_read_night_summary():
