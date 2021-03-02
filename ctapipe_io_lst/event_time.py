@@ -34,20 +34,25 @@ class Int(_Int):
 
 
 def calc_dragon_time(lst_event_container, module_index, reference_time, reference_counter):
+    '''
+    Calculate a unix tai timestamp (in s) from dragon counter values
+    and reference time / counter value for a given module index.
+    '''
+    pps_counter = lst_event_container.evt.pps_counter[module_index]
+    tenMHz_counter = lst_event_container.evt.tenMHz_counter[module_index]
     return 1e-9 * (
         reference_time
-        + int(1e9) * lst_event_container.evt.pps_counter[module_index]
+        + combine_counters(pps_counter, tenMHz_counter)
         - reference_counter
-        + 100 * lst_event_container.evt.tenMHz_counter[module_index]
     )
 
 
-def calc_tib_time(lst_event_container, reference):
-    return (
-        reference
-        + lst_event_container.evt.tib_pps_counter
-        + lst_event_container.evt.tib_tenMHz_counter * 1e-7
-    )
+def combine_counters(pps_counter, tenMHz_counter):
+    '''
+    Combines the values of pps counter and tenMHz_counter
+    and returns the sum in ns.
+    '''
+    return int(1e9) * pps_counter + 100 * tenMHz_counter
 
 
 def datetime_cols_to_time(date, time):
@@ -180,9 +185,9 @@ class EventTimeCalculator(TelescopeComponent):
 
         # first event and values not passed
         if not self._has_dragon_reference[tel_id]:
-            self._dragon_reference_counter[tel_id] = (
-                int(1e9) * lst.evt.pps_counter[module_index]
-                + 100 * lst.evt.tenMHz_counter[module_index]
+            self._dragon_reference_counter[tel_id] = combine_counters(
+                lst.evt.pps_counter[module_index],
+                lst.evt.tenMHz_counter[module_index]
             )
             if not ucts_available:
                 self.log.warning(
