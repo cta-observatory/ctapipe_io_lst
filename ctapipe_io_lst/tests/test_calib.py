@@ -162,7 +162,6 @@ def test_missing_module():
 
     config = Config({
         'LSTEventSource': {
-            'fill_timestamp': False,  #  ucts not available
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'drs4_time_calibration_path': test_time_calib_path,

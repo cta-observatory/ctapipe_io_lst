@@ -181,11 +181,6 @@ class LSTEventSource(EventSource):
         help='To be set to True for calibration processing'
     ).tag(config=True)
 
-    fill_timestamp = Bool(
-        default_value=True,
-        help='To be set to False for data without ucts info'
-    ).tag(config=True)
-
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
@@ -501,10 +496,7 @@ class LSTEventSource(EventSource):
         tel_id = self.tel_id
 
         trigger = array_event.trigger
-        if self.fill_timestamp:
-            trigger.time = self.time_calculator(tel_id, array_event)
-        else:
-            trigger.time = NAN_TIME
+        trigger.time = self.time_calculator(tel_id, array_event)
         trigger.tels_with_trigger = [tel_id]
         trigger.tel[tel_id].time = trigger.time
 

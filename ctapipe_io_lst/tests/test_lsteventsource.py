@@ -82,7 +82,7 @@ def test_subarray():
 
 def test_missing_modules():
     from ctapipe.io import EventSource
-    source = EventSource(test_missing_module_path, fill_timestamp=False)
+    source = EventSource(test_missing_module_path)
 
     fill = np.iinfo(np.uint16).max
     for event in source:
