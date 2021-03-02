@@ -1,3 +1,4 @@
+import pytest
 import logging
 import os
 from pathlib import Path
@@ -69,7 +70,7 @@ def test_ucts_jumps():
     no out of sync by two.
     We are going to just use event ids for the timestamps
     '''
-    from ctapipe_io_lst.event_time import EventTimeCalculator
+    from ctapipe_io_lst.event_time import EventTimeCalculator, CENTRAL_MODULE
     from ctapipe_io_lst import LSTEventSource
     tel_id = 1
 
@@ -151,58 +152,93 @@ def test_ucts_jumps():
 
 
 
-def test_no_reference(caplog):
+def test_extract_reference_values(caplog):
     '''
-    Test that we switch to `event.lst.svc.date` as reference when
-    no reference is available.
+    Test extracting the reference counters from the first event
     '''
-    from ctapipe_io_lst.event_time import EventTimeCalculator
+    caplog.set_level(logging.CRITICAL)
+
+    from ctapipe_io_lst.event_time import EventTimeCalculator, CENTRAL_MODULE
     from ctapipe_io_lst import LSTEventSource
-
-    caplog.set_level(logging.WARNING)
-
-    tel_id = 1
-    event = LSTArrayEventContainer()
-    lst = event.lst.tel[tel_id]
-    lst.evt.extdevices_presence = 0b1111_1101
-    lst.svc.module_ids = np.arange(N_MODULES)
 
     subarray = LSTEventSource.create_subarray(geometry_version=4, tel_id=1)
 
-    first_event_time = Time.now()
-    # run start is a couple of seconds earlier than first event
-    lst.svc.date = (first_event_time - 5 * u.s).unix
+    # no reference values given and extract_reference = False should raise
+    with pytest.raises(ValueError):
+        EventTimeCalculator(subarray=subarray, extract_reference=False)
 
-    s_to_ns = int(1e9)
 
-    n_events = 5
-    true_event_id = np.arange(n_events)
-    true_time_s = int(first_event_time.unix)
-    # one event every 100 micro seconds
-    true_time_ns = int(1e5) * true_event_id
+    # test ucts reference extaction works
+    time_calculator = EventTimeCalculator(subarray=subarray, extract_reference=True)
 
-    time_calculator = EventTimeCalculator(
-        subarray=subarray,
-    )
+    # fill an artifical event with just enough information so we can test this
+    true_time = Time.now()
+    tel_id = 1
+    event = LSTArrayEventContainer()
+    event.index.event_id = 1
+    lst = event.lst.tel[tel_id]
+    lst.svc.module_ids = np.arange(N_MODULES)
+    lst.evt.extdevices_presence = 0b1111_1111
+    lst.evt.ucts_timestamp = int(true_time.unix_tai * 1e9)
+    lst.evt.pps_counter = np.full(N_MODULES, 100)
+    lst.evt.tenMHz_counter = np.zeros(N_MODULES)
+    lst.evt.tenMHz_counter[CENTRAL_MODULE] = 2
 
-    table = Table({
-        'event_id': true_event_id,
-        'ucts_timestamp': np.zeros(n_events, dtype=int),
-        'pps_counter': [np.full(N_MODULES, 100) for _ in range(n_events)],
-        'tenMHz_counter': [np.full(N_MODULES, int(t / 100)) for t in true_time_ns],
-    })
+    # actually test it
+    time = time_calculator(tel_id, event)
+    assert np.isclose((true_time - time).to_value(u.us), 0, atol=0.5)
 
-    for i in range(n_events):
-        for col in table.colnames:
-            setattr(lst.evt, col, table[col][i])
-
-        time = time_calculator(tel_id, event)
-        expected_time = first_event_time + (i * 100 * u.us - 5 * u.s)
-        # precision of float64 timestamp around 300 ns
-        assert np.abs((time - expected_time).to_value(u.us)) < 0.5
-
-    warning_found = False
+    # test that we got the critical log message with the reference values
+    found = False
     for record in caplog.records:
-        if 'Cannot calculate a precise timestamp' in record.message:
-            warning_found = True
-    assert warning_found
+        if 'timestamp: ' in record.message and 'counter: ' in record.message:
+            found = True
+    assert found
+
+
+def test_no_reference_values_no_ucts(caplog):
+    '''
+    Test extracting the reference counters from the first event without
+    ucts.
+    '''
+    caplog.set_level(logging.CRITICAL)
+
+    from ctapipe_io_lst.event_time import EventTimeCalculator, CENTRAL_MODULE
+    from ctapipe_io_lst import LSTEventSource
+
+    subarray = LSTEventSource.create_subarray(geometry_version=4, tel_id=1)
+
+    # test ucts reference extaction works
+    time_calculator = EventTimeCalculator(subarray=subarray, extract_reference=True)
+
+    # fill an artifical event with just enough information so we can test this
+    first_event_time = Time.now()
+    delay = 5 * u.s
+    run_start = first_event_time - delay
+    tel_id = 1
+    event = LSTArrayEventContainer()
+    event.index.event_id = 1
+    lst = event.lst.tel[tel_id]
+    lst.svc.module_ids = np.arange(N_MODULES)
+    lst.evt.extdevices_presence = 0b1111_1101
+    lst.evt.pps_counter = np.full(N_MODULES, 100)
+    lst.evt.tenMHz_counter = np.zeros(N_MODULES)
+    lst.evt.tenMHz_counter[CENTRAL_MODULE] = 2
+    lst.svc.date = run_start.unix
+
+    # actually test it
+    time = time_calculator(tel_id, event)
+    assert np.isclose((first_event_time - time - delay).to_value(u.us), 0, atol=0.5)
+
+    # test that we got the critical log message with the reference values
+    found = False
+    for record in caplog.records:
+        if 'timestamp: ' in record.message and 'counter: ' in record.message:
+            found = True
+    assert found
+
+    # test error if not first subrun
+    time_calculator = EventTimeCalculator(subarray=subarray, extract_reference=True)
+    event.index.event_id = 100001
+    with pytest.raises(ValueError):
+        time_calculator(tel_id, event)

@@ -18,6 +18,8 @@ test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibrati
 test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
 
 
+
+
 def test_get_first_capacitor():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.calibration import (
@@ -93,8 +95,8 @@ def test_source_with_drs4_pedestal():
         'LSTEventSource': {
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
-            }
-        }
+            },
+        },
     })
 
     source = LSTEventSource(
@@ -116,8 +118,8 @@ def test_source_with_calibration():
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'calibration_path': test_calib_path,
-            }
-        }
+            },
+        },
     })
 
     source = LSTEventSource(
@@ -140,8 +142,8 @@ def test_source_with_all():
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'drs4_time_calibration_path': test_time_calib_path,
                 'calibration_path': test_calib_path,
-            }
-        }
+            },
+        },
     })
 
     source = LSTEventSource(
@@ -166,8 +168,8 @@ def test_missing_module():
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'drs4_time_calibration_path': test_time_calib_path,
                 'calibration_path': test_calib_path,
-            }
-        }
+            },
+        },
     })
 
     source = LSTEventSource(
@@ -194,8 +196,8 @@ def test_no_gain_selection():
                 'drs4_time_calibration_path': test_time_calib_path,
                 'calibration_path': test_calib_path,
                 'select_gain': False,
-            }
-        }
+            },
+        },
     })
 
     source = LSTEventSource(
@@ -221,8 +223,8 @@ def test_no_gain_selection_no_drs4time_calib():
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'calibration_path': test_calib_path,
                 'select_gain': False,
-            }
-        }
+            },
+        },
     })
 
     source = LSTEventSource(

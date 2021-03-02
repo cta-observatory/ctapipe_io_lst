@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 import tempfile
 from ctapipe_io_lst.constants import N_GAINS, N_PIXELS_MODULE, N_SAMPLES
+from traitlets.config import Config
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_dir = test_data / 'real/R0/20200218'
@@ -14,13 +15,17 @@ test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_f
 # ADC_SAMPLES_SHAPE = (2, 14, 40)
 
 
+config = Config()
+config.LSTEventSouce.EventTimeCalculator.extract_reference = True
+
+
 def test_loop_over_events():
     from ctapipe_io_lst import LSTEventSource
 
     n_events = 10
     source = LSTEventSource(
         input_url=test_r0_path,
-        max_events=n_events
+        max_events=n_events,
     )
 
     for i, event in enumerate(source):

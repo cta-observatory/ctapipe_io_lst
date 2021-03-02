@@ -183,6 +183,16 @@ class EventTimeCalculator(TelescopeComponent):
         help='Module id used to calculate dragon time.',
     ).tag(config=True)
 
+    extract_reference = Bool(
+        default_value=True,
+        help=(
+            'If true, extract the reference values from the first event.'
+            'This will only work for the first file of a run, due to the '
+            'UCTS jumps when UCTS is available or because svc.date gives only '
+            'the start of the run, not the start of each file (subrun) '
+        )
+    ).tag(config=True)
+
 
     def __init__(self, subarray, config=None, parent=None, **kwargs):
         '''Initialize EventTimeCalculator'''
@@ -204,6 +214,9 @@ class EventTimeCalculator(TelescopeComponent):
                 and self.dragon_reference_counter.tel[tel_id] is not None
             )
 
+            if not self._has_dragon_reference[tel_id] and not self.extract_reference:
+                raise ValueError('No dragon reference values given and extract_reference=False')
+
             if self._has_dragon_reference[tel_id]:
                 self._dragon_reference_time[tel_id] = self.dragon_reference_time.tel[tel_id]
                 self._dragon_reference_counter[tel_id] = self.dragon_reference_counter.tel[tel_id]
@@ -216,15 +229,20 @@ class EventTimeCalculator(TelescopeComponent):
         ucts_available = bool(lst.evt.extdevices_presence & 2)
 
         ucts_timestamp = lst.evt.ucts_timestamp
-        ucts_time = ucts_timestamp * 1e-9
 
         # first event and values not passed
-        if not self._has_dragon_reference[tel_id]:
+        if not self._has_dragon_reference[tel_id] and self.extract_reference:
             self._dragon_reference_counter[tel_id] = combine_counters(
                 lst.evt.pps_counter[module_index],
                 lst.evt.tenMHz_counter[module_index]
             )
             if not ucts_available:
+                source = 'svc.date'
+                if event.index.event_id != 1:
+                    raise ValueError(
+                        'Can only use run start timestamp'
+                        ' as reference for the first subrun'
+                    )
                 self.log.warning(
                     f'Cannot calculate a precise timestamp for obs_id={event.index.obs_id}'
                     f', tel_id={tel_id}. UCTS unavailable.'
