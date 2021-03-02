@@ -204,7 +204,6 @@ class EventTimeCalculator(TelescopeComponent):
 
         ucts_timestamp = lst.evt.ucts_timestamp
         ucts_time = ucts_timestamp * 1e-9
-        dragon_time = np.nan
 
         # first event and values not passed
         if not self._has_dragon_reference[tel_id]:
