@@ -124,6 +124,29 @@ class EventTimeCalculator(TelescopeComponent):
 
     Also keeps track of "UCTS jumps", where UCTS info goes missing for
     a certain event and all following info has to be shifted.
+
+
+    There are several sources of timing information in LST raw data.
+
+    Each dragon module has two high precision counters, which however only
+    give a relative time.
+    Same is true for the TIB.
+
+    The only precise absolute timestamp is the UCTS timestamp.
+    However, at least during the commissioning, UCTS was/is not reliable
+    enough to only use the UCTS timestamp.
+
+    Instead, we calculate an absolute timestamp by using one valid pair
+    of dragon counter / ucts timestamp and then use the relative time elapsed
+    from this reference using the dragon counter.
+
+    For runs where no such UCTS reference exists, for example because UCTS
+    was completely unavailable, we use the start of run timestamp from the
+    camera configuration.
+    This will however result in imprecises timestamps off by several seconds.
+    These might be good enough for interpolating pointing information but
+    are only precise for relative time changes, i.e. not suitable for pulsar
+    analysis or matching events with MAGIC.
     '''
 
     timestamp = TelescopeParameter(
