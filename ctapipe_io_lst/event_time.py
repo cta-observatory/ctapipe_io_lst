@@ -160,6 +160,11 @@ class EventTimeCalculator(TelescopeComponent):
     These might be good enough for interpolating pointing information but
     are only precise for relative time changes, i.e. not suitable for pulsar
     analysis or matching events with MAGIC.
+
+    Extracting the reference will only work reliably for the first subrun
+    for ucts.
+    Using svc.date is only possible for the first subrun and will raise an erorr
+    if the event id of the first event seen by the time calculator is not 1.
     '''
 
     timestamp = TelescopeParameter(
