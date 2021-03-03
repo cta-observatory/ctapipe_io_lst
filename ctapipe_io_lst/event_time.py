@@ -168,7 +168,14 @@ class EventTimeCalculator(TelescopeComponent):
     '''
 
     timestamp = TelescopeParameter(
-        trait=Enum(['ucts', 'dragon']), default_value='dragon'
+        trait=Enum(['ucts', 'dragon']), default_value='dragon',
+        help=(
+            'Source of the timestamp. UCTS is simplest and most precise,'
+            ' unfortunately it is not yet reliable, instead the time is calculated'
+            ' by default using the relative dragon board counters with a reference'
+            ' pair of counter / time. See the `dragon_reference_time` and'
+            ' `dragon_reference_counter` traitlets'
+        )
     ).tag(config=True)
 
     dragon_reference_time = TelescopeParameter(
