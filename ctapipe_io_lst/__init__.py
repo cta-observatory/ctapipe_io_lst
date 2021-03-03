@@ -22,7 +22,7 @@ from enum import IntFlag, auto
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Int, Bool, Float, Enum
-from ctapipe.containers import PixelStatusContainer, EventType
+from ctapipe.containers import PixelStatusContainer, EventType, NAN_TIME
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
 from .version import __version__
@@ -179,11 +179,6 @@ class LSTEventSource(EventSource):
     calibrate_flatfields_and_pedestals = Bool(
         default_value=True,
         help='To be set to True for calibration processing'
-    ).tag(config=True)
-
-    fill_timestamp = Bool(
-        default_value=True,
-        help='To be set to False for data without ucts info'
     ).tag(config=True)
 
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
@@ -501,10 +496,7 @@ class LSTEventSource(EventSource):
         tel_id = self.tel_id
 
         trigger = array_event.trigger
-        if self.fill_timestamp:
-            trigger.time = self.time_calculator(tel_id, array_event)
-        else:
-            trigger.time = Time(0, format='mjd', scale='tai')
+        trigger.time = self.time_calculator(tel_id, array_event)
         trigger.tels_with_trigger = [tel_id]
         trigger.tel[tel_id].time = trigger.time
 
