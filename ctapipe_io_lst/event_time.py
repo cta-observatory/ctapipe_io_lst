@@ -280,7 +280,7 @@ class EventTimeCalculator(TelescopeComponent):
             self._has_dragon_reference[tel_id] = True
 
 
-        # Dragon/TIB timestamps based on a valid absolute reference UCTS timestamp
+        # Dragon timestamp based on the reference timestamp
         dragon_timestamp = calc_dragon_time(
             lst, module_index,
             reference_time=self._dragon_reference_time[tel_id],
