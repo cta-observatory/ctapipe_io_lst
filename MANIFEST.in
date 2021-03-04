@@ -2,5 +2,8 @@ include README.rst
 include setup.cfg
 
 prune ctapipe_io_lst/_dev_version
+prune .github
+exclude .gitignore
+exclude .codacy.yml
 
 global-exclude *.pyc *.o
