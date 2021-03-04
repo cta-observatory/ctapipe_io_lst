@@ -18,4 +18,4 @@ dependencies:
   - h5py
   - pip:
       - pytest_runner
-      - https://github.com/cta-sst-1m/protozfitsreader/archive/v1.5.0.tar.gz
+      - protozfits=2

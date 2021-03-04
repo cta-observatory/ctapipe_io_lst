@@ -7,7 +7,7 @@ setup(
     install_requires=[
         'astropy~=4.2',
         'ctapipe~=0.10.0',
-        'protozfits @ https://github.com/cta-observatory/protozfitsreader/archive/v1.5.0.tar.gz',
+        'protozfits~=2.0',
         'setuptools_scm',
     ],
     package_data={
