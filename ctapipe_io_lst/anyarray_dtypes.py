@@ -20,11 +20,11 @@ TIB_DTYPE = np.dtype([
 
 CDTS_AFTER_37201_DTYPE = np.dtype([
     ('timestamp', np.uint64),
-    ('address', np.float32),
-    ('event_counter', np.float32),
-    ('busy_counter', np.float32),
-    ('pps_counter', np.float32),
-    ('clock_counter', np.float32),
+    ('address', np.uint32),
+    ('event_counter', np.uint32),
+    ('busy_counter', np.uint32),
+    ('pps_counter', np.uint32),
+    ('clock_counter', np.uint32),
     ('trigger_type', np.uint8),
     ('white_rabbit_status', np.uint8),
     ('stereo_pattern', np.uint8),
@@ -33,11 +33,11 @@ CDTS_AFTER_37201_DTYPE = np.dtype([
 ]).newbyteorder('<')
 
 CDTS_BEFORE_37201_DTYPE = np.dtype([
-    ('event_counter', np.float32),
-    ('pps_counter', np.float32),
-    ('clock_counter', np.float32),
-    ('timestamp', np.float64),
-    ('camera_timestamp', np.float64),
+    ('event_counter', np.uint32),
+    ('pps_counter', np.uint32),
+    ('clock_counter', np.uint32),
+    ('timestamp', np.uint64),
+    ('camera_timestamp', np.uint64),
     ('trigger_type', np.uint8),
     ('white_rabbit_status', np.uint8),
     ('unknown', np.uint8),
@@ -53,4 +53,3 @@ SWAT_DTYPE = np.dtype([
     ('array_flag', np.uint8),
     ('event_num', np.uint32),
 ]).newbyteorder('<')
-
