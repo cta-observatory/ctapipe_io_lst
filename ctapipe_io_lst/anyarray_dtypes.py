@@ -40,7 +40,7 @@ CDTS_BEFORE_37201_DTYPE = np.dtype([
     ('camera_timestamp', np.uint64),
     ('trigger_type', np.uint8),
     ('white_rabbit_status', np.uint8),
-    ('unknown', np.uint8),
+    ('unknown', np.uint8),  # called arbitraryInformation in C-Struct
 ]).newbyteorder('<')
 
 SWAT_DTYPE = np.dtype([

@@ -21,8 +21,8 @@ from enum import IntFlag, auto
 
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
-from ctapipe.core.traits import Int, Bool, Float, Enum
-from ctapipe.containers import PixelStatusContainer, EventType, NAN_TIME
+from ctapipe.core.traits import Int, Bool, Float, Enum, Path
+from ctapipe.containers import PixelStatusContainer, EventType
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
 from .version import __version__
@@ -238,7 +238,12 @@ class LSTEventSource(EventSource):
         self.r0_r1_calibrator = LSTR0Corrections(
             subarray=self._subarray, parent=self
         )
-        self.time_calculator = EventTimeCalculator(subarray=self.subarray, parent=self)
+        self.time_calculator = EventTimeCalculator(
+            subarray=self.subarray,
+            run_id=self.camera_config.configuration_id,
+            expected_modules_id=self.camera_config.lstcam.expected_modules_id,
+            parent=self,
+        )
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
 
     @property

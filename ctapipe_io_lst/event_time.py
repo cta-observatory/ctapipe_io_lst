@@ -7,7 +7,7 @@ from astropy.table import Table
 from astropy.time import Time, TimeUnixTai, TimeFromEpoch
 
 from ctapipe.core import TelescopeComponent
-from ctapipe.core.traits import IntTelescopeParameter, TelescopeParameter
+from ctapipe.core.traits import IntTelescopeParameter, TelescopeParameter, Path
 
 from traitlets import Enum, Int as _Int, Bool
 
@@ -55,16 +55,13 @@ def combine_counters(pps_counter, tenMHz_counter):
     return int(1e9) * pps_counter + 100 * tenMHz_counter
 
 
-def datetime_cols_to_time(date, time):
-    return Time(np.char.add(
-        date,
-        np.char.add('T', time)
-    ))
-
-
-def read_night_summary(path):
+def read_run_summary(path):
     '''
-    Read a night summary file into an astropy table
+    Read a run summary file into an astropy table
+
+    Reads run summaries as created by `lstchain_create_run_summary` and
+    creates an index on `run_id` so `table.loc[run_id]` returns the correct
+    row for a given run id.
 
     Parameters
     ----------
@@ -74,48 +71,11 @@ def read_night_summary(path):
     Returns
     -------
     table: Table
-        astropy table of the night summary file.
-        The columns will have the correct dtype (int64) for the counters
-        and missing values (nan in the file) are masked.
+        astropy table of the run summary file.
     '''
-
-    # convertes for each column to make sure we use the correct
-    # dtypes. The counter values in ns are so large that they cannot
-    # be exactly represented by float64 values, we need int64
-    converters = {
-        'run': [convert_numpy(np.int32)],
-        'n_subruns': [convert_numpy(np.int32)],
-        'run_type': [convert_numpy(str)],
-        'date': [convert_numpy(str)],
-        'time': [convert_numpy(str)],
-        'first_valid_event_dragon': [convert_numpy(np.int64)],
-        'ucts_t0_dragon': [convert_numpy(np.int64)],
-        'dragon_counter0': [convert_numpy(np.int64)],
-        'first_valid_event_tib': [convert_numpy(np.int64)],
-        'ucts_t0_tib': [convert_numpy(np.int64)],
-        'tib_counter0': [convert_numpy(np.int64)],
-    }
-
-    summary = Table.read(
-        str(path),
-        format='ascii.basic',
-        delimiter=' ',
-        header_start=0,
-        data_start=0,
-        names=[
-            'run', 'n_subruns', 'run_type', 'date', 'time',
-            'first_valid_event_dragon', 'ucts_t0_dragon', 'dragon_counter0',
-            'first_valid_event_tib', 'ucts_t0_tib', 'tib_counter0',
-        ],
-        converters=converters,
-        fill_values=("nan", -1),
-        guess=False,
-        fast_reader=False,
-    )
-
-    summary.add_index(['run'])
-    summary['timestamp'] = datetime_cols_to_time(summary['date'], summary['time'])
-    return summary
+    table = Table.read(str(path))
+    table.add_index(['run_id'])
+    return table
 
 
 
@@ -129,6 +89,9 @@ def time_from_unix_tai_ns(unix_tai_ns):
     fractional_seconds = (unix_tai_ns % int(1e9)) * 1e-9
     return Time(full_seconds, fractional_seconds, format='unix_tai')
 
+
+def module_id_to_index(expected_module_ids, module_id):
+    return np.where(expected_module_ids == module_id)[0][0]
 
 
 class EventTimeCalculator(TelescopeComponent):
@@ -166,7 +129,6 @@ class EventTimeCalculator(TelescopeComponent):
     Using svc.date is only possible for the first subrun and will raise an erorr
     if the event id of the first event seen by the time calculator is not 1.
     '''
-
     timestamp = TelescopeParameter(
         trait=Enum(['ucts', 'dragon']), default_value='dragon',
         help=(
@@ -190,9 +152,20 @@ class EventTimeCalculator(TelescopeComponent):
         default_value=None,
     ).tag(config=True)
 
-    dragon_module_id = IntTelescopeParameter(
-        default_value=CENTRAL_MODULE,
+    dragon_module_id = TelescopeParameter(
+        Int(allow_none=True),
+        default_value=None,
         help='Module id used to calculate dragon time.',
+    ).tag(config=True)
+
+    run_summary_path = TelescopeParameter(
+        Path(exists=True, directory_ok=False),
+        default_value=None,
+        help=(
+            'Path to the run summary for the correct night.'
+            ' If given, dragon reference counters are read from this file.'
+            ' Explicitly given values override values read from the file.'
+        )
     ).tag(config=True)
 
     extract_reference = Bool(
@@ -206,7 +179,7 @@ class EventTimeCalculator(TelescopeComponent):
     ).tag(config=True)
 
 
-    def __init__(self, subarray, config=None, parent=None, **kwargs):
+    def __init__(self, subarray, run_id, expected_modules_id, config=None, parent=None, **kwargs):
         '''Initialize EventTimeCalculator'''
         super().__init__(subarray=subarray, config=config, parent=parent, **kwargs)
 
@@ -219,31 +192,61 @@ class EventTimeCalculator(TelescopeComponent):
         self._has_dragon_reference = {}
         self._dragon_reference_time = {}
         self._dragon_reference_counter = {}
+        self._dragon_module_index = {}
 
         for tel_id in self.subarray.tel:
-            self._has_dragon_reference[tel_id] = (
-                self.dragon_reference_time.tel[tel_id] is not None
-                and self.dragon_reference_counter.tel[tel_id] is not None
-            )
+            if self.run_summary_path.tel[tel_id] is not None:
+                run_summary = read_run_summary(self.run_summary_path.tel[tel_id])
+                row = run_summary.loc[run_id]
+                self._has_dragon_reference[tel_id] = True
+                self._dragon_reference_time[tel_id] = row['dragon_reference_time']
+                self._dragon_reference_counter[tel_id] = row['dragon_reference_counter']
+                self._dragon_module_index[tel_id] = row['dragon_reference_module_index']
+
+                if row['dragon_reference_source'] == 'run_start':
+                    self.log.warning(
+                        'Dragon reference source is run_start, '
+                        'times will be imprecise by several seconds'
+                    )
+
+            else:
+                self._has_dragon_reference[tel_id] = (
+                    self.dragon_reference_time.tel[tel_id] is not None
+                    and self.dragon_reference_counter.tel[tel_id] is not None
+                    and self.dragon_module_id.tel[tel_id] is not None
+                )
 
             if not self._has_dragon_reference[tel_id] and not self.extract_reference:
                 raise ValueError('No dragon reference values given and extract_reference=False')
 
-            if self._has_dragon_reference[tel_id]:
-                self._dragon_reference_time[tel_id] = self.dragon_reference_time.tel[tel_id]
+            # set values from traitlets, overrides values from files if both given
+            if self.dragon_reference_counter.tel[tel_id] is not None:
                 self._dragon_reference_counter[tel_id] = self.dragon_reference_counter.tel[tel_id]
+
+            if self.dragon_reference_time.tel[tel_id] is not None:
+                self._dragon_reference_time[tel_id] = self.dragon_reference_time.tel[tel_id]
+
+            if self.dragon_module_id.tel[tel_id] is not None:
+                module_id = self.dragon_module_id.tel[tel_id]
+                module_index = module_id_to_index(expected_modules_id, module_id)
+                self._dragon_module_index[tel_id] = module_index
 
     def __call__(self, tel_id, event):
         lst = event.lst.tel[tel_id]
-
-        # data comes in random module order, svc contains actual order
-        module_index = np.where(lst.svc.module_ids == self.dragon_module_id.tel[tel_id])[0][0]
         ucts_available = bool(lst.evt.extdevices_presence & 2)
-
         ucts_timestamp = lst.evt.ucts_timestamp
 
+
         # first event and values not passed
-        if not self._has_dragon_reference[tel_id] and self.extract_reference:
+        if self.extract_reference and not self._has_dragon_reference[tel_id]:
+            # use first working module if none is specified
+            if tel_id not in self._dragon_module_index:
+                self._dragon_module_index[tel_id] = np.where(
+                    lst.evt.module_status != 0
+                )[0][0]
+
+            module_index = self._dragon_module_index[tel_id]
+
             self._dragon_reference_counter[tel_id] = combine_counters(
                 lst.evt.pps_counter[module_index],
                 lst.evt.tenMHz_counter[module_index]
@@ -281,6 +284,7 @@ class EventTimeCalculator(TelescopeComponent):
 
 
         # Dragon timestamp based on the reference timestamp
+        module_index = self._dragon_module_index[tel_id]
         dragon_timestamp = calc_dragon_time(
             lst, module_index,
             reference_time=self._dragon_reference_time[tel_id],
