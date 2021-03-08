@@ -18,4 +18,4 @@ dependencies:
   - h5py
   - pip:
       - pytest_runner
-      - protozfits~=2.0
+      - protozfits~=2.0.1
