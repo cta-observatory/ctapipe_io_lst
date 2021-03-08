@@ -14,8 +14,7 @@
       "drive_report_path": "test_data/real/monitoring/DrivePositioning/drive_log_20200218.txt"
     },
     "EventTimeCalculator": {
-      "dragon_reference_time": 1582059789516351903,
-      "dragon_reference_counter": 2516351600
+      "run_summary_path": "test_data/real/monitoring/RunSummary/RunSummary_20200218.ecsv"
     }
   },
   "CameraCalibrator": {
