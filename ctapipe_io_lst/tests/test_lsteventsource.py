@@ -61,7 +61,7 @@ def test_is_compatible():
     assert LSTEventSource.is_compatible(test_r0_path)
 
 
-def test_factory_for_lst_file():
+def test_event_source_for_lst_file():
     from ctapipe.io import EventSource
 
     reader = EventSource(test_r0_path)
@@ -74,20 +74,26 @@ def test_factory_for_lst_file():
 
 
 def test_subarray():
-    from ctapipe.io import EventSource
+    from ctapipe_io_lst import LSTEventSource
 
-    source = EventSource(test_r0_path)
+    source = LSTEventSource(test_r0_path)
     subarray = source.subarray
     subarray.info()
     subarray.to_table()
+
+    assert source.lst_service.telescope_id == 1
+    assert source.lst_service.num_modules == 265
 
     with tempfile.NamedTemporaryFile(suffix='.h5') as f:
         subarray.to_hdf(f.name)
 
 
 def test_missing_modules():
-    from ctapipe.io import EventSource
-    source = EventSource(test_missing_module_path)
+    from ctapipe_io_lst import LSTEventSource
+    source = LSTEventSource(test_missing_module_path)
+
+    assert source.lst_service.telescope_id == 1
+    assert source.lst_service.num_modules == 264
 
     fill = np.iinfo(np.uint16).max
     for event in source:

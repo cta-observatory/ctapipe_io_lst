@@ -245,6 +245,7 @@ class LSTEventSource(EventSource):
             parent=self,
         )
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
+        self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
 
     @property
     def subarray(self):
@@ -317,8 +318,8 @@ class LSTEventSource(EventSource):
         array_event.meta['max_events'] = self.max_events
         array_event.meta['origin'] = 'LSTCAM'
 
-        # fill LST data from the CameraConfig table
-        array_event.lst.tel[self.tel_id].svc = self.fill_lst_service_container()
+        # also add service container to the event section
+        array_event.lst.tel[self.tel_id].svc = self.lst_service
 
         # initialize general monitoring container
         self.initialize_mon_container(array_event)
@@ -392,29 +393,28 @@ class LSTEventSource(EventSource):
         is_lst_file = 'lstcam_counters' in ttypes
         return is_protobuf_zfits_file & is_lst_file
 
-    def fill_lst_service_container(self):
+    @staticmethod
+    def fill_lst_service_container(tel_id, camera_config):
         """
         Fill LSTServiceContainer with specific LST service data data
         (from the CameraConfig table of zfit file)
 
         """
-        tel_id = self.tel_id
-
         return LSTServiceContainer(
-            telescope_id = tel_id,
-            cs_serial=self.camera_config.cs_serial,
-            configuration_id=self.camera_config.configuration_id,
-            date=self.camera_config.date,
-            num_pixels=self.camera_config.num_pixels,
-            num_samples=self.camera_config.num_samples,
-            pixel_ids=self.camera_config.expected_pixels_id,
-            data_model_version=self.camera_config.data_model_version,
-            num_modules=self.camera_config.lstcam.num_modules,
-            module_ids=self.camera_config.lstcam.expected_modules_id,
-            idaq_version=self.camera_config.lstcam.idaq_version,
-            cdhs_version=self.camera_config.lstcam.cdhs_version,
-            algorithms=self.camera_config.lstcam.algorithms,
-            pre_proc_algorithms=self.camera_config.lstcam.pre_proc_algorithms,
+            telescope_id=tel_id,
+            cs_serial=camera_config.cs_serial,
+            configuration_id=camera_config.configuration_id,
+            date=camera_config.date,
+            num_pixels=camera_config.num_pixels,
+            num_samples=camera_config.num_samples,
+            pixel_ids=camera_config.expected_pixels_id,
+            data_model_version=camera_config.data_model_version,
+            num_modules=camera_config.lstcam.num_modules,
+            module_ids=camera_config.lstcam.expected_modules_id,
+            idaq_version=camera_config.lstcam.idaq_version,
+            cdhs_version=camera_config.lstcam.cdhs_version,
+            algorithms=camera_config.lstcam.algorithms,
+            pre_proc_algorithms=camera_config.lstcam.pre_proc_algorithms,
         )
 
     def fill_lst_event_container(self, array_event, zfits_event):
