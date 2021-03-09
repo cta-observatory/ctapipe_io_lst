@@ -528,7 +528,11 @@ class LSTEventSource(EventSource):
             self.log.warning('No trigger info available.')
             return
 
-        if ucts_available and lst.evt.ucts_trigger_type == 42:
+        if (
+            ucts_available
+            and lst.evt.ucts_trigger_type == 42
+            and self.default_trigger_type == "ucts"
+        ) :
             self.log.warning(
                 'Event with UCTS trigger_type 42 found.'
                 ' Probably means unreliable or shifted UCTS data.'
