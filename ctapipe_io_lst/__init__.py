@@ -526,6 +526,7 @@ class LSTEventSource(EventSource):
 
         else:
             self.log.warning('No trigger info available.')
+            trigger.event_type = EventType.UNKNOWN
             return
 
         if (
