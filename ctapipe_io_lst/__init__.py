@@ -676,6 +676,7 @@ class MultiFiles:
     """
 
     def __init__(self, file_list):
+        file_list = list(file_list)
 
         if len(file_list) == 0:
             raise ValueError('`file_list` must not be empty')
@@ -697,7 +698,7 @@ class MultiFiles:
         for path in paths:
 
             try:
-                self._file[path] = File(path)
+                self._file[path] = File(str(path))
                 self._events_table[path] = self._file[path].Events
                 self._events[path] = next(self._file[path].Events)
 
