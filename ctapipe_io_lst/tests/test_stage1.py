@@ -15,17 +15,13 @@ test_calib_path = test_data / 'real/calibration/20200218/v05/calibration.Run2006
 test_drs4_pedestal_path = test_data / 'real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits'
 test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5'
 test_drive_report = test_data / 'real/monitoring/DrivePositioning/drive_log_20200218.txt'
-test_night_summary = test_data / 'real/monitoring/NightSummary/NightSummary_20200218.txt'
+test_run_summary = test_data / 'real/monitoring/RunSummary/RunSummary_20200218.ecsv'
 
 
 def test_stage1(tmpdir):
     """Test the ctapipe stage1 tool can read in LST real data using the event source"""
     from ctapipe.tools.stage1 import Stage1Tool
     from ctapipe.core.tool import run_tool
-    from ctapipe_io_lst.event_time import read_night_summary
-
-    summary = read_night_summary(test_night_summary)
-    run_info = summary.loc[2008]
 
     tmpdir = Path(tmpdir)
     config_path = tmpdir / 'config.json'
@@ -41,8 +37,7 @@ def test_stage1(tmpdir):
                 'drive_report_path': str(test_drive_report)
             },
             'EventTimeCalculator': {
-                'dragon_reference_time': int(run_info['ucts_t0_dragon']),
-                'dragon_reference_counter': int(run_info['dragon_counter0']),
+                'run_summary_path': str(test_run_summary),
             },
         },
         "CameraCalibrator": {

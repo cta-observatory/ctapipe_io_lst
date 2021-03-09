@@ -11,20 +11,11 @@ import astropy.units as u
 from ctapipe_io_lst.constants import N_MODULES
 from ctapipe_io_lst.containers import LSTArrayEventContainer
 
+from traitlets.config import Config
+
+
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
-test_night_summary = test_data / 'real/monitoring/NightSummary/NightSummary_20200218.txt'
-test_night_summary_with_nans = test_data / 'real/monitoring/NightSummary/NightSummary_20201215.txt'
-
-
-int_cols = [
-    'first_valid_event_dragon',
-    'ucts_t0_dragon',
-    'dragon_counter0',
-    'first_valid_event_tib',
-    'ucts_t0_tib',
-    'tib_counter0',
-]
-
+test_run_summary = test_data / 'real/monitoring/RunSummary/RunSummary_20200218.ecsv'
 
 
 def test_time_unix_tai():
@@ -40,26 +31,13 @@ def test_time_from_unix_tai_ns():
     assert np.isclose((result - time).to_value(u.us), 0, atol=0.5)
 
 
-def test_read_night_summary():
-    from ctapipe_io_lst.event_time import read_night_summary
+def test_read_run_summary():
+    from ctapipe_io_lst.event_time import read_run_summary
 
-    summary = read_night_summary(test_night_summary)
+    summary = read_run_summary(test_run_summary)
+    # test loc with run_id works
+    assert summary.loc[2008]['run_id'] == 2008
 
-    for col in int_cols:
-        assert summary[col].dtype == np.int64
-
-
-def test_read_night_summary_missing():
-    from ctapipe_io_lst.event_time import read_night_summary
-
-    summary = read_night_summary(test_night_summary_with_nans)
-    for col in int_cols:
-        assert summary[col].dtype == np.int64
-
-    assert len(summary) == 26
-    assert isinstance(summary['timestamp'], Time)
-    assert np.ma.is_masked(summary['tib_counter0'])
-    assert np.count_nonzero(summary['tib_counter0'].mask) == 12
 
 
 def test_ucts_jumps():
@@ -86,8 +64,11 @@ def test_ucts_jumps():
     s_to_ns = int(1e9)
     time_calculator = EventTimeCalculator(
         subarray=subarray,
+        run_id=1,
+        expected_modules_id=np.arange(N_MODULES),
         dragon_reference_time=true_time_s * s_to_ns,
         dragon_reference_counter=0,
+        dragon_module_id=1,
         timestamp='ucts'  # use ucts to make sure we identify jumps and fallback to tib
     )
 
@@ -165,11 +146,20 @@ def test_extract_reference_values(caplog):
 
     # no reference values given and extract_reference = False should raise
     with pytest.raises(ValueError):
-        EventTimeCalculator(subarray=subarray, extract_reference=False)
-
+        EventTimeCalculator(
+            subarray=subarray,
+            run_id=1,
+            expected_modules_id=np.arange(N_MODULES),
+            extract_reference=False,
+        )
 
     # test ucts reference extaction works
-    time_calculator = EventTimeCalculator(subarray=subarray, extract_reference=True)
+    time_calculator = EventTimeCalculator(
+        subarray=subarray,
+        run_id=1,
+        expected_modules_id=np.arange(N_MODULES),
+        extract_reference=True
+    )
 
     # fill an artifical event with just enough information so we can test this
     true_time = Time.now()
@@ -209,7 +199,12 @@ def test_no_reference_values_no_ucts(caplog):
     subarray = LSTEventSource.create_subarray(geometry_version=4, tel_id=1)
 
     # test ucts reference extaction works
-    time_calculator = EventTimeCalculator(subarray=subarray, extract_reference=True)
+    time_calculator = EventTimeCalculator(
+        subarray=subarray,
+        run_id=1,
+        expected_modules_id=np.arange(N_MODULES),
+        extract_reference=True,
+    )
 
     # fill an artifical event with just enough information so we can test this
     first_event_time = Time.now()
@@ -238,7 +233,12 @@ def test_no_reference_values_no_ucts(caplog):
     assert found
 
     # test error if not first subrun
-    time_calculator = EventTimeCalculator(subarray=subarray, extract_reference=True)
+    time_calculator = EventTimeCalculator(
+        subarray=subarray,
+        run_id=1,
+        expected_modules_id=np.arange(N_MODULES),
+        extract_reference=True
+    )
     event.index.event_id = 100001
     with pytest.raises(ValueError):
         time_calculator(tel_id, event)
