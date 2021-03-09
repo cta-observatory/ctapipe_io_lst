@@ -677,6 +677,9 @@ class MultiFiles:
 
     def __init__(self, file_list):
 
+        if len(file_list) == 0:
+            raise ValueError('`file_list` must not be empty')
+
         self._file = {}
         self._events = {}
         self._events_table = {}
@@ -703,14 +706,15 @@ class MultiFiles:
                     self._camera_config[path] = next(self._file[path].CameraConfig)
 
                 # for the moment it takes the first CameraConfig it finds (to be changed)
-                    if(self.camera_config is None):
+                    if self.camera_config is None:
                         self.camera_config = self._camera_config[path]
 
             except StopIteration:
                 pass
 
         # verify that somewhere the CameraConfing is present
-        assert self.camera_config
+        if self.camera_config is None:
+            raise IOError(f"No CameraConfig was found in any of the input files: {paths}")
 
     def __iter__(self):
         return self
