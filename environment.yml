@@ -16,6 +16,6 @@ dependencies:
   - zlib
   - pip
   - h5py
+  - protozfits=2.0
   - pip:
       - pytest_runner
-      - protozfits~=2.0.1
