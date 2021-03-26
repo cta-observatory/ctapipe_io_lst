@@ -623,7 +623,7 @@ class LSTEventSource(EventSource):
 
         # re-order the waveform following the expected_pixels_id values
         #  could also just do waveform = reshaped_waveform[np.argsort(expected_ids)]
-        dtype = reshaped_waveform.dtype
+        dtype = np.int16
         fill = np.iinfo(dtype).max
         reordered_waveform = np.full((self.n_gains, N_PIXELS, N_SAMPLES), fill, dtype=dtype)
         reordered_waveform[:, self.camera_config.expected_pixels_id, :] = reshaped_waveform
