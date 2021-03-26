@@ -446,6 +446,12 @@ class LSTR0Corrections(TelescopeComponent):
             lst.svc.pixel_ids,
         )
 
+        # Set zeros if data is negative after time lapse correction to create a pedestal table
+        if waveform.dtype == np.uint16:
+            waveform_int16 = waveform.astype(np.int16)
+            waveform_int16[waveform_int16<0] = 0
+            waveform = waveform_int16.astype(np.uint16)
+
         container.waveform = waveform
 
     def interpolate_spikes(self, event, tel_id):
