@@ -6,6 +6,7 @@ dependencies:
   - conda-forge::ctapipe=0.10
   - conda-forge::eventio
   - conda-forge::corsikaio
+  - conda-forge::protozfits=2.0
   - zeromq
   - ipython
   - numba
@@ -18,4 +19,3 @@ dependencies:
   - h5py
   - pip:
       - pytest_runner
-      - protozfits~=2.0.1
