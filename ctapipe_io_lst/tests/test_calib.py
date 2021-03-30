@@ -213,6 +213,38 @@ def test_no_gain_selection():
             assert event.r1.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES - 4)
 
 
+def test_timelapse_no_underflow():
+    '''Test that the timelapse calibration does not create an underflow'''
+    from ctapipe_io_lst.calibration import do_time_lapse_corr
+    from ctapipe_io_lst.constants import (
+        N_GAINS, N_PIXELS, N_SAMPLES, N_MODULES,
+        N_CAPACITORS_PIXEL, CLOCK_FREQUENCY_KHZ,
+    )
+    from ctapipe_io_lst.calibration import ped_time
+
+    # low value that should underflow if not checked
+    waveform = np.full((N_GAINS, N_PIXELS, N_SAMPLES), 5, dtype=np.uint16)
+
+    # 0.1 ms should result in a correction around 50 ADC samples, well above 5
+    delta_t_ms = 0.1
+    local_clock_counter = np.full(N_MODULES, delta_t_ms * CLOCK_FREQUENCY_KHZ, dtype=np.uint64)
+
+    # make sure we would actually trigger an underflow
+    assert np.all(ped_time(delta_t_ms) > waveform)
+
+    first_capacitors = np.zeros((N_GAINS, N_PIXELS), dtype=np.int16)
+    last_readout_time = np.ones((N_GAINS, N_PIXELS, N_CAPACITORS_PIXEL), dtype=np.uint64)
+    expected_pixels_id = np.arange(N_PIXELS)
+
+    do_time_lapse_corr(
+        waveform,
+        local_clock_counter,
+        first_capacitors,
+        last_readout_time,
+        expected_pixels_id,
+    )
+    assert np.all(waveform == 0)
+
 def test_no_gain_selection_no_drs4time_calib():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.constants import N_PIXELS, N_GAINS, N_SAMPLES

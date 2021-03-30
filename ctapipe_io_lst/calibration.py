@@ -192,6 +192,10 @@ class LSTR0Corrections(TelescopeComponent):
 
         for tel_id in event.r0.tel:
             r1 = event.r1.tel[tel_id]
+            # fill r1 waveform with a copy of the r0 converted to float32
+            # float32 can represent all values of uint16 exactly, so this
+            # does not loose precision.
+            r1.waveform = event.r0.tel[tel_id].waveform.astype(np.float32)
 
             # apply drs4 corrections
             self.subtract_pedestal(event, tel_id)
@@ -397,17 +401,14 @@ class LSTR0Corrections(TelescopeComponent):
         event : `ctapipe` event-container
         tel_id : id of the telescope
         """
-        samples = event.r0.tel[tel_id].waveform.astype(np.float32)
-
-        samples = subtract_pedestal_jit(
-            samples,
+        subtract_pedestal_jit(
+            event.r1.tel[tel_id].waveform,
             self.first_cap[tel_id],
             self._get_drs4_pedestal_data(
                 self.drs4_pedestal_path.tel[tel_id],
                 offset=self.offset.tel[tel_id],
             ),
         )
-        event.r1.tel[tel_id].waveform = samples[:, :, :]
 
     def time_lapse_corr(self, event, tel_id):
         """
@@ -576,16 +577,14 @@ class LSTR0Corrections(TelescopeComponent):
 
 @njit(cache=True)
 def subtract_pedestal_jit(
-    event_waveform,
+    waveform,
     first_capacitors,
     pedestal_value_array,
 ):
     """
     Numba function to subtract the drs4 pedestal.
-
-    Creates a new waveform array with the pedestal subtracted.
+    Mutates input array inplace
     """
-    waveform = np.zeros(event_waveform.shape)
 
     for gain in range(N_GAINS):
         for pixel_id in range(N_PIXELS):
@@ -593,9 +592,7 @@ def subtract_pedestal_jit(
             # the first caps are not, so we need to translate here.
             first_cap = first_capacitors[gain, pixel_id]
             pedestal = pedestal_value_array[gain, pixel_id, first_cap:first_cap + N_SAMPLES]
-            waveform[gain, pixel_id] = event_waveform[gain, pixel_id] - pedestal
-    return waveform
-
+            waveform[gain, pixel_id] -= pedestal
 
 @njit(cache=True)
 def do_time_lapse_corr(
@@ -631,7 +628,9 @@ def do_time_lapse_corr(
 
                         # FIXME: Why only for values < 100 ms, negligible otherwise?
                         if time_diff_ms < 100:
-                            waveform[gain, pixel_id, sample] -= ped_time(time_diff_ms)
+                            # prevent underflow of the unsigned int value
+                            correction = min(ped_time(time_diff_ms), waveform[gain, pixel_id, sample])
+                            waveform[gain, pixel_id, sample] -= correction
 
                     # update the last read time
                     last_readout_time[gain, pixel_id, capacitor] = time_now
@@ -692,7 +691,9 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
                         time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
 
                         if time_diff_ms < 100:
-                            waveform[gain, pixel_id, sample] -= ped_time(time_diff_ms)
+                            # prevent underflow of the unsigned int value
+                            correction = min(ped_time(time_diff_ms), waveform[gain, pixel_id, sample])
+                            waveform[gain, pixel_id, sample] -= correction
 
                 for sample in range(-1, N_SAMPLES - 1):
                     capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
