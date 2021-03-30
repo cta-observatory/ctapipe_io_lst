@@ -631,7 +631,9 @@ def do_time_lapse_corr(
 
                         # FIXME: Why only for values < 100 ms, negligible otherwise?
                         if time_diff_ms < 100:
-                            waveform[gain, pixel_id, sample] -= ped_time(time_diff_ms)
+                            # prevent underflow of the unsigned int value
+                            correction = min(ped_time(time_diff_ms), waveform[gain, pixel_id, sample])
+                            waveform[gain, pixel_id, sample] -= correction
 
                     # update the last read time
                     last_readout_time[gain, pixel_id, capacitor] = time_now
@@ -692,7 +694,9 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
                         time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
 
                         if time_diff_ms < 100:
-                            waveform[gain, pixel_id, sample] -= ped_time(time_diff_ms)
+                            # prevent underflow of the unsigned int value
+                            correction = min(ped_time(time_diff_ms), waveform[gain, pixel_id, sample])
+                            waveform[gain, pixel_id, sample] -= correction
 
                 for sample in range(-1, N_SAMPLES - 1):
                     capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
