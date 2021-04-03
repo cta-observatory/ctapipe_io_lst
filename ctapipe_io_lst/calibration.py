@@ -163,6 +163,7 @@ class LSTR0Corrections(TelescopeComponent):
         self.last_readout_time = {}
         self.first_cap = {}
         self.first_cap_old = {}
+        self.spike_flag = {}
         self.fbn = {}
         self.fan = {}
 
@@ -173,6 +174,9 @@ class LSTR0Corrections(TelescopeComponent):
             shape = (N_GAINS, N_PIXELS)
             self.first_cap[tel_id] = np.zeros(shape, dtype=int)
             self.first_cap_old[tel_id] = np.zeros(shape, dtype=int)
+
+            shape = (N_GAINS, N_PIXELS, 3, N_SAMPLES)
+            self.spike_flag[tel_id] = np.zeros(shape, dtype=bool)
 
         # set the right default for our default selector, change back afterwards
         # to not impact other code.
@@ -449,6 +453,7 @@ class LSTR0Corrections(TelescopeComponent):
 
         container.waveform = waveform
 
+
     def interpolate_spikes(self, event, tel_id):
         """
         Interpolates spike A & B.
@@ -573,6 +578,32 @@ class LSTR0Corrections(TelescopeComponent):
                         if ((fc_old[gain, pix] + (roi_size-1)) % 2 == 0 and (fc_old[gain, pix] + (roi_size-1)) % size1drs <= size1drs//2-2):
                             interpolate_spike_A(waveform, gain, spike_A_position, pix)
         return waveform
+
+    def find_spike_position(self, event, tel_id):
+        """
+        Find Spike cell positions in a readout window
+
+        Parameters
+        ---------
+        event : `ctapipe` event-container
+        tel_id : id of the telescope
+        """
+        run_id = event.lst.tel[tel_id].svc.configuration_id
+        
+        # We have 2 functions: one for data from 2018/10/10 to 2019/11/04 and
+        # one for data from 2019/11/05 (from Run 1574) after update firmware.
+        # The old readout (before 2019/11/05) is shifted by 1 cell.
+        if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+            find_spike_position = find_spike_position_jit
+        else:
+            find_spike_position  = find_spike_position_jit_data_from_20181010_to_20191104
+
+        find_spike_position(
+            self.first_cap[tel_id],
+            self.first_cap_old[tel_id],
+            self.spike_flag[tel_id],
+        )
+
 
 
 @njit(cache=True)
@@ -719,7 +750,41 @@ def do_time_lapse_corr_data_from_20181010_to_20191104(
                         for capacitor in range(start, end):
                             last_readout_time[gain, pixel_id, capacitor % N_CAPACITORS_PIXEL] = time_now
 
+@njit(cache=True)
+def find_spike_position_jit(
+    first_capacitor,
+    first_capacitor_old,
+    spike_flag,
+):
+    """
+    Numba function for finding spike positions in readout windows
+    """
+    LAST_IN_FIRST_HALF = N_CAPACITORS_CHANNEL // 2 - 1
 
+    for gain in range(N_GAINS):
+        for pixel in range(N_PIXELS):
+            last_fc = first_capacitor_old[gain, pixel] % N_CAPACITORS_CHANNEL
+            current_fc = first_capacitor[gain, pixel] % N_CAPACITORS_CHANNEL
+            last_lc = (last_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
+            current_lc = (current_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
+
+            spike_flag[gain, pixel] = np.zeros((3, N_SAMPLES), dtype='bool') 
+
+            # The correction is only needed for even
+            # last capacitor (lc) in the first half of the DRS4 ring
+            if last_lc % 2 == 0 and last_lc<= LAST_IN_FIRST_HALF:
+                
+                for k in range(3):
+                    spike_pos = (last_lc + k) % N_CAPACITORS_CHANNEL
+
+                    if (spike_pos - current_fc) % N_CAPACITORS_CHANNEL < N_SAMPLES:
+                        spike_flag[gain, pixel, k, (spike_pos - current_fc) % N_CAPACITORS_CHANNEL] = True
+
+                    spike_pos = (N_CAPACITORS_CHANNEL - 2 + k - last_lc) % N_CAPACITORS_CHANNEL
+
+                    if (spike_pos - current_fc) % N_CAPACITORS_CHANNEL < N_SAMPLES:
+                        spike_flag[gain, pixel, k, (spike_pos - current_fc) % N_CAPACITORS_CHANNEL] = True   
+                        
 @njit(cache=True)
 def ped_time(timediff):
     """
