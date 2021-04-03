@@ -204,7 +204,10 @@ class LSTR0Corrections(TelescopeComponent):
             # apply drs4 corrections
             self.subtract_pedestal(event, tel_id)
             self.time_lapse_corr(event, tel_id)
-            self.interpolate_spikes(event, tel_id)
+            #self.interpolate_spikes(event, tel_id)
+            self.find_spike_position(event, tel_id)
+            self.subtract_spikes(event, tel_id)
+
 
             # remove samples at beginning / end of waveform
             start = self.r1_sample_start.tel[tel_id]
@@ -604,6 +607,26 @@ class LSTR0Corrections(TelescopeComponent):
             self.spike_flag[tel_id],
         )
 
+    def subtract_spikes(self, event, tel_id):
+        """
+        Subtract ADC counts corresponding spikes
+        Fill the R1 container.
+        Parameters
+        ----------
+        event : `ctapipe` event-container
+        tel_id : id of the telescope
+        """
+
+        waveform = event.r1.tel[tel_id].waveform.copy()
+        spike_adc = np.array([47, 54, 8], dtype=np.float32)
+
+        subtract_spikes_jit(
+            waveform,
+            self.spike_flag[tel_id],
+            spike_adc,
+        )
+        event.r1.tel[tel_id].waveform = waveform
+
 
 
 @njit(cache=True)
@@ -760,6 +783,7 @@ def find_spike_position_jit(
     Numba function for finding spike positions in readout windows
     """
     LAST_IN_FIRST_HALF = N_CAPACITORS_CHANNEL // 2 - 1
+    
 
     for gain in range(N_GAINS):
         for pixel in range(N_PIXELS):
@@ -820,7 +844,21 @@ def find_spike_position_jit_data_from_20181010_to_20191104(
                     if (spike_pos - current_fc) % N_CAPACITORS_CHANNEL < N_SAMPLES:
                         spike_flag[gain, pixel, k, (spike_pos - current_fc) % N_CAPACITORS_CHANNEL] = True   
 
-                        
+@njit(cache=True)   
+def subtract_spikes_jit(                                                                                                                    
+    waveform,                                                                                                                                               
+    spike_flag,                                                                                                                                      
+    spike_adc,
+):
+    """
+    Numba function for subtraction of ADC counts corresponding spikes
+    """
+    for gain in range(N_GAINS):
+        for pixel in range(N_PIXELS):
+            for i in range(3):
+                waveform[gain, pixel][spike_flag[gain, pixel, i]] -= spike_adc[i]
+        
+                
 @njit(cache=True)
 def ped_time(timediff):
     """
