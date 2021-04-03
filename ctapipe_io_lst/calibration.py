@@ -784,6 +784,42 @@ def find_spike_position_jit(
 
                     if (spike_pos - current_fc) % N_CAPACITORS_CHANNEL < N_SAMPLES:
                         spike_flag[gain, pixel, k, (spike_pos - current_fc) % N_CAPACITORS_CHANNEL] = True   
+
+@njit(cache=True)
+def find_spike_position_jit_data_from_20181010_to_20191104(
+    first_capacitor,
+    first_capacitor_old,
+    spike_flag,
+):
+    """
+    Numba function for finding spike positions in readout windows
+    """
+    LAST_IN_FIRST_HALF = N_CAPACITORS_CHANNEL // 2 - 1
+
+    for gain in range(N_GAINS):
+        for pixel in range(N_PIXELS):
+            last_fc = first_capacitor_old[gain, pixel] % N_CAPACITORS_CHANNEL
+            current_fc = first_capacitor[gain, pixel] % N_CAPACITORS_CHANNEL
+            last_lc = (last_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
+            current_lc = (current_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
+
+            spike_flag[gain, pixel] = np.zeros((3, N_SAMPLES), dtype='bool') 
+
+            # The correction is only needed for even
+            # last capacitor (lc) in the first half of the DRS4 ring
+            if last_lc % 2 == 0 and last_lc<= LAST_IN_FIRST_HALF:
+                
+                for k in range(3):
+                    spike_pos = (last_lc + k - 1) % N_CAPACITORS_CHANNEL
+
+                    if (spike_pos - current_fc) % N_CAPACITORS_CHANNEL < N_SAMPLES:
+                        spike_flag[gain, pixel, k, (spike_pos - current_fc) % N_CAPACITORS_CHANNEL] = True
+
+                    spike_pos = (N_CAPACITORS_CHANNEL - 3 + k - last_lc) % N_CAPACITORS_CHANNEL
+
+                    if (spike_pos - current_fc) % N_CAPACITORS_CHANNEL < N_SAMPLES:
+                        spike_flag[gain, pixel, k, (spike_pos - current_fc) % N_CAPACITORS_CHANNEL] = True   
+
                         
 @njit(cache=True)
 def ped_time(timediff):
