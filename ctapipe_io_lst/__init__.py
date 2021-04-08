@@ -139,7 +139,7 @@ class LSTEventSource(EventSource):
     ).tag(config=True)
 
     min_flatfield_adc = Float(
-        default_value=4000.0,
+        default_value=3000.0,
         help=(
             'Events with that have more than ``min_flatfield_pixel_fraction``'
             ' of the pixels inside [``min_flatfield_adc``, ``max_flatfield_adc``]'
@@ -157,7 +157,7 @@ class LSTEventSource(EventSource):
     ).tag(config=True)
 
     min_flatfield_pixel_fraction = Float(
-        default_value=0.9,
+        default_value=0.8,
         help=(
             'Events with that have more than ``min_flatfield_pixel_fraction``'
             ' of the pixels inside [``min_flatfield_pe``, ``max_flatfield_pe``]'
