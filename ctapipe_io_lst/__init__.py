@@ -330,6 +330,11 @@ class LSTEventSource(EventSource):
             array_event.index.event_id = zfits_event.event_id
             array_event.index.obs_id = self.obs_ids[0]
 
+            # Skip "empty" events that occur at the end of some runs
+            if zfits_event.event_id == 0:
+                self.log.warning('Event with event_id=0 found, skipping')
+                continue
+
             # fill general R0 data
             self.fill_r0_container(array_event, zfits_event)
 
