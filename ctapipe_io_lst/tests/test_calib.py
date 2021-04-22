@@ -1,3 +1,4 @@
+from ctapipe_io_lst.constants import HIGH_GAIN
 import os
 from pathlib import Path
 from traitlets.config import Config
@@ -182,8 +183,18 @@ def test_missing_module():
         for event in source:
             waveform = event.r1.tel[1].waveform
             assert waveform is not None
-            assert np.count_nonzero(np.isnan(waveform)) == N_PIXELS_MODULE * (N_SAMPLES - 4)
-            assert np.all(np.isnan(waveform[514]))
+
+
+            failing_pixels = event.mon.tel[1].pixel_status.hardware_failing_pixels
+
+            # one module failed, in each gain channel
+            assert np.count_nonzero(failing_pixels) ==  2 * N_PIXELS_MODULE
+
+            # there might be zeros in other pixels than just the broken ones
+            assert np.count_nonzero(waveform == 0) >= N_PIXELS_MODULE * (N_SAMPLES - 4)
+
+            # waveforms in failing pixels must be all 0
+            assert np.all(waveform[failing_pixels[HIGH_GAIN]] == 0)
 
 def test_no_gain_selection():
     from ctapipe_io_lst import LSTEventSource
