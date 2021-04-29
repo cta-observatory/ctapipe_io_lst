@@ -134,6 +134,16 @@ class LSTR0Corrections(TelescopeComponent):
         help='Set to False to keep both gains.'
     ).tag(config=True)
 
+    apply_timelapse_correction = Bool(
+        default_value=True,
+        help='Set to False to disable drs4 timelapse correction'
+    ).tag(config=True)
+
+    apply_spike_correction = Bool(
+        default_value=True,
+        help='Set to False to disable drs4 spike correction'
+    ).tag(config=True)
+
     add_calibration_timeshift = Bool(
         default_value=True,
         help=(
@@ -199,8 +209,12 @@ class LSTR0Corrections(TelescopeComponent):
 
             # apply drs4 corrections
             self.subtract_pedestal(event, tel_id)
-            self.time_lapse_corr(event, tel_id)
-            self.interpolate_spikes(event, tel_id)
+
+            if self.apply_timelapse_correction:
+                self.time_lapse_corr(event, tel_id)
+
+            if self.apply_spike_correction:
+                self.interpolate_spikes(event, tel_id)
 
             # remove samples at beginning / end of waveform
             start = self.r1_sample_start.tel[tel_id]
