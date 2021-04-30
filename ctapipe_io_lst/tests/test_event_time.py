@@ -56,6 +56,7 @@ def test_ucts_jumps():
     lst = event.lst.tel[tel_id]
     lst.evt.extdevices_presence = 0b1111_1111
     lst.svc.module_ids = np.arange(N_MODULES)
+    lst.evt.module_status = np.ones(N_MODULES)
 
     subarray = LSTEventSource.create_subarray(geometry_version=4, tel_id=1)
 
@@ -173,6 +174,8 @@ def test_extract_reference_values(caplog):
     lst.evt.pps_counter = np.full(N_MODULES, 100)
     lst.evt.tenMHz_counter = np.zeros(N_MODULES)
     lst.evt.tenMHz_counter[CENTRAL_MODULE] = 2
+    lst.evt.module_status = np.ones(N_MODULES)
+
 
     # actually test it
     time = time_calculator(tel_id, event)
@@ -220,6 +223,7 @@ def test_no_reference_values_no_ucts(caplog):
     lst.evt.tenMHz_counter = np.zeros(N_MODULES)
     lst.evt.tenMHz_counter[CENTRAL_MODULE] = 2
     lst.svc.date = run_start.unix
+    lst.evt.module_status = np.ones(N_MODULES)
 
     # actually test it
     time = time_calculator(tel_id, event)
