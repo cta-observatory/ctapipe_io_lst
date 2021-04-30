@@ -26,6 +26,7 @@ def test_loop_over_events():
     source = LSTEventSource(
         input_url=test_r0_path,
         max_events=n_events,
+        apply_drs4_corrections=False,
     )
 
     for i, event in enumerate(source):
@@ -45,7 +46,10 @@ def test_loop_over_events():
 def test_multifile():
     from ctapipe_io_lst import LSTEventSource
 
-    source = LSTEventSource(input_url=test_r0_path_all_streams)
+    source = LSTEventSource(
+        input_url=test_r0_path_all_streams,
+        apply_drs4_corrections=False,
+    )
     assert len(set(source.file_list)) == 4
 
     for i, event in enumerate(source):
@@ -90,7 +94,10 @@ def test_subarray():
 
 def test_missing_modules():
     from ctapipe_io_lst import LSTEventSource
-    source = LSTEventSource(test_missing_module_path)
+    source = LSTEventSource(
+        test_missing_module_path,
+        apply_drs4_corrections=False,
+    )
 
     assert source.lst_service.telescope_id == 1
     assert source.lst_service.num_modules == 264

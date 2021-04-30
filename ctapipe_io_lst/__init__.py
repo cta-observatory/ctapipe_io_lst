@@ -178,7 +178,17 @@ class LSTEventSource(EventSource):
 
     calibrate_flatfields_and_pedestals = Bool(
         default_value=True,
-        help='To be set to True for calibration processing'
+        help='If True, flat field and pedestal events are also calibrated.'
+    ).tag(config=True)
+
+    apply_drs4_corrections = Bool(
+        default_value=True,
+        help=(
+            'Apply DRS4 corrections.'
+            ' If True, this will fill R1 waveforms with the corrections applied'
+            ' Use the options for the LSTR0Corrections to configure which'
+            ' corrections are applied'
+        ),
     ).tag(config=True)
 
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
@@ -349,7 +359,7 @@ class LSTEventSource(EventSource):
             self.fill_pointing_info(array_event)
 
             # apply low level corrections
-            if self.r0_r1_calibrator.drs4_pedestal_path.tel[self.tel_id] is not None:
+            if self.apply_drs4_corrections:
                 self.r0_r1_calibrator.apply_drs4_corrections(array_event)
 
                 # flat field tagging is performed on r1 data, so can only
