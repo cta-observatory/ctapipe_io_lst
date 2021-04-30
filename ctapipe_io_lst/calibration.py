@@ -108,8 +108,8 @@ class LSTR0Corrections(TelescopeComponent):
         allow_none=True,
         default_value=None,
         help=(
-            'Path to the LST pedestal file, if not given'
-            ', no drs4 pedestal calibration will be performed'
+            'Path to the LST pedestal file'
+            ', required when `apply_drs4_pedestal_correction=True`'
         ),
     ).tag(config=True)
 
