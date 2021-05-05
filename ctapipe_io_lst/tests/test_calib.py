@@ -29,7 +29,7 @@ def test_get_first_capacitor():
     )
 
     tel_id = 1
-    source = LSTEventSource(test_r0_calib_path)
+    source = LSTEventSource(test_r0_calib_path, apply_drs4_corrections=False)
     event = next(iter(source))
 
     first_capacitor_id = event.lst.tel[tel_id].evt.first_capacitor_id

@@ -85,7 +85,10 @@ class LSTR0Corrections(TelescopeComponent):
     """
     offset = IntTelescopeParameter(
         default_value=400,
-        help='Define the offset of the baseline'
+        help=(
+            'Define the offset of the baseline'
+            ', set to 0 to disable offset subtraction'
+        )
     ).tag(config=True)
 
     r1_sample_start = IntTelescopeParameter(
@@ -104,7 +107,10 @@ class LSTR0Corrections(TelescopeComponent):
         trait=Path(exists=True, directory_ok=False),
         allow_none=True,
         default_value=None,
-        help='Path to the LST pedestal file',
+        help=(
+            'Path to the LST pedestal file'
+            ', required when `apply_drs4_pedestal_correction=True`'
+        ),
     ).tag(config=True)
 
     calibration_path = Path(
@@ -132,6 +138,24 @@ class LSTR0Corrections(TelescopeComponent):
     select_gain = Bool(
         default_value=True,
         help='Set to False to keep both gains.'
+    ).tag(config=True)
+
+    apply_drs4_pedestal_correction = Bool(
+        default_value=True,
+        help=(
+            'Set to False to disable drs4 pedestal correction.'
+            ' Providing the drs4_pedestal_path is required to perform this calibration'
+        ),
+    ).tag(config=True)
+
+    apply_timelapse_correction = Bool(
+        default_value=True,
+        help='Set to False to disable drs4 timelapse correction'
+    ).tag(config=True)
+
+    apply_spike_correction = Bool(
+        default_value=True,
+        help='Set to False to disable drs4 spike correction'
     ).tag(config=True)
 
     add_calibration_timeshift = Bool(
@@ -198,9 +222,14 @@ class LSTR0Corrections(TelescopeComponent):
             r1.waveform = event.r0.tel[tel_id].waveform.astype(np.float32)
 
             # apply drs4 corrections
-            self.subtract_pedestal(event, tel_id)
-            self.time_lapse_corr(event, tel_id)
-            self.interpolate_spikes(event, tel_id)
+            if self.apply_drs4_pedestal_correction:
+                self.subtract_pedestal(event, tel_id)
+
+            if self.apply_timelapse_correction:
+                self.time_lapse_corr(event, tel_id)
+
+            if self.apply_spike_correction:
+                self.interpolate_spikes(event, tel_id)
 
             # remove samples at beginning / end of waveform
             start = self.r1_sample_start.tel[tel_id]
@@ -226,7 +255,12 @@ class LSTR0Corrections(TelescopeComponent):
 
         for tel_id in event.r0.tel:
             r1 = event.r1.tel[tel_id]
-            waveform = r1.waveform
+            # if `apply_drs4_corrections` is False, we did not fill in the
+            # waveform yet.
+            if r1.waveform is None:
+                waveform = event.r0.tel[tel_id].waveform.astype(np.float32)
+            else:
+                waveform = r1.waveform
 
             # do gain selection before converting to pe
             # like eventbuilder will do
@@ -378,6 +412,12 @@ class LSTR0Corrections(TelescopeComponent):
         The result is cached so we can repeatedly call this method
         using the configured path without reading it each time.
         """
+        if path is None:
+            raise ValueError(
+                "DRS4 pedestal correction requested"
+                " but no file provided for telescope"
+            )
+
         pedestal_data = np.empty(
             (N_GAINS, N_PIXELS_MODULE * N_MODULES, N_CAPACITORS_PIXEL + N_SAMPLES),
             dtype=np.int16
