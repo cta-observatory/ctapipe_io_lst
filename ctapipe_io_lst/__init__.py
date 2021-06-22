@@ -6,7 +6,6 @@ import numpy as np
 from astropy import units as u
 from pkg_resources import resource_filename
 import os
-from astropy.time import Time
 from os import listdir
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
@@ -22,7 +21,9 @@ from enum import IntFlag, auto
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Int, Bool, Float, Enum, Path
-from ctapipe.containers import PixelStatusContainer, EventType
+from ctapipe.containers import (
+    PixelStatusContainer, EventType, R0CameraContainer, R1CameraContainer,
+)
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
 from .version import __version__
@@ -37,7 +38,7 @@ from .anyarray_dtypes import (
     TIB_DTYPE,
 )
 from .constants import (
-    HIGH_GAIN, N_PIXELS, N_SAMPLES
+    HIGH_GAIN, N_GAINS, N_PIXELS, N_SAMPLES
 )
 
 __all__ = ['LSTEventSource', '__version__']
@@ -58,6 +59,18 @@ class TriggerBits(IntFlag):
     PHYSICS = MONO | STEREO
     OTHER = CALIBRATION | SINGLE_PE | SOFTWARE | PEDESTAL | SLOW_CONTROL
 
+
+class PixelStatus(IntFlag):
+    RESERVED_0 = auto()
+    RESERVED_1 = auto()
+    HIGH_GAIN_STORED = auto()
+    LOW_GAIN_STORED = auto()
+    SATURATED = auto()
+    PIXEL_TRIGGER_1 = auto()
+    PIXEL_TRIGGER_2 = auto()
+    PIXEL_TRIGGER_3 = auto()
+
+    BOTH_GAINS_STORED = HIGH_GAIN_STORED | LOW_GAIN_STORED
 
 OPTICS = OpticsDescription(
     'LST',
@@ -127,12 +140,6 @@ def read_pulse_shapes():
 
 class LSTEventSource(EventSource):
     """EventSource for LST r0 data."""
-
-    n_gains = Int(
-        2,
-        help='Number of gains at r0 level'
-    ).tag(config=True)
-
     multi_streams = Bool(
         True,
         help='Read in parallel all streams '
@@ -194,22 +201,6 @@ class LSTEventSource(EventSource):
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
-        """
-        Parameters
-        ----------
-        n_gains = number of gains expected in input file
-
-        multi_streams = enable the reading of input files from all streams
-
-        config: traitlets.loader.Config
-            Configuration specified by config file or cmdline arguments.
-            Used to set traitlet values.
-            Set to None if no configuration to pass.\
-        kwargs: dict
-            Additional parameters to be passed.
-            NOTE: The file mask of the data to read can be passed with
-            the 'input_url' parameter.
-        """
         super().__init__(input_url=input_url, **kwargs)
 
         if self.multi_streams:
@@ -345,16 +336,9 @@ class LSTEventSource(EventSource):
                 self.log.warning('Event with event_id=0 found, skipping')
                 continue
 
-            # fill general R0 data
-            self.fill_r0_container(array_event, zfits_event)
-
-            # fill specific LST event data
+            self.fill_r0r1_container(array_event, zfits_event)
             self.fill_lst_event_container(array_event, zfits_event)
-
-            # fill trigger info (needs r0 and lst specifics)
             self.fill_trigger_info(array_event)
-
-            # fill general monitoring data
             self.fill_mon_container(array_event, zfits_event)
             self.fill_pointing_info(array_event)
 
@@ -368,11 +352,10 @@ class LSTEventSource(EventSource):
 
             # gain select and calibrate to pe
             if self.r0_r1_calibrator.calibration_path is not None:
-
                 # skip flatfield and pedestal events if asked
                 if (
-                    array_event.trigger.event_type not in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}
-                        or self.calibrate_flatfields_and_pedestals
+                    self.calibrate_flatfields_and_pedestals
+                    or array_event.trigger.event_type not in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}
                 ):
                     self.r0_r1_calibrator.calibrate(array_event)
 
@@ -582,11 +565,18 @@ class LSTEventSource(EventSource):
         DRS4 corrections but not the p.e. calibration must be applied
         '''
         tel_id = self.tel_id
+        waveform = array_event.r1.tel[tel_id].waveform
 
-        image = array_event.r1.tel[tel_id].waveform[HIGH_GAIN].sum(axis=1)
+        # needs to work for gain already selected or not
+        if waveform.ndim == 3:
+            image = waveform[HIGH_GAIN].sum(axis=1)
+        else:
+            image = waveform.sum(axis=1)
+
         in_range = (image >= self.min_flatfield_adc) & (image <= self.max_flatfield_adc)
+        n_in_range = np.count_nonzero(in_range)
 
-        if np.count_nonzero(in_range) >= self.min_flatfield_pixel_fraction * image.size:
+        if n_in_range >= self.min_flatfield_pixel_fraction * image.size:
             self.log.debug(
                 'Setting event type of event'
                 f' {array_event.index.event_id} to FLATFIELD'
@@ -618,44 +608,69 @@ class LSTEventSource(EventSource):
                 'No drive report specified, pointing info will not be filled'
             )
 
-    def fill_r0_camera_container(self, r0_container, zfits_event):
+    def fill_r0r1_camera_container(self, zfits_event):
         """
-        Fill with R0CameraContainer
+        Fill the r0 or r1 container, depending on whether gain
+        selection has already happened (r0) or not (r1)
+
+        This will create waveforms of shape (N_GAINS, N_PIXELS, N_SAMPLES),
+        or (N_PIXELS, N_SAMPLES) respectively regardless of the n_pixels, n_samples
+        in the file.
+
+        Missing or broken pixels are filled using maxval of the waveform dtype.
         """
+        n_pixels = self.camera_config.num_pixels
+        n_samples = self.camera_config.num_samples
+        expected_pixels = self.camera_config.expected_pixels_id
 
-        try:
-            reshaped_waveform = zfits_event.waveform.reshape(
-                self.n_gains,
-                self.camera_config.num_pixels,
-                self.camera_config.num_samples
-            )
-        except ValueError:
-            raise ValueError(
-                f"Number of gains not correct, waveform shape is {zfits_event.waveform.shape[0]}"
-                f" instead of "
-                f"{self.camera_config.num_pixels * self.camera_config.num_samples * self.n_gains}"
-            )
+        has_low_gain = (zfits_event.pixel_status & PixelStatus.LOW_GAIN_STORED).astype(bool)
+        has_high_gain = (zfits_event.pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
+        not_broken = (has_low_gain | has_high_gain).astype(bool)
 
-        # re-order the waveform following the expected_pixels_id values
-        #  could also just do waveform = reshaped_waveform[np.argsort(expected_ids)]
-        dtype = reshaped_waveform.dtype
+        # broken pixels have both false, so gain selected means checking
+        # if there are any pixels where exactly one of high or low gain is stored
+        gain_selected = np.any(has_low_gain != has_high_gain)
+
+        # fill value for broken pixels
+        dtype = zfits_event.waveform.dtype
         fill = np.iinfo(dtype).max
-        reordered_waveform = np.full((self.n_gains, N_PIXELS, N_SAMPLES), fill, dtype=dtype)
-        reordered_waveform[:, self.camera_config.expected_pixels_id, :] = reshaped_waveform
-        r0_container.waveform = reordered_waveform
+        # we assume that either all pixels are gain selected or none
+        # only broken pixels are allowed to be missing completely
+        if gain_selected:
+            selected_gain = np.where(has_high_gain, 0, 1)
+            waveform = np.full((n_pixels, n_samples), fill, dtype=dtype)
+            waveform[not_broken] = zfits_event.waveform.reshape((-1, n_samples))
 
-    def fill_r0_container(self, array_event, zfits_event):
+            reordered_waveform = np.full((N_PIXELS, N_SAMPLES), fill, dtype=dtype)
+            reordered_waveform[expected_pixels] = waveform
+
+            reordered_selected_gain = np.zeros(N_PIXELS, dtype=np.uint8)
+            reordered_selected_gain[expected_pixels] = selected_gain
+
+            r0 = R0CameraContainer()
+            r1 = R1CameraContainer(
+                waveform=reordered_waveform,
+                selected_gain_channel=reordered_selected_gain,
+            )
+        else:
+            reshaped_waveform = zfits_event.waveform.reshape(N_GAINS, n_pixels, n_samples)
+            # re-order the waveform following the expected_pixels_id values
+            #  could also just do waveform = reshaped_waveform[np.argsort(expected_ids)]
+            reordered_waveform = np.full((N_GAINS, N_PIXELS, N_SAMPLES), fill, dtype=dtype)
+            reordered_waveform[:, expected_pixels, :] = reshaped_waveform
+            r0 = R0CameraContainer(waveform=reordered_waveform)
+            r1 = R1CameraContainer()
+
+        return r0, r1
+
+    def fill_r0r1_container(self, array_event, zfits_event):
         """
         Fill with R0Container
 
         """
-        container = array_event.r0
-
-        r0_camera_container = container.tel[self.tel_id]
-        self.fill_r0_camera_container(
-            r0_camera_container,
-            zfits_event
-        )
+        r0, r1 = self.fill_r0r1_camera_container(zfits_event)
+        array_event.r0.tel[self.tel_id] = r0
+        array_event.r1.tel[self.tel_id] = r1
 
     def initialize_mon_container(self, array_event):
         """
@@ -666,7 +681,7 @@ class LSTEventSource(EventSource):
         container = array_event.mon
         mon_camera_container = container.tel[self.tel_id]
 
-        shape = (self.n_gains, N_PIXELS)
+        shape = (N_GAINS, N_PIXELS)
         # all pixels broken by default
         status_container = PixelStatusContainer(
             hardware_failing_pixels=np.ones(shape, dtype=bool),
@@ -694,15 +709,15 @@ class LSTEventSource(EventSource):
 
 
 class MultiFiles:
-
     """
     This class open all the files in file_list and read the events following
     the event_id order
     """
 
     def __init__(self, file_list):
-        file_list = list(file_list)
+        from protozfits import File
 
+        file_list = list(file_list)
         if len(file_list) == 0:
             raise ValueError('`file_list` must not be empty')
 
@@ -710,7 +725,6 @@ class MultiFiles:
         self._events = {}
         self._events_table = {}
         self._camera_config = {}
-        self.camera_config = None
 
         paths = []
         for file_name in file_list:
@@ -718,7 +732,6 @@ class MultiFiles:
             Provenance().add_input_file(file_name, role='r0.sub.evt')
 
         # open the files and get the first fits Tables
-        from protozfits import File
 
         for path in paths:
 
@@ -727,20 +740,17 @@ class MultiFiles:
                 self._events_table[path] = self._file[path].Events
                 self._events[path] = next(self._file[path].Events)
 
-                # verify where the CameraConfig is present
-                if 'CameraConfig' in self._file[path].__dict__.keys():
+                if hasattr(self._file[path], 'CameraConfig'):
                     self._camera_config[path] = next(self._file[path].CameraConfig)
-
-                # for the moment it takes the first CameraConfig it finds (to be changed)
-                    if self.camera_config is None:
-                        self.camera_config = self._camera_config[path]
 
             except StopIteration:
                 pass
 
-        # verify that somewhere the CameraConfing is present
-        if self.camera_config is None:
+        # verify that we found a CameraConfig
+        if len(self._camera_config) == 0:
             raise IOError(f"No CameraConfig was found in any of the input files: {paths}")
+        else:
+            self.camera_config = next(iter(self._camera_config.values()))
 
     def __iter__(self):
         return self
@@ -775,7 +785,7 @@ class MultiFiles:
         return total_length
 
     def rewind(self):
-        for name, file in self._file.items():
+        for file in self._file.values():
             file.Events.protobuf_i_fits.rewind()
 
     def num_inputs(self):

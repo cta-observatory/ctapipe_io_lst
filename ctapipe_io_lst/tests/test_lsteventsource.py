@@ -2,8 +2,10 @@ import numpy as np
 import os
 from pathlib import Path
 import tempfile
-from ctapipe_io_lst.constants import N_GAINS, N_PIXELS_MODULE, N_SAMPLES
+from ctapipe_io_lst.constants import N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS
 from traitlets.config import Config
+from ctapipe.containers import EventType
+from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_dir = test_data / 'real/R0/20200218'
@@ -110,3 +112,48 @@ def test_missing_modules():
 
         # 514 is one of the missing pixels
         assert np.all(event.r0.tel[1].waveform[:, 514] == fill)
+
+
+def test_gain_selected():
+    from ctapipe_io_lst import LSTEventSource
+
+    config = Config(dict(
+        LSTEventSource=dict(
+            default_trigger_type='tib',  # ucts unreliable in this run
+            apply_drs4_corrections=True,
+            LSTR0Corrections=dict(
+                apply_drs4_pedestal_correction=False,
+                apply_spike_correction=False,
+                apply_timelapse_correction=False,
+            )
+        )
+    ))
+
+    source = LSTEventSource(
+        test_r0_dir / 'LST-1.1.Run02008.0000_first50_gainselected.fits.fz',
+        config=config,
+    )
+    original_source = LSTEventSource(
+        test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
+        config=config,
+    )
+    gain_selector = ThresholdGainSelector(threshold=3500)
+    for event, original_event in zip(source, original_source):
+        if event.trigger.event_type in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}:
+            assert event.r0.tel[1].waveform is not None
+            assert event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
+            assert event.r1.tel[1].waveform is not None
+            assert event.r1.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES - 4)
+        else:
+            if event.r0.tel[1].waveform is not None:
+                assert event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
+
+            assert event.r1.tel[1].waveform.shape == (N_PIXELS, N_SAMPLES - 4)
+
+            # compare to original file
+            selected_gain = gain_selector(original_event.r1.tel[1].waveform)
+            pixel_idx = np.arange(N_PIXELS)
+            waveform = original_event.r1.tel[1].waveform[selected_gain, pixel_idx]
+            assert np.allclose(event.r1.tel[1].waveform, waveform)
+
+    assert event.count == 199
