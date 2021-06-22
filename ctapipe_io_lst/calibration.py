@@ -198,8 +198,6 @@ class LSTR0Corrections(TelescopeComponent):
             self.first_cap[tel_id] = np.zeros(shape, dtype=int)
             self.first_cap_old[tel_id] = np.zeros(shape, dtype=int)
 
-        # set the right default for our default selector, change back afterwards
-        # to not impact other code.
         if self.select_gain:
             self.gain_selector = ThresholdGainSelector(
                 threshold=self.gain_selection_threshold,
@@ -219,7 +217,10 @@ class LSTR0Corrections(TelescopeComponent):
             # fill r1 waveform with a copy of the r0 converted to float32
             # float32 can represent all values of uint16 exactly, so this
             # does not loose precision.
-            r1.waveform = event.r0.tel[tel_id].waveform.astype(np.float32)
+            if r1.waveform is None:
+                r1.waveform = event.r0.tel[tel_id].waveform.astype(np.float32)
+            else:
+                r1.waveform = event.r1.tel[tel_id].waveform.astype(np.float32)
 
             # apply drs4 corrections
             if self.apply_drs4_pedestal_correction:
@@ -235,12 +236,16 @@ class LSTR0Corrections(TelescopeComponent):
             start = self.r1_sample_start.tel[tel_id]
             end = self.r1_sample_end.tel[tel_id]
             r1.waveform = r1.waveform[..., start:end]
-            waveform = r1.waveform
 
-            waveform -= self.offset.tel[tel_id]
-
+            r1.waveform -= self.offset.tel[tel_id]
             mon = event.mon.tel[tel_id]
-            waveform[mon.pixel_status.hardware_failing_pixels] = 0.0
+            if r1.selected_gain_channel is None:
+                r1.waveform[mon.pixel_status.hardware_failing_pixels] = 0.0
+            else:
+                idx = np.arange(N_PIXELS)
+                broken = mon.pixel_status.hardware_failing_pixels[r1.selected_gain_channel, idx]
+                r1.waveform[broken] = 0.0
+
 
     def update_first_capacitors(self, event: ArrayEventContainer):
         for tel_id in event.r0.tel:
