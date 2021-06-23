@@ -553,8 +553,8 @@ def interpolate_spike_A(waveform, position):
     Numba function for interpolation spike type A.
     Change waveform array.
     """
-    a = waveform[position - 1]
-    b = waveform[position + 2]
+    a = int(waveform[position - 1])
+    b = int(waveform[position + 2])
     waveform[position] = waveform[position - 1] + (0.33 * (b - a))
     waveform[position + 1] = waveform[position - 1] + (0.66 * (b - a))
 
@@ -782,7 +782,7 @@ def apply_timelapse_correction_pixel(
     # largely refactored by M. Nöthe
     if (pixel_in_module % 2) == 0:
         first_capacitor_in_channel = first_capacitor % N_CAPACITORS_CHANNEL
-        if 766 < first_capacitor_in_channel < 1013:
+        if 767 < first_capacitor_in_channel < 1013:
             start = first_capacitor + N_CAPACITORS_CHANNEL
             end = start + 12
             for capacitor in range(start, end):
