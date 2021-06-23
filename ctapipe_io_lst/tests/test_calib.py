@@ -227,10 +227,11 @@ def test_no_gain_selection():
 
 def test_timelapse_no_underflow():
     '''Test that the timelapse calibration does not create an underflow'''
-    from ctapipe_io_lst.calibration import do_time_lapse_corr
+    from ctapipe_io_lst.calibration import apply_timelapse_correction
     from ctapipe_io_lst.constants import (
         N_GAINS, N_PIXELS, N_SAMPLES, N_MODULES,
         N_CAPACITORS_PIXEL, CLOCK_FREQUENCY_KHZ,
+        LAST_RUN_WITH_OLD_FIRMWARE,
     )
     from ctapipe_io_lst.calibration import ped_time
 
@@ -248,12 +249,13 @@ def test_timelapse_no_underflow():
     last_readout_time = np.ones((N_GAINS, N_PIXELS, N_CAPACITORS_PIXEL), dtype=np.uint64)
     expected_pixels_id = np.arange(N_PIXELS)
 
-    do_time_lapse_corr(
+    apply_timelapse_correction(
         waveform,
         local_clock_counter,
         first_capacitors,
         last_readout_time,
         expected_pixels_id,
+        run_id=LAST_RUN_WITH_OLD_FIRMWARE + 10,
     )
     assert np.all(waveform == 0)
 
