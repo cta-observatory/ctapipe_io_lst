@@ -21,7 +21,8 @@ from .constants import (
     N_GAINS, N_PIXELS, N_MODULES, N_SAMPLES, LOW_GAIN, HIGH_GAIN,
     N_PIXELS_MODULE, N_CAPACITORS_PIXEL, N_CAPACITORS_CHANNEL,
     LAST_RUN_WITH_OLD_FIRMWARE, CLOCK_FREQUENCY_KHZ,
-    CHANNEL_ORDER_LOW_GAIN, CHANNEL_ORDER_HIGH_GAIN, N_CHANNELS_MODULE
+    CHANNEL_ORDER_LOW_GAIN, CHANNEL_ORDER_HIGH_GAIN, N_CHANNELS_MODULE,
+    PIXEL_INDEX,
 )
 
 __all__ = [
@@ -258,51 +259,44 @@ class LSTR0Corrections(TelescopeComponent):
                 lst.svc.pixel_ids,
             )
 
-    def calibrate(self, event: ArrayEventContainer):
 
+    def calibrate(self, event: ArrayEventContainer):
         for tel_id in event.r0.tel:
             r1 = event.r1.tel[tel_id]
             # if `apply_drs4_corrections` is False, we did not fill in the
             # waveform yet.
             if r1.waveform is None:
-                waveform = event.r0.tel[tel_id].waveform
-            else:
-                waveform = r1.waveform
+                r1.waveform = event.r0.tel[tel_id].waveform
 
-            waveform = waveform.astype(np.float32, copy=False)
+            r1.waveform = r1.waveform.astype(np.float32, copy=False)
 
             # do gain selection before converting to pe
             # like eventbuilder will do
             if self.select_gain and r1.selected_gain_channel is None:
-                selected_gain_channel = self.gain_selector(waveform)
-            else:
-                selected_gain_channel = r1.selected_gain_channel
+                r1.selected_gain_channel = self.gain_selector(r1.waveform)
+                r1.waveform = r1.waveform[r1.selected_gain_channel, PIXEL_INDEX]
 
             # apply monitoring data corrections,
             # subtract pedestal and convert to pe
             if self.mon_data is not None:
                 calibration = self.mon_data.tel[tel_id].calibration
-                waveform -= calibration.pedestal_per_sample[:, :, np.newaxis]
-                waveform *= calibration.dc_to_pe[:, :, np.newaxis]
+                convert_to_pe(
+                    waveform=r1.waveform,
+                    calibration=calibration,
+                    selected_gain_channel=r1.selected_gain_channel
+                )
 
-            mon = event.mon.tel[tel_id]
-            waveform[mon.pixel_status.hardware_failing_pixels] = 0.0
-
-            n_gains, n_pixels, n_samples = waveform.shape
-            pixel_index = np.arange(n_pixels)
-
-            if selected_gain_channel is not None:
-                r1.waveform = waveform[selected_gain_channel, pixel_index]
-                r1.selected_gain_channel = selected_gain_channel
+            broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
+            if r1.selected_gain_channel is None:
+                r1.waveform[broken_pixels] = 0.0
             else:
-                r1.waveform = waveform
-                r1.selected_gain_channel = None
+                r1.waveform[broken_pixels[r1.selected_gain_channel, PIXEL_INDEX]] = 0.0
 
             # store calibration data needed for dl1 calibration in ctapipe
             # first drs4 time shift (zeros if no calib file was given)
             time_shift = self.get_drs4_time_correction(
                 tel_id, self.first_cap[tel_id],
-                selected_gain_channel=selected_gain_channel,
+                selected_gain_channel=r1.selected_gain_channel,
             )
 
             # time shift from flat fielding
@@ -310,20 +304,20 @@ class LSTR0Corrections(TelescopeComponent):
                 time_corr = self.mon_data.tel[tel_id].calibration.time_correction
                 # time_shift is subtracted in ctapipe,
                 # but time_correction should be added
-                if selected_gain_channel is not None:
-                    time_shift -= time_corr[r1.selected_gain_channel, pixel_index].to_value(u.ns)
+                if r1.selected_gain_channel is not None:
+                    time_shift -= time_corr[r1.selected_gain_channel, PIXEL_INDEX].to_value(u.ns)
                 else:
                     time_shift -= time_corr.to_value(u.ns)
 
             event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
             # needed for charge scaling in ctpaipe dl1 calib
-            if selected_gain_channel is not None:
-                relative_factor = np.empty(n_pixels)
+            if r1.selected_gain_channel is not None:
+                relative_factor = np.empty(N_PIXELS)
                 relative_factor[r1.selected_gain_channel == HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
                 relative_factor[r1.selected_gain_channel == LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
             else:
-                relative_factor = np.empty((n_gains, n_pixels))
+                relative_factor = np.empty((N_GAINS, N_PIXELS))
                 relative_factor[HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
                 relative_factor[LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
 
@@ -544,6 +538,14 @@ class LSTR0Corrections(TelescopeComponent):
                 run_id=run_id,
             )
 
+
+def convert_to_pe(waveform, calibration, selected_gain_channel):
+    if selected_gain_channel is None:
+        waveform -= calibration.pedestal_per_sample[:, :, np.newaxis]
+        waveform *= calibration.dc_to_pe[:, :, np.newaxis]
+    else:
+        waveform -= calibration.pedestal_per_sample[selected_gain_channel, PIXEL_INDEX, np.newaxis]
+        waveform *= calibration.dc_to_pe[selected_gain_channel, PIXEL_INDEX, np.newaxis]
 
 @njit(cache=True)
 def interpolate_spike_A(waveform, position):
