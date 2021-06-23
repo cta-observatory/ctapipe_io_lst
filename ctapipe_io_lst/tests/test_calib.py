@@ -17,6 +17,7 @@ test_calib_path = test_data / 'real/calibration/20200218/v05/calibration.Run2006
 test_drs4_pedestal_path = test_data / 'real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits'
 test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5'
 test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
+test_r0_gainselected_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0000_first50_gainselected.fits.fz'
 
 
 
@@ -281,3 +282,25 @@ def test_no_gain_selection_no_drs4time_calib():
             assert event.r1.tel[1].waveform is not None
             assert event.r1.tel[1].waveform.ndim == 3
             assert event.r1.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES - 4)
+
+
+def test_already_gain_selected():
+    from ctapipe_io_lst import LSTEventSource
+
+    config = Config({
+        'LSTEventSource': {
+            'LSTR0Corrections': {
+                'drs4_pedestal_path': test_drs4_pedestal_path,
+                'drs4_time_calibration_path': test_time_calib_path,
+                'calibration_path': test_calib_path,
+            },
+        },
+    })
+
+    source = LSTEventSource(test_r0_gainselected_path, config=config)
+    reference_source = LSTEventSource(test_r0_path, config=config)
+
+    with source, reference_source:
+        for event, reference_event in zip(source, reference_source):
+            assert np.all(event.r1.tel[1].waveform == reference_event.r1.tel[1].waveform)
+    assert event.count == 199
