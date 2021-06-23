@@ -274,10 +274,10 @@ class LSTR0Corrections(TelescopeComponent):
 
             # do gain selection before converting to pe
             # like eventbuilder will do
-            if self.select_gain:
+            if self.select_gain and r1.selected_gain_channel is None:
                 selected_gain_channel = self.gain_selector(waveform)
             else:
-                selected_gain_channel = None
+                selected_gain_channel = r1.selected_gain_channel
 
             # apply monitoring data corrections,
             # subtract pedestal and convert to pe
@@ -289,7 +289,6 @@ class LSTR0Corrections(TelescopeComponent):
             mon = event.mon.tel[tel_id]
             waveform[mon.pixel_status.hardware_failing_pixels] = 0.0
 
-            waveform = waveform.astype(np.float32)
             n_gains, n_pixels, n_samples = waveform.shape
             pixel_index = np.arange(n_pixels)
 
@@ -529,119 +528,179 @@ class LSTR0Corrections(TelescopeComponent):
         """
         run_id = event.lst.tel[tel_id].svc.configuration_id
 
-        # Interpolate spikes should be done after pedestal subtraction and time lapse correction.
-        if isinstance(event.r1.tel[tel_id].waveform, np.ndarray):
-            waveform = event.r1.tel[tel_id].waveform.copy()
-
-            # We have 2 functions: one for data from 2018/10/10 to 2019/11/04 and
-            # one for data from 2019/11/05 (from Run 1574) after update firmware.
-            # The old readout (before 2019/11/05) is shifted by 1 cell.
-            if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-                interpolate_pseudo_pulses = self.interpolate_pseudo_pulses
-            else:
-                interpolate_pseudo_pulses = self.interpolate_pseudo_pulses_data_from_20181010_to_20191104
-
-            interpolate_pseudo_pulses(
-                waveform,
-                self.first_cap[tel_id],
-                self.first_cap_old[tel_id],
+        r1 = event.r1.tel[tel_id]
+        if r1.selected_gain_channel is None:
+            interpolate_spikes(
+                waveform=r1.waveform,
+                first_capacitors=self.first_cap[tel_id],
+                previous_first_capacitors=self.first_cap_old[tel_id],
+                run_id=run_id,
             )
-            event.r1.tel[tel_id].waveform = waveform
+        else:
+            interpolate_spikes_gain_selected(
+                waveform=r1.waveform,
+                first_capacitors=self.first_cap[tel_id],
+                previous_first_capacitors=self.first_cap_old[tel_id],
+                selected_gain_channel=r1.selected_gain_channel,
+                run_id=run_id,
+            )
 
-    @staticmethod
-    @njit(cache=True)
-    def interpolate_pseudo_pulses(waveform, fc, fc_old):
-        """
-        Interpolate Spike type A. Modifies waveform in place
 
-        Parameters
-        ----------
-        waveform : ndarray
-            Waveform stored in a numpy array of shape
-            (N_GAINS, N_PIXELS, N_SAMPLES).
-        fc : ndarray
-            Value of first capacitor stored in a numpy array of shape
-            (N_GAINS, N_PIXELS).
-        fc_old : ndarray
-            Value of first capacitor from previous event
-            stored in a numpy array of shape
-            (N_GAINS, N_PIXELS).
-        """
-        LAST_IN_FIRST_HALF = N_CAPACITORS_CHANNEL // 2 - 1
+@njit(cache=True)
+def interpolate_spike_A(waveform, position):
+    """
+    Numba function for interpolation spike type A.
+    Change waveform array.
+    """
+    a = waveform[position - 1]
+    b = waveform[position + 2]
+    waveform[position] = waveform[position - 1] + (0.33 * (b - a))
+    waveform[position + 1] = waveform[position - 1] + (0.66 * (b - a))
 
-        for gain in range(N_GAINS):
-            for pixel in range(N_PIXELS):
-                last_fc = fc_old[gain, pixel]
-                current_fc = fc[gain, pixel]
 
-                for k in range(4):
-                    # looking for spike A first case
-                    abspos = N_CAPACITORS_CHANNEL + 1 - N_SAMPLES - 2 - last_fc + k * N_CAPACITORS_CHANNEL + N_CAPACITORS_PIXEL
-                    spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
+@njit(cache=True)
+def interpolate_spikes_pixel(waveform, current_fc, last_fc):
+    LAST_IN_FIRST_HALF = N_CAPACITORS_CHANNEL // 2 - 1
 
-                    if 2 < spike_A_position < (N_SAMPLES - 2):
-                        # The correction is only needed for even
-                        # last capacitor (lc) in the first half of the
-                        # DRS4 ring
-                        last_capacitor = (last_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
-                        if last_capacitor % 2 == 0 and last_capacitor <= LAST_IN_FIRST_HALF:
-                            interpolate_spike_A(waveform, gain, spike_A_position, pixel)
+    for k in range(4):
+        # looking for spike A first case
+        abspos = N_CAPACITORS_CHANNEL + 1 - N_SAMPLES - 2 - last_fc + k * N_CAPACITORS_CHANNEL + N_CAPACITORS_PIXEL
+        spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
 
-                    # looking for spike A second case
-                    abspos = N_SAMPLES - 1 + last_fc + k * N_CAPACITORS_CHANNEL
-                    spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
-                    if 2 < spike_A_position < (N_SAMPLES-2):
-                        # The correction is only needed for even last capacitor (lc) in the first half of the DRS4 ring
-                        last_lc = last_fc + N_SAMPLES - 1
-                        if last_lc % 2 == 0 and last_lc % N_CAPACITORS_CHANNEL <= N_CAPACITORS_CHANNEL // 2 - 1:
-                            interpolate_spike_A(waveform, gain, spike_A_position, pixel)
+        if 2 < spike_A_position < (N_SAMPLES - 2):
+            # The correction is only needed for even
+            # last capacitor (lc) in the first half of the
+            # DRS4 ring
+            last_capacitor = (last_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
+            if last_capacitor % 2 == 0 and last_capacitor <= LAST_IN_FIRST_HALF:
+                interpolate_spike_A(waveform, spike_A_position)
 
-    @staticmethod
-    @njit(cache=True)
-    def interpolate_pseudo_pulses_data_from_20181010_to_20191104(waveform, fc, fc_old):
-        """
-        Interpolate Spike A
-        This is function for data from 2018/10/10 to 2019/11/04 with old firmware.
-        Change waveform array.
+        # looking for spike A second case
+        abspos = N_SAMPLES - 1 + last_fc + k * N_CAPACITORS_CHANNEL
+        spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
+        if 2 < spike_A_position < (N_SAMPLES-2):
+            # The correction is only needed for even last capacitor (lc) in the first half of the DRS4 ring
+            last_lc = last_fc + N_SAMPLES - 1
+            if last_lc % 2 == 0 and last_lc % N_CAPACITORS_CHANNEL <= (N_CAPACITORS_CHANNEL // 2 - 1):
+                interpolate_spike_A(waveform, spike_A_position)
 
-        Parameters
-        ----------
-        waveform : ndarray
-            Waveform stored in a numpy array of shape
-            (N_GAINS, N_PIXELS, N_SAMPLES).
-        fc : ndarray
-            Value of first capacitor stored in a numpy array of shape
-            (N_GAINS, N_PIXELS).
-        fc_old : ndarray
-            Value of first capacitor from previous event
-            stored in a numpy array of shape
-            (N_GAINS, N_PIXELS).
-        """
-        roi_size = 40
-        size1drs = 1024
-        size4drs = 4096
-        for gain in range(N_GAINS):
-            for pix in range(N_PIXELS):
-                for k in range(4):
-                    # looking for spike A first case
-                    abspos = int(size1drs - roi_size - 2 -fc_old[gain, pix] + k * size1drs + size4drs)
-                    spike_A_position = int((abspos - fc[gain, pix] + size4drs) % size4drs)
-                    if (spike_A_position > 2 and spike_A_position < roi_size-2):
-                        # The correction is only needed for even
-                        # last capacitor (lc) in the first half of the
-                        # DRS4 ring
-                        if ((fc_old[gain, pix] + (roi_size-1)) % 2 == 0 and (fc_old[gain, pix]+ (roi_size-1)) % size1drs <= size1drs//2-2):
-                            interpolate_spike_A(waveform, gain, spike_A_position, pix)
 
-                    # looking for spike A second case
-                    abspos = int(roi_size - 2 + fc_old[gain, pix]+ k * size1drs)
-                    spike_A_position = int((abspos -fc[gain, pix] + size4drs) % size4drs)
-                    if (spike_A_position > 2 and spike_A_position < (roi_size-2)):
-                        # The correction is only needed for even last capacitor (lc) in the
-                        # first half of the DRS4 ring
-                        if ((fc_old[gain, pix] + (roi_size-1)) % 2 == 0 and (fc_old[gain, pix] + (roi_size-1)) % size1drs <= size1drs//2-2):
-                            interpolate_spike_A(waveform, gain, spike_A_position, pix)
-        return waveform
+@njit(cache=True)
+def interpolate_spikes_pixel_old_firmware(waveform, current_fc, last_fc):
+    """
+    Interpolate Spike A
+    This is function for data from 2018/10/10 to 2019/11/04 with old firmware.
+    Change waveform array.
+
+    Parameters
+    ----------
+    waveform : ndarray
+        Waveform stored in a numpy array of shape
+        (N_GAINS, N_PIXELS, N_SAMPLES).
+    fc : ndarray
+        Value of first capacitor stored in a numpy array of shape
+        (N_GAINS, N_PIXELS).
+    fc_old : ndarray
+        Value of first capacitor from previous event
+        stored in a numpy array of shape
+        (N_GAINS, N_PIXELS).
+    """
+    for k in range(4):
+        # looking for spike A first case
+        abspos = N_CAPACITORS_CHANNEL - N_SAMPLES - 2 - last_fc + k * N_CAPACITORS_CHANNEL + N_CAPACITORS_PIXEL
+        spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
+        if 2 < spike_A_position < (N_SAMPLES - 2):
+            # The correction is only needed for even
+            # last capacitor (lc) in the first half of the
+            # DRS4 ring
+            last_capacitor = (last_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
+            if last_capacitor % 2 == 0 and last_capacitor <= (N_CAPACITORS_CHANNEL // 2 - 2):
+                interpolate_spike_A(waveform, spike_A_position)
+
+        # looking for spike A second case
+        abspos = N_SAMPLES - 2 + last_fc + k * N_CAPACITORS_CHANNEL
+        spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
+        if 2 < spike_A_position < (N_SAMPLES-2):
+            # The correction is only needed for even last capacitor (lc) in the
+            # first half of the DRS4 ring
+            last_lc = last_fc + N_SAMPLES - 1
+            if last_lc % 2 == 0 and last_lc % N_CAPACITORS_CHANNEL <= (N_CAPACITORS_CHANNEL // 2 - 1):
+                interpolate_spike_A(waveform, spike_A_position)
+
+
+@njit(cache=True)
+def interpolate_spikes(waveform, first_capacitors, previous_first_capacitors, run_id):
+    """
+    Interpolate Spike type A. Modifies waveform in place
+
+    Parameters
+    ----------
+    waveform : ndarray
+        Waveform stored in a numpy array of shape
+        (N_GAINS, N_PIXELS, N_SAMPLES).
+    first_capacitors : ndarray
+        Value of first capacitor stored in a numpy array of shape
+        (N_GAINS, N_PIXELS).
+    previous_first_capacitors : ndarray
+        Value of first capacitor from previous event
+        stored in a numpy array of shape
+        (N_GAINS, N_PIXELS).
+    """
+    for gain in range(N_GAINS):
+        for pixel in range(N_PIXELS):
+            current_fc = first_capacitors[gain, pixel]
+            last_fc = previous_first_capacitors[gain, pixel]
+
+            if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+                interpolate_spikes_pixel(
+                    waveform=waveform[gain, pixel],
+                    current_fc=current_fc,
+                    last_fc=last_fc,
+                )
+            else:
+                interpolate_spikes_pixel_old_firmware(
+                    waveform=waveform[gain, pixel],
+                    current_fc=current_fc,
+                    last_fc=last_fc,
+                )
+
+
+@njit(cache=True)
+def interpolate_spikes_gain_selected(waveform, first_capacitors, previous_first_capacitors, selected_gain_channel, run_id):
+    """
+    Interpolate Spike type A. Modifies waveform in place
+
+    Parameters
+    ----------
+    waveform : ndarray
+        Waveform stored in a numpy array of shape
+        (N_GAINS, N_PIXELS, N_SAMPLES).
+    first_capacitors : ndarray
+        Value of first capacitor stored in a numpy array of shape
+        (N_GAINS, N_PIXELS).
+    previous_first_capacitors : ndarray
+        Value of first capacitor from previous event
+        stored in a numpy array of shape
+        (N_GAINS, N_PIXELS).
+    """
+
+    for pixel in range(N_PIXELS):
+        gain = selected_gain_channel[pixel]
+        current_fc = first_capacitors[gain, pixel]
+        last_fc = previous_first_capacitors[gain, pixel]
+
+        if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+            interpolate_spikes_pixel(
+                waveform=waveform[pixel],
+                current_fc=current_fc,
+                last_fc=last_fc,
+            )
+        else:
+            interpolate_spikes_pixel_old_firmware(
+                waveform=waveform[pixel],
+                current_fc=current_fc,
+                last_fc=last_fc,
+            )
 
 
 @njit(cache=True)
@@ -662,6 +721,7 @@ def subtract_pedestal(
             first_cap = first_capacitors[gain, pixel_id]
             pedestal = pedestal_value_array[gain, pixel_id, first_cap:first_cap + N_SAMPLES]
             waveform[gain, pixel_id] -= pedestal
+
 
 @njit(cache=True)
 def subtract_pedestal_gain_selected(
@@ -869,18 +929,6 @@ def ped_time(timediff):
     # see also Yokiho's talk in https://indico.cta-observatory.org/event/2664/
     return 32.99 * timediff**(-0.22) - 11.9
 
-
-@njit(cache=True)
-def interpolate_spike_A(waveform, gain, position, pixel):
-    """
-    Numba function for interpolation spike type A.
-    Change waveform array.
-    """
-    samples = waveform[gain, pixel, :]
-    a = int(samples[position - 1])
-    b = int(samples[position + 2])
-    waveform[gain, pixel, position] = (samples[position - 1]) + (0.33 * (b - a))
-    waveform[gain, pixel, position + 1] = (samples[position - 1]) + (0.66 * (b - a))
 
 
 @njit(cache=True)
