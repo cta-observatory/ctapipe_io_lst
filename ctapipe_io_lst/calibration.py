@@ -226,7 +226,6 @@ class LSTR0Corrections(TelescopeComponent):
 
             # apply drs4 corrections
             if self.apply_drs4_pedestal_correction:
-                print(event.r1.tel[tel_id].waveform.dtype)
                 self.subtract_pedestal(event, tel_id)
 
             if self.apply_timelapse_correction:
