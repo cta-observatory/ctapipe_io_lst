@@ -212,18 +212,21 @@ class LSTR0Corrections(TelescopeComponent):
     def apply_drs4_corrections(self, event: ArrayEventContainer):
         self.update_first_capacitors(event)
 
-        for tel_id in event.r0.tel:
+        for tel_id, r0 in event.r0.tel.items():
             r1 = event.r1.tel[tel_id]
             # fill r1 waveform with a copy of the r0 converted to float32
             # float32 can represent all values of uint16 exactly, so this
             # does not loose precision.
             if r1.waveform is None:
-                r1.waveform = event.r0.tel[tel_id].waveform.astype(np.float32)
+                r1.waveform = r0.waveform
             else:
-                r1.waveform = event.r1.tel[tel_id].waveform.astype(np.float32)
+                r1.waveform = r1.waveform
+
+            r1.waveform = r1.waveform.astype(np.float32, copy=False)
 
             # apply drs4 corrections
             if self.apply_drs4_pedestal_correction:
+                print(event.r1.tel[tel_id].waveform.dtype)
                 self.subtract_pedestal(event, tel_id)
 
             if self.apply_timelapse_correction:
@@ -263,9 +266,11 @@ class LSTR0Corrections(TelescopeComponent):
             # if `apply_drs4_corrections` is False, we did not fill in the
             # waveform yet.
             if r1.waveform is None:
-                waveform = event.r0.tel[tel_id].waveform.astype(np.float32)
+                waveform = event.r0.tel[tel_id].waveform
             else:
                 waveform = r1.waveform
+
+            waveform = waveform.astype(np.float32, copy=False)
 
             # do gain selection before converting to pe
             # like eventbuilder will do
@@ -446,14 +451,24 @@ class LSTR0Corrections(TelescopeComponent):
         event : `ctapipe` event-container
         tel_id : id of the telescope
         """
-        subtract_pedestal_jit(
-            event.r1.tel[tel_id].waveform,
-            self.first_cap[tel_id],
-            self._get_drs4_pedestal_data(
-                self.drs4_pedestal_path.tel[tel_id],
-                offset=self.offset.tel[tel_id],
-            ),
+        pedestal = self._get_drs4_pedestal_data(
+            self.drs4_pedestal_path.tel[tel_id],
+            offset=self.offset.tel[tel_id],
         )
+        if event.r1.tel[tel_id].selected_gain_channel is None:
+            subtract_pedestal(
+                event.r1.tel[tel_id].waveform,
+                self.first_cap[tel_id],
+                pedestal,
+            )
+        else:
+            subtract_pedestal_gain_selected(
+                event.r1.tel[tel_id].waveform,
+                self.first_cap[tel_id],
+                pedestal,
+                event.r1.tel[tel_id].selected_gain_channel,
+            )
+
 
     def time_lapse_corr(self, event, tel_id):
         """
@@ -479,18 +494,27 @@ class LSTR0Corrections(TelescopeComponent):
         # one for data from 2019/11/05 (from Run 1574) after update firmware.
         # The old readout (before 2019/11/05) is shifted by 1 cell.
         run_id = event.lst.tel[tel_id].svc.configuration_id
-        if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-            time_lapse_corr = do_time_lapse_corr
-        else:
-            time_lapse_corr = do_time_lapse_corr_data_from_20181010_to_20191104
 
-        time_lapse_corr(
-            waveform,
-            lst.evt.local_clock_counter,
-            self.first_cap[tel_id],
-            self.last_readout_time[tel_id],
-            lst.svc.pixel_ids,
-        )
+        # not yet gain selected
+        if event.r1.tel[tel_id].selected_gain_channel is None:
+            apply_timelapse_correction(
+                waveform,
+                lst.evt.local_clock_counter,
+                self.first_cap[tel_id],
+                self.last_readout_time[tel_id],
+                lst.svc.pixel_ids,
+                run_id=run_id,
+            )
+        else:
+            apply_timelapse_correction_gain_selected(
+                waveform=waveform,
+                local_clock_counter=lst.evt.local_clock_counter,
+                first_capacitors=self.first_cap[tel_id],
+                last_readout_time=self.last_readout_time[tel_id],
+                expected_pixels_id=lst.svc.pixel_ids,
+                selected_gain_channel=event.r1.tel[tel_id].selected_gain_channel,
+                run_id=run_id,
+            )
 
         container.waveform = waveform
 
@@ -621,7 +645,7 @@ class LSTR0Corrections(TelescopeComponent):
 
 
 @njit(cache=True)
-def subtract_pedestal_jit(
+def subtract_pedestal(
     waveform,
     first_capacitors,
     pedestal_value_array,
@@ -640,129 +664,195 @@ def subtract_pedestal_jit(
             waveform[gain, pixel_id] -= pedestal
 
 @njit(cache=True)
-def do_time_lapse_corr(
+def subtract_pedestal_gain_selected(
     waveform,
-    local_clock_counter,
     first_capacitors,
-    last_readout_time,
-    expected_pixels_id,
+    pedestal_value_array,
+    selected_gain_channel,
 ):
     """
-    Numba function for time lapse baseline correction.
-    Change waveform array.
+    Numba function to subtract the drs4 pedestal.
+    Mutates input array inplace
     """
-    n_modules = len(expected_pixels_id) // N_PIXELS_MODULE
-    for gain in range(N_GAINS):
-        for module in range(n_modules):
-            time_now = local_clock_counter[module]
-
-            for pixel_in_module in range(N_PIXELS_MODULE):
-                pixel_index = module * N_PIXELS_MODULE + pixel_in_module
-                pixel_id = expected_pixels_id[pixel_index]
-                first_capacitor = first_capacitors[gain, pixel_id]
-
-                for sample in range(N_SAMPLES):
-                    capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
-
-                    last_readout_time_cap = last_readout_time[gain, pixel_id, capacitor]
-
-                    # apply correction if last readout available
-                    if last_readout_time_cap > 0:
-                        time_diff = time_now - last_readout_time_cap
-                        time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
-
-                        # FIXME: Why only for values < 100 ms, negligible otherwise?
-                        if time_diff_ms < 100:
-                            # prevent underflow of the unsigned int value
-                            correction = min(ped_time(time_diff_ms), waveform[gain, pixel_id, sample])
-                            waveform[gain, pixel_id, sample] -= correction
-
-                    # update the last read time
-                    last_readout_time[gain, pixel_id, capacitor] = time_now
-
-                # now the magic of Dragon,
-                # extra conditions on the number of capacitor times being updated
-                # if the ROI is in the last quarter of each DRS4
-                # for even channel numbers extra 12 slices are read in a different place
-                # code from Takayuki & Julian
-                # largely refactored by M. Nöthe
-                if (pixel_in_module % 2) == 0:
-                    first_capacitor_in_channel = first_capacitor % N_CAPACITORS_CHANNEL
-                    if (first_capacitor_in_channel > 767) and (first_capacitor_in_channel < 1013):
-                        start = first_capacitor + N_CAPACITORS_CHANNEL
-                        end = start + 12
-
-                        for capacitor in range(start, end):
-                            last_readout_time[gain, pixel_id, capacitor % N_CAPACITORS_PIXEL] = time_now
-
-                    elif first_capacitor_in_channel >= 1013:
-                        start = first_capacitor + N_CAPACITORS_CHANNEL
-                        channel = first_capacitor // N_CAPACITORS_CHANNEL
-                        end = (channel + 2) * N_CAPACITORS_CHANNEL
-                        for capacitor in range(start, end):
-                            last_readout_time[gain, pixel_id, capacitor % N_CAPACITORS_PIXEL] = time_now
+    for pixel_id in range(N_PIXELS):
+        gain = selected_gain_channel[pixel_id]
+        # waveform is already reordered to pixel ids,
+        # the first caps are not, so we need to translate here.
+        first_cap = first_capacitors[gain, pixel_id]
+        pedestal = pedestal_value_array[gain, pixel_id, first_cap:first_cap + N_SAMPLES]
+        waveform[pixel_id] -= pedestal
 
 
 @njit(cache=True)
-def do_time_lapse_corr_data_from_20181010_to_20191104(
+def apply_timelapse_correction_pixel(
+    waveform,
+    pixel_in_module,
+    first_capacitor,
+    time_now,
+    last_readout_time
+):
+    '''
+    Apply timelapse correction for a single pixel.
+    All inputs are numbers / arrays only for the given pixel / gain channel.
+    '''
+    for sample in range(N_SAMPLES):
+        capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
+
+        last_readout_time_cap = last_readout_time[capacitor]
+
+        # apply correction if last readout available
+        if last_readout_time_cap > 0:
+            time_diff = time_now - last_readout_time_cap
+            time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
+
+            # FIXME: Why only for values < 100 ms, negligible otherwise?
+            if time_diff_ms < 100:
+                # prevent underflow of the unsigned int value
+                waveform[sample] -= min(ped_time(time_diff_ms), waveform[sample])
+
+        # update the last read time
+        last_readout_time[capacitor] = time_now
+
+    # now the magic of Dragon,
+    # extra conditions on the number of capacitor times being updated
+    # if the ROI is in the last quarter of each DRS4
+    # for even channel numbers extra 12 slices are read in a different place
+    # code from Takayuki & Julian
+    # largely refactored by M. Nöthe
+    if (pixel_in_module % 2) == 0:
+        first_capacitor_in_channel = first_capacitor % N_CAPACITORS_CHANNEL
+        if 766 < first_capacitor_in_channel < 1013:
+            start = first_capacitor + N_CAPACITORS_CHANNEL
+            end = start + 12
+            for capacitor in range(start, end):
+                last_readout_time[capacitor % N_CAPACITORS_PIXEL] = time_now
+
+        elif first_capacitor_in_channel >= 1013:
+            start = first_capacitor + N_CAPACITORS_CHANNEL
+            channel = first_capacitor // N_CAPACITORS_CHANNEL
+            end = (channel + 2) * N_CAPACITORS_CHANNEL
+            for capacitor in range(start, end):
+                last_readout_time[capacitor % N_CAPACITORS_PIXEL] = time_now
+
+
+@njit(cache=True)
+def apply_timelapse_correction_pixel_old_firmware(waveform, pixel_in_module, first_capacitor, time_now, last_readout_time):
+    for sample in range(N_SAMPLES):
+        capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
+
+        if last_readout_time[capacitor] > 0:
+            time_diff = time_now - last_readout_time[capacitor]
+            time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
+
+            if time_diff_ms < 100:
+                # prevent underflow of the unsigned int value
+                waveform[sample] -= min(ped_time(time_diff_ms), waveform[sample])
+
+    for sample in range(-1, N_SAMPLES - 1):
+        capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
+        last_readout_time[capacitor] = time_now
+
+    # now the magic of Dragon,
+    # if the ROI is in the last quarter of each DRS4
+    # for even channel numbers extra 12 slices are read in a different place
+    # code from Takayuki & Julian
+    # largely refactored by M. Nöthe
+    if pixel_in_module % 2 == 0:
+        first_capacitor_in_channel = first_capacitor % N_CAPACITORS_CHANNEL
+        if 766 < first_capacitor_in_channel < 1013:
+            start = first_capacitor + N_CAPACITORS_CHANNEL - 1
+            end = first_capacitor + N_CAPACITORS_CHANNEL + 11
+            for capacitor in range(start, end):
+                last_readout_time[capacitor % N_CAPACITORS_PIXEL] = time_now
+
+        elif first_capacitor_in_channel >= 1013:
+            start = first_capacitor + N_CAPACITORS_CHANNEL
+            channel = first_capacitor // N_CAPACITORS_CHANNEL
+            end = (channel + 2) * N_CAPACITORS_CHANNEL
+            for capacitor in range(start, end):
+                last_readout_time[capacitor % N_CAPACITORS_PIXEL] = time_now
+
+
+@njit(cache=True)
+def apply_timelapse_correction(
     waveform,
     local_clock_counter,
     first_capacitors,
     last_readout_time,
     expected_pixels_id,
+    run_id,
 ):
     """
-    Numba function for time lapse baseline correction.
-    This is function for data from 2018/10/10 to 2019/11/04 with old firmware.
-    Change waveform array.
-    """
+    Apply time lapse baseline correction for data not yet gain selected.
 
+    Mutates the waveform and last_readout_time arrays.
+    """
     n_modules = len(expected_pixels_id) // N_PIXELS_MODULE
     for gain in range(N_GAINS):
         for module in range(n_modules):
             time_now = local_clock_counter[module]
-
-            for pixel_in_module in range(N_PIXELS):
+            for pixel_in_module in range(N_PIXELS_MODULE):
                 pixel_index = module * N_PIXELS_MODULE + pixel_in_module
                 pixel_id = expected_pixels_id[pixel_index]
 
-                first_capacitor = first_capacitors[gain, pixel_id]
+                if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+                    apply_timelapse_correction_pixel(
+                        waveform=waveform[gain, pixel_id],
+                        pixel_in_module=pixel_in_module,
+                        first_capacitor=first_capacitors[gain, pixel_id],
+                        time_now=time_now,
+                        last_readout_time=last_readout_time[gain, pixel_id],
+                    )
+                else:
+                    apply_timelapse_correction_pixel_old_firmware(
+                        waveform=waveform[gain, pixel_id],
+                        pixel_in_module=pixel_in_module,
+                        first_capacitor=first_capacitors[gain, pixel_id],
+                        time_now=time_now,
+                        last_readout_time=last_readout_time[gain, pixel_id],
+                    )
 
-                for sample in range(N_SAMPLES):
-                    capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
 
-                    if last_readout_time[gain, pixel_id, capacitor] > 0:
-                        time_diff = time_now - last_readout_time[gain, pixel_id, capacitor]
-                        time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
+@njit(cache=True)
+def apply_timelapse_correction_gain_selected(
+    waveform,
+    local_clock_counter,
+    first_capacitors,
+    last_readout_time,
+    expected_pixels_id,
+    selected_gain_channel,
+    run_id,
+):
+    """
+    Apply time lapse baseline correction to already gain selected data.
 
-                        if time_diff_ms < 100:
-                            # prevent underflow of the unsigned int value
-                            correction = min(ped_time(time_diff_ms), waveform[gain, pixel_id, sample])
-                            waveform[gain, pixel_id, sample] -= correction
+    Mutates the waveform and last_readout_time arrays.
+    """
+    n_modules = len(expected_pixels_id) // N_PIXELS_MODULE
+    for module in range(n_modules):
+        time_now = local_clock_counter[module]
+        for pixel_in_module in range(N_PIXELS_MODULE):
 
-                for sample in range(-1, N_SAMPLES - 1):
-                    capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
-                    last_readout_time[gain, pixel_id, capacitor] = time_now
+            pixel_index = module * N_PIXELS_MODULE + pixel_in_module
+            pixel_id = expected_pixels_id[pixel_index]
+            gain = selected_gain_channel[pixel_id]
 
-                # now the magic of Dragon,
-                # if the ROI is in the last quarter of each DRS4
-                # for even channel numbers extra 12 slices are read in a different place
-                # code from Takayuki & Julian
-                # largely refactored by M. Nöthe
-                if pixel_id % 2 == 0:
-
-                    if 766 < (first_capacitor % N_CAPACITORS_CHANNEL) < 1013:
-                        start = first_capacitor + N_CAPACITORS_CHANNEL - 1
-                        end = first_capacitor + N_CAPACITORS_CHANNEL + 11
-                        for capacitor in range(start, end):
-                            last_readout_time[gain, pixel_id, capacitor % N_CAPACITORS_PIXEL] = time_now
-
-                    elif first_capacitor % N_CAPACITORS_CHANNEL >= 1013:
-                        start = first_capacitor + N_CAPACITORS_CHANNEL
-                        channel = first_capacitor // N_CAPACITORS_CHANNEL
-                        end = (channel + 2) * N_CAPACITORS_CHANNEL
-                        for capacitor in range(start, end):
-                            last_readout_time[gain, pixel_id, capacitor % N_CAPACITORS_PIXEL] = time_now
+            if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+                apply_timelapse_correction_pixel(
+                    waveform=waveform[pixel_id],
+                    pixel_in_module=pixel_in_module,
+                    first_capacitor=first_capacitors[gain, pixel_id],
+                    time_now=time_now,
+                    last_readout_time=last_readout_time[gain, pixel_id],
+                )
+            else:
+                apply_timelapse_correction_pixel_old_firmware(
+                    waveform=waveform[pixel_id],
+                    pixel_in_module=pixel_in_module,
+                    first_capacitor=first_capacitors[gain, pixel_id],
+                    time_now=time_now,
+                    last_readout_time=last_readout_time[gain, pixel_id],
+                )
 
 
 @njit(cache=True)
