@@ -644,7 +644,7 @@ class LSTEventSource(EventSource):
             reordered_waveform = np.full((N_PIXELS, N_SAMPLES), fill, dtype=dtype)
             reordered_waveform[expected_pixels] = waveform
 
-            reordered_selected_gain = np.zeros(N_PIXELS, dtype=np.uint8)
+            reordered_selected_gain = np.full(N_PIXELS, -1, dtype=np.int8)
             reordered_selected_gain[expected_pixels] = selected_gain
 
             r0 = R0CameraContainer()

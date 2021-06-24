@@ -13,8 +13,9 @@ from ctapipe.core.traits import (
 )
 
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
-from ctapipe.containers import MonitoringContainer, ArrayEventContainer
+from ctapipe.containers import MonitoringContainer
 from ctapipe.io import HDF5TableReader
+from .containers import LSTArrayEventContainer
 
 
 from .constants import (
@@ -210,7 +211,7 @@ class LSTR0Corrections(TelescopeComponent):
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
 
-    def apply_drs4_corrections(self, event: ArrayEventContainer):
+    def apply_drs4_corrections(self, event: LSTArrayEventContainer):
         self.update_first_capacitors(event)
 
         for tel_id, r0 in event.r0.tel.items():
@@ -250,17 +251,15 @@ class LSTR0Corrections(TelescopeComponent):
                 r1.waveform[broken] = 0.0
 
 
-    def update_first_capacitors(self, event: ArrayEventContainer):
-        for tel_id in event.r0.tel:
-            lst = event.lst.tel[tel_id]
+    def update_first_capacitors(self, event: LSTArrayEventContainer):
+        for tel_id, lst in event.lst.tel.items():
             self.first_cap_old[tel_id] = self.first_cap[tel_id]
             self.first_cap[tel_id] = get_first_capacitors_for_pixels(
                 lst.evt.first_capacitor_id,
                 lst.svc.pixel_ids,
             )
 
-
-    def calibrate(self, event: ArrayEventContainer):
+    def calibrate(self, event: LSTArrayEventContainer):
         for tel_id in event.r0.tel:
             r1 = event.r1.tel[tel_id]
             # if `apply_drs4_corrections` is False, we did not fill in the
@@ -490,11 +489,11 @@ class LSTR0Corrections(TelescopeComponent):
         # not yet gain selected
         if event.r1.tel[tel_id].selected_gain_channel is None:
             apply_timelapse_correction(
-                waveform,
-                lst.evt.local_clock_counter,
-                self.first_cap[tel_id],
-                self.last_readout_time[tel_id],
-                lst.svc.pixel_ids,
+                waveform=waveform,
+                local_clock_counter=lst.evt.local_clock_counter,
+                first_capacitors=self.first_cap[tel_id],
+                last_readout_time=self.last_readout_time[tel_id],
+                expected_pixels_id=lst.svc.pixel_ids,
                 run_id=run_id,
             )
         else:
