@@ -746,7 +746,6 @@ def subtract_pedestal_gain_selected(
 @njit(cache=True)
 def apply_timelapse_correction_pixel(
     waveform,
-    pixel_in_module,
     first_capacitor,
     time_now,
     last_readout_time
@@ -770,7 +769,17 @@ def apply_timelapse_correction_pixel(
                 # prevent underflow of the unsigned int value
                 waveform[sample] -= min(ped_time(time_diff_ms), waveform[sample])
 
-        # update the last read time
+
+@njit(cache=True)
+def update_last_readout_time(
+    pixel_in_module,
+    first_capacitor,
+    time_now,
+    last_readout_time
+):
+    # update the last read time for all samples
+    for sample in range(N_SAMPLES):
+        capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
         last_readout_time[capacitor] = time_now
 
     # now the magic of Dragon,
@@ -796,18 +805,7 @@ def apply_timelapse_correction_pixel(
 
 
 @njit(cache=True)
-def apply_timelapse_correction_pixel_old_firmware(waveform, pixel_in_module, first_capacitor, time_now, last_readout_time):
-    for sample in range(N_SAMPLES):
-        capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
-
-        if last_readout_time[capacitor] > 0:
-            time_diff = time_now - last_readout_time[capacitor]
-            time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
-
-            if time_diff_ms < 100:
-                # prevent underflow of the unsigned int value
-                waveform[sample] -= min(ped_time(time_diff_ms), waveform[sample])
-
+def update_last_readout_time_old_firmware(pixel_in_module, first_capacitor, time_now, last_readout_time):
     for sample in range(-1, N_SAMPLES - 1):
         capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
         last_readout_time[capacitor] = time_now
@@ -855,17 +853,22 @@ def apply_timelapse_correction(
                 pixel_index = module * N_PIXELS_MODULE + pixel_in_module
                 pixel_id = expected_pixels_id[pixel_index]
 
+                apply_timelapse_correction_pixel(
+                    waveform=waveform[gain, pixel_id],
+                    first_capacitor=first_capacitors[gain, pixel_id],
+                    time_now=time_now,
+                    last_readout_time=last_readout_time[gain, pixel_id],
+                )
+
                 if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-                    apply_timelapse_correction_pixel(
-                        waveform=waveform[gain, pixel_id],
+                    update_last_readout_time(
                         pixel_in_module=pixel_in_module,
                         first_capacitor=first_capacitors[gain, pixel_id],
                         time_now=time_now,
                         last_readout_time=last_readout_time[gain, pixel_id],
                     )
                 else:
-                    apply_timelapse_correction_pixel_old_firmware(
-                        waveform=waveform[gain, pixel_id],
+                    update_last_readout_time_old_firmware(
                         pixel_in_module=pixel_in_module,
                         first_capacitor=first_capacitors[gain, pixel_id],
                         time_now=time_now,
@@ -897,22 +900,30 @@ def apply_timelapse_correction_gain_selected(
             pixel_id = expected_pixels_id[pixel_index]
             gain = selected_gain_channel[pixel_id]
 
-            if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-                apply_timelapse_correction_pixel(
-                    waveform=waveform[pixel_id],
-                    pixel_in_module=pixel_in_module,
-                    first_capacitor=first_capacitors[gain, pixel_id],
-                    time_now=time_now,
-                    last_readout_time=last_readout_time[gain, pixel_id],
-                )
-            else:
-                apply_timelapse_correction_pixel_old_firmware(
-                    waveform=waveform[pixel_id],
-                    pixel_in_module=pixel_in_module,
-                    first_capacitor=first_capacitors[gain, pixel_id],
-                    time_now=time_now,
-                    last_readout_time=last_readout_time[gain, pixel_id],
-                )
+            apply_timelapse_correction_pixel(
+                waveform=waveform[pixel_id],
+                first_capacitor=first_capacitors[gain, pixel_id],
+                time_now=time_now,
+                last_readout_time=last_readout_time[gain, pixel_id],
+            )
+
+            # we need to update the last readout times of all gains
+            # not just the selected channel
+            for gain in range(N_GAINS):
+                if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+                    update_last_readout_time(
+                        pixel_in_module=pixel_in_module,
+                        first_capacitor=first_capacitors[gain, pixel_id],
+                        time_now=time_now,
+                        last_readout_time=last_readout_time[gain, pixel_id],
+                    )
+                else:
+                    update_last_readout_time_old_firmware(
+                        pixel_in_module=pixel_in_module,
+                        first_capacitor=first_capacitors[gain, pixel_id],
+                        time_now=time_now,
+                        last_readout_time=last_readout_time[gain, pixel_id],
+                    )
 
 
 @njit(cache=True)
