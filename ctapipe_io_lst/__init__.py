@@ -6,7 +6,6 @@ import numpy as np
 from astropy import units as u
 from pkg_resources import resource_filename
 import os
-from astropy.time import Time
 from os import listdir
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
@@ -21,7 +20,7 @@ from enum import IntFlag, auto
 
 from ctapipe.io import EventSource
 from ctapipe.io.datalevels import DataLevel
-from ctapipe.core.traits import Int, Bool, Float, Enum, Path
+from ctapipe.core.traits import Int, Bool, Float, Enum
 from ctapipe.containers import PixelStatusContainer, EventType
 
 from .containers import LSTArrayEventContainer, LSTServiceContainer
