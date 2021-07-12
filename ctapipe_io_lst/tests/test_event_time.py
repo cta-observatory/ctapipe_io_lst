@@ -11,11 +11,56 @@ import astropy.units as u
 from ctapipe_io_lst.constants import N_MODULES
 from ctapipe_io_lst.containers import LSTArrayEventContainer
 
-from traitlets.config import Config
-
-
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
 test_run_summary = test_data / 'real/monitoring/RunSummary/RunSummary_20200218.ecsv'
+
+
+def test_combine_counters():
+    from ctapipe_io_lst.event_time import combine_counters
+
+    pps_counter = np.uint16(60_000)
+    ten_mhz_counter = np.uint32(1)
+    result = combine_counters(pps_counter, ten_mhz_counter)
+
+    assert result.dtype == np.uint64
+    assert result == np.uint64(60_000_000_000_100)
+
+
+def test_calculate_dragon_time():
+    from ctapipe_io_lst.event_time import calc_dragon_time
+
+    reference_time = np.uint64(1_626_097_611_000_000_000)
+    reference_counter = np.uint64(0)
+    pps_counter = np.uint16(0)
+    ten_mhz_counter = np.uint32(0)
+
+    t = calc_dragon_time(pps_counter, ten_mhz_counter, reference_time, reference_counter)
+    assert t == reference_time
+
+    reference_counter = np.uint64(100)
+    pps_counter = np.uint16(0)
+    ten_mhz_counter = np.uint32(1)
+
+    t = calc_dragon_time(pps_counter, ten_mhz_counter, reference_time, reference_counter)
+    assert t == reference_time
+
+
+    reference_counter = np.uint64(1_000_000_000)
+    pps_counter = np.uint16(1)
+    ten_mhz_counter = np.uint32(0)
+
+    t = calc_dragon_time(pps_counter, ten_mhz_counter, reference_time, reference_counter)
+    assert t == reference_time
+
+
+    # test time before reference time works
+    reference_time = np.uint64(1_600_000_000_000_000_000)
+    reference_counter = np.uint64(10_000_000_000)
+    pps_counter = np.uint16(5)
+    ten_mhz_counter = np.uint32(0)
+
+    t = calc_dragon_time(pps_counter, ten_mhz_counter, reference_time, reference_counter)
+    assert t == np.uint64(1_599_999_995_000_000_000)
 
 
 def test_time_unix_tai():
@@ -48,7 +93,7 @@ def test_ucts_jumps():
     no out of sync by two.
     We are going to just use event ids for the timestamps
     '''
-    from ctapipe_io_lst.event_time import EventTimeCalculator, CENTRAL_MODULE
+    from ctapipe_io_lst.event_time import EventTimeCalculator
     from ctapipe_io_lst import LSTEventSource
     tel_id = 1
 

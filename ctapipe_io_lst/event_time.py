@@ -31,13 +31,11 @@ class Int(_Int):
         return super().validate(obj, value)
 
 
-def calc_dragon_time(lst_event_container, module_index, reference_time, reference_counter):
+def calc_dragon_time(pps_counter, tenMHz_counter, reference_time, reference_counter):
     '''
     Calculate a unix tai timestamp (in ns) from dragon counter values
     and reference time / counter value for a given module index.
     '''
-    pps_counter = lst_event_container.evt.pps_counter[module_index]
-    tenMHz_counter = lst_event_container.evt.tenMHz_counter[module_index]
     reference_time = reference_time.astype(np.uint64)
     reference_counter = reference_counter.astype(np.uint64)
 
@@ -301,7 +299,8 @@ class EventTimeCalculator(TelescopeComponent):
         # Dragon timestamp based on the reference timestamp
         module_index = self._dragon_module_index[tel_id]
         dragon_timestamp = calc_dragon_time(
-            lst, module_index,
+            pps_counter=lst.evt.pps_counter[module_index],
+            tenMHz_counter=lst.evt.tenMHz_counter[module_index],
             reference_time=self._dragon_reference_time[tel_id],
             reference_counter=self._dragon_reference_counter[tel_id],
         )
