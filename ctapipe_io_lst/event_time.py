@@ -216,8 +216,8 @@ class EventTimeCalculator(TelescopeComponent):
                 run_summary = read_run_summary(self.run_summary_path.tel[tel_id])
                 row = run_summary.loc[run_id]
                 self._has_dragon_reference[tel_id] = True
-                self._dragon_reference_time[tel_id] = row['dragon_reference_time']
-                self._dragon_reference_counter[tel_id] = row['dragon_reference_counter']
+                self._dragon_reference_time[tel_id] = np.uint64(row['dragon_reference_time'])
+                self._dragon_reference_counter[tel_id] = np.uint64(row['dragon_reference_counter'])
                 self._dragon_module_index[tel_id] = row['dragon_reference_module_index']
 
                 if row['dragon_reference_source'] == 'run_start':
@@ -238,10 +238,10 @@ class EventTimeCalculator(TelescopeComponent):
 
             # set values from traitlets, overrides values from files if both given
             if self.dragon_reference_counter.tel[tel_id] is not None:
-                self._dragon_reference_counter[tel_id] = self.dragon_reference_counter.tel[tel_id]
+                self._dragon_reference_counter[tel_id] = np.uint64(self.dragon_reference_counter.tel[tel_id])
 
             if self.dragon_reference_time.tel[tel_id] is not None:
-                self._dragon_reference_time[tel_id] = self.dragon_reference_time.tel[tel_id]
+                self._dragon_reference_time[tel_id] = np.uint64(self.dragon_reference_time.tel[tel_id])
 
             if self.dragon_module_id.tel[tel_id] is not None:
                 module_id = self.dragon_module_id.tel[tel_id]
