@@ -11,11 +11,56 @@ import astropy.units as u
 from ctapipe_io_lst.constants import N_MODULES
 from ctapipe_io_lst.containers import LSTArrayEventContainer
 
-from traitlets.config import Config
-
-
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
 test_run_summary = test_data / 'real/monitoring/RunSummary/RunSummary_20200218.ecsv'
+
+
+def test_combine_counters():
+    from ctapipe_io_lst.event_time import combine_counters
+
+    pps_counter = np.uint16(60_000)
+    ten_mhz_counter = np.uint32(1)
+    result = combine_counters(pps_counter, ten_mhz_counter)
+
+    assert result.dtype == np.uint64
+    assert result == np.uint64(60_000_000_000_100)
+
+
+def test_calculate_dragon_time():
+    from ctapipe_io_lst.event_time import calc_dragon_time
+
+    reference_time = np.uint64(1_626_097_611_000_000_000)
+    reference_counter = np.uint64(0)
+    pps_counter = np.uint16(0)
+    ten_mhz_counter = np.uint32(0)
+
+    t = calc_dragon_time(pps_counter, ten_mhz_counter, reference_time, reference_counter)
+    assert t == reference_time
+
+    reference_counter = np.uint64(100)
+    pps_counter = np.uint16(0)
+    ten_mhz_counter = np.uint32(1)
+
+    t = calc_dragon_time(pps_counter, ten_mhz_counter, reference_time, reference_counter)
+    assert t == reference_time
+
+
+    reference_counter = np.uint64(1_000_000_000)
+    pps_counter = np.uint16(1)
+    ten_mhz_counter = np.uint32(0)
+
+    t = calc_dragon_time(pps_counter, ten_mhz_counter, reference_time, reference_counter)
+    assert t == reference_time
+
+
+    # test time before reference time works
+    reference_time = np.uint64(1_600_000_000_000_000_000)
+    reference_counter = np.uint64(10_000_000_000)
+    pps_counter = np.uint16(5)
+    ten_mhz_counter = np.uint32(0)
+
+    t = calc_dragon_time(pps_counter, ten_mhz_counter, reference_time, reference_counter)
+    assert t == np.uint64(1_599_999_995_000_000_000)
 
 
 def test_time_unix_tai():
@@ -48,7 +93,7 @@ def test_ucts_jumps():
     no out of sync by two.
     We are going to just use event ids for the timestamps
     '''
-    from ctapipe_io_lst.event_time import EventTimeCalculator, CENTRAL_MODULE
+    from ctapipe_io_lst.event_time import EventTimeCalculator
     from ctapipe_io_lst import LSTEventSource
     tel_id = 1
 
@@ -76,16 +121,19 @@ def test_ucts_jumps():
     n_events = 22
     true_event_id = np.arange(n_events)
     # One event every 10 us.
-    true_time_ns = 10 * true_event_id * int(1e3)
+    true_time_ns = np.uint64(10 * true_event_id * int(1e3))
 
     # no jumps
     table = Table({
         'event_id': true_event_id,
-        'ucts_timestamp': true_time_s * s_to_ns + true_time_ns,
+        'ucts_timestamp': np.uint64(true_time_s * s_to_ns + true_time_ns),
         'tib_pps_counter': np.full(n_events, 0),
-        'tib_tenMHz_counter': (true_time_ns / 100).astype(int),
-        'pps_counter': [np.full(N_MODULES, 0) for _ in range(n_events)],
-        'tenMHz_counter': [np.full(N_MODULES, int(t / 100)) for t in true_time_ns],
+        'tib_tenMHz_counter': (true_time_ns / 100).astype(np.uint64),
+        'pps_counter': [np.full(N_MODULES, 0, dtype=np.uint32) for _ in range(n_events)],
+        'tenMHz_counter': [
+            np.full(N_MODULES, t // 100, dtype=np.uint32)
+            for t in true_time_ns
+        ],
         # to check if we handle jumps correctly, we put the event id here
         'ucts_trigger_type': np.arange(n_events),
         'tib_masked_trigger': np.arange(n_events),
@@ -93,6 +141,7 @@ def test_ucts_jumps():
 
     for i in range(n_events):
         for col in table.colnames:
+            print(type(table[col][i]))
             setattr(lst.evt, col, table[col][i])
 
         time_calculator(tel_id, event)
@@ -170,9 +219,9 @@ def test_extract_reference_values(caplog):
     lst = event.lst.tel[tel_id]
     lst.svc.module_ids = np.arange(N_MODULES)
     lst.evt.extdevices_presence = 0b1111_1111
-    lst.evt.ucts_timestamp = int(true_time.unix_tai * 1e9)
-    lst.evt.pps_counter = np.full(N_MODULES, 100)
-    lst.evt.tenMHz_counter = np.zeros(N_MODULES)
+    lst.evt.ucts_timestamp = np.uint64(true_time.unix_tai * 1e9)
+    lst.evt.pps_counter = np.full(N_MODULES, 100, dtype=np.uint16)
+    lst.evt.tenMHz_counter = np.zeros(N_MODULES, dtype=np.uint32)
     lst.evt.tenMHz_counter[CENTRAL_MODULE] = 2
     lst.evt.module_status = np.ones(N_MODULES)
 

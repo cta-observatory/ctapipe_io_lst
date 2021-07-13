@@ -2,12 +2,11 @@ from collections import deque, defaultdict
 import numpy as np
 
 import astropy.version
-from astropy.io.ascii import convert_numpy
 from astropy.table import Table
 from astropy.time import Time, TimeUnixTai, TimeFromEpoch
 
 from ctapipe.core import TelescopeComponent
-from ctapipe.core.traits import IntTelescopeParameter, TelescopeParameter, Path
+from ctapipe.core.traits import TelescopeParameter, Path
 
 from traitlets import Enum, Int as _Int, Bool
 
@@ -18,7 +17,6 @@ if astropy.version.major == 4 and astropy.version.minor <= 2 and astropy.version
     # fix for astropy #11245, epoch was wrong by 8 seconds
     TimeUnixTai.epoch_val = '1970-01-01 00:00:00.0'
     TimeUnixTai.epoch_scale = 'tai'
-
 
 
 CENTRAL_MODULE = 132
@@ -33,18 +31,28 @@ class Int(_Int):
         return super().validate(obj, value)
 
 
-def calc_dragon_time(lst_event_container, module_index, reference_time, reference_counter):
+def calc_dragon_time(pps_counter, tenMHz_counter, reference_time, reference_counter):
     '''
     Calculate a unix tai timestamp (in ns) from dragon counter values
     and reference time / counter value for a given module index.
     '''
-    pps_counter = lst_event_container.evt.pps_counter[module_index]
-    tenMHz_counter = lst_event_container.evt.tenMHz_counter[module_index]
-    return (
-        reference_time
-        + combine_counters(pps_counter, tenMHz_counter)
-        - reference_counter
-    )
+    reference_time = reference_time.astype(np.uint64)
+    reference_counter = reference_counter.astype(np.uint64)
+
+    counter = combine_counters(pps_counter, tenMHz_counter)
+
+    if counter > reference_counter:
+        delta = counter - reference_counter
+        timestamp = reference_time + delta
+    else:
+        delta = reference_counter - counter
+        timestamp = reference_time - delta
+
+    return timestamp
+
+
+S_TO_NS = np.uint64(1e9)
+TEN_MHZ_TO_NS = np.uint64(100)
 
 
 def combine_counters(pps_counter, tenMHz_counter):
@@ -52,7 +60,10 @@ def combine_counters(pps_counter, tenMHz_counter):
     Combines the values of pps counter and tenMHz_counter
     and returns the sum in ns.
     '''
-    return int(1e9) * pps_counter + 100 * tenMHz_counter
+    return (
+        S_TO_NS * pps_counter.astype(np.uint64)
+        + TEN_MHZ_TO_NS * tenMHz_counter.astype(np.uint64)
+    )
 
 
 def read_run_summary(path):
@@ -78,20 +89,23 @@ def read_run_summary(path):
     return table
 
 
-
 def time_from_unix_tai_ns(unix_tai_ns):
     '''
     Create an astropy Time instance from a unix time tai timestamp in ns.
     By using both arguments to time, the result will be a higher precision
     timestamp.
     '''
-    full_seconds = unix_tai_ns // int(1e9)
-    fractional_seconds = (unix_tai_ns % int(1e9)) * 1e-9
+    full_seconds = unix_tai_ns // S_TO_NS
+    fractional_seconds = (unix_tai_ns % S_TO_NS) * 1e-9
     return Time(full_seconds, fractional_seconds, format='unix_tai')
 
 
 def module_id_to_index(expected_module_ids, module_id):
     return np.where(expected_module_ids == module_id)[0][0]
+
+
+def abs_diff(a, b):
+    return max(a, b) - min(a, b)
 
 
 class EventTimeCalculator(TelescopeComponent):
@@ -186,7 +200,6 @@ class EventTimeCalculator(TelescopeComponent):
         self.previous_ucts_timestamps = defaultdict(deque)
         self.previous_ucts_trigger_types = defaultdict(deque)
 
-
         # we cannot __setitem__ telescope lookup values, so we store them
         # in non-trait private values
         self._has_dragon_reference = {}
@@ -194,13 +207,15 @@ class EventTimeCalculator(TelescopeComponent):
         self._dragon_reference_counter = {}
         self._dragon_module_index = {}
 
+        self.detected_jumps = defaultdict(list)
+
         for tel_id in self.subarray.tel:
             if self.run_summary_path.tel[tel_id] is not None:
                 run_summary = read_run_summary(self.run_summary_path.tel[tel_id])
                 row = run_summary.loc[run_id]
                 self._has_dragon_reference[tel_id] = True
-                self._dragon_reference_time[tel_id] = row['dragon_reference_time']
-                self._dragon_reference_counter[tel_id] = row['dragon_reference_counter']
+                self._dragon_reference_time[tel_id] = np.uint64(row['dragon_reference_time'])
+                self._dragon_reference_counter[tel_id] = np.uint64(row['dragon_reference_counter'])
                 self._dragon_module_index[tel_id] = row['dragon_reference_module_index']
 
                 if row['dragon_reference_source'] == 'run_start':
@@ -221,10 +236,10 @@ class EventTimeCalculator(TelescopeComponent):
 
             # set values from traitlets, overrides values from files if both given
             if self.dragon_reference_counter.tel[tel_id] is not None:
-                self._dragon_reference_counter[tel_id] = self.dragon_reference_counter.tel[tel_id]
+                self._dragon_reference_counter[tel_id] = np.uint64(self.dragon_reference_counter.tel[tel_id])
 
             if self.dragon_reference_time.tel[tel_id] is not None:
-                self._dragon_reference_time[tel_id] = self.dragon_reference_time.tel[tel_id]
+                self._dragon_reference_time[tel_id] = np.uint64(self.dragon_reference_time.tel[tel_id])
 
             if self.dragon_module_id.tel[tel_id] is not None:
                 module_id = self.dragon_module_id.tel[tel_id]
@@ -235,7 +250,6 @@ class EventTimeCalculator(TelescopeComponent):
         lst = event.lst.tel[tel_id]
         ucts_available = bool(lst.evt.extdevices_presence & 2)
         ucts_timestamp = lst.evt.ucts_timestamp
-
 
         # first event and values not passed
         if self.extract_reference and not self._has_dragon_reference[tel_id]:
@@ -264,7 +278,7 @@ class EventTimeCalculator(TelescopeComponent):
                 )
                 # convert runstart from UTC to tai
                 run_start = Time(lst.svc.date, format='unix')
-                self._dragon_reference_time[tel_id] = int(1e9 * run_start.unix_tai)
+                self._dragon_reference_time[tel_id] = np.uint64(S_TO_NS * run_start.unix_tai)
             else:
                 source = 'ucts'
                 self._dragon_reference_time[tel_id] = ucts_timestamp
@@ -282,11 +296,11 @@ class EventTimeCalculator(TelescopeComponent):
 
             self._has_dragon_reference[tel_id] = True
 
-
         # Dragon timestamp based on the reference timestamp
         module_index = self._dragon_module_index[tel_id]
         dragon_timestamp = calc_dragon_time(
-            lst, module_index,
+            pps_counter=lst.evt.pps_counter[module_index],
+            tenMHz_counter=lst.evt.tenMHz_counter[module_index],
             reference_time=self._dragon_reference_time[tel_id],
             reference_counter=self._dragon_reference_counter[tel_id],
         )
@@ -345,14 +359,16 @@ class EventTimeCalculator(TelescopeComponent):
         # event rate), and set its ucts_trigger_type to -1,
         # which will tell us a jump happened and hence this
         # event does not have proper UCTS info.
-        if (ucts_timestamp - dragon_timestamp) > 1e3:
+        delta = abs_diff(ucts_timestamp, dragon_timestamp)
+        if delta > 1e3:
             self.log.warning(
                 f'Found UCTS jump in event {event.index.event_id}'
-                f', dragon time: {dragon_timestamp:.07f}'
-                f', delta: {(ucts_timestamp - dragon_timestamp):.1f} µs'
+                f', dragon time: {dragon_timestamp:d}'
+                f', delta: {delta / 1000:.0f} µs'
             )
             self.previous_ucts_timestamps[tel_id].appendleft(ucts_timestamp)
             self.previous_ucts_trigger_types[tel_id].appendleft(ucts_trigger_type)
+            self.detected_jumps[tel_id].append((event.count, event.index.event_id, delta))
 
             # fall back to dragon time / tib trigger
             lst.evt.ucts_timestamp = dragon_timestamp
