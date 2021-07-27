@@ -559,8 +559,10 @@ def interpolate_spike_A(waveform, position):
 
 
 @njit(cache=True)
-def interpolate_spikes_pixel(waveform, current_fc, last_fc):
+def get_spike_A_positions(current_fc, last_fc):
     LAST_IN_FIRST_HALF = N_CAPACITORS_CHANNEL // 2 - 1
+
+    positions = []
 
     for k in range(4):
         # looking for spike A first case
@@ -573,7 +575,7 @@ def interpolate_spikes_pixel(waveform, current_fc, last_fc):
             # DRS4 ring
             last_capacitor = (last_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
             if last_capacitor % 2 == 0 and last_capacitor <= LAST_IN_FIRST_HALF:
-                interpolate_spike_A(waveform, spike_A_position)
+                positions.append(spike_A_position)
 
         # looking for spike A second case
         abspos = N_SAMPLES - 1 + last_fc + k * N_CAPACITORS_CHANNEL
@@ -582,7 +584,16 @@ def interpolate_spikes_pixel(waveform, current_fc, last_fc):
             # The correction is only needed for even last capacitor (lc) in the first half of the DRS4 ring
             last_lc = last_fc + N_SAMPLES - 1
             if last_lc % 2 == 0 and last_lc % N_CAPACITORS_CHANNEL <= (N_CAPACITORS_CHANNEL // 2 - 1):
-                interpolate_spike_A(waveform, spike_A_position)
+                positions.append(spike_A_position)
+
+    return positions
+
+
+@njit(cache=True)
+def interpolate_spikes_pixel(waveform, current_fc, last_fc):
+    positions = get_spike_A_positions(current_fc, last_fc)
+    for spike_A_position in positions:
+        interpolate_spike_A(waveform, spike_A_position)
 
 
 @njit(cache=True)
