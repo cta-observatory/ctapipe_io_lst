@@ -207,6 +207,18 @@ class LSTEventSource(EventSource):
         ),
     ).tag(config=True)
 
+    trigger_information = Bool(
+        default_value=True,
+        help='Fill trigger information.'
+    ).tag(config=True)
+    pointing_information = Bool(
+        default_value=True,
+        help=(
+            'Fill pointing information.'
+            ' Requires specifying `PointingSource.drive_report_path`'
+        ),
+    ).tag(config=True)
+
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
@@ -359,9 +371,13 @@ class LSTEventSource(EventSource):
 
             self.fill_r0r1_container(array_event, zfits_event)
             self.fill_lst_event_container(array_event, zfits_event)
-            self.fill_trigger_info(array_event)
+            if self.trigger_information:
+                self.fill_trigger_info(array_event)
+
             self.fill_mon_container(array_event, zfits_event)
-            self.fill_pointing_info(array_event)
+
+            if self.pointing_information:
+                self.fill_pointing_info(array_event)
 
             # apply low level corrections
             if self.apply_drs4_corrections:
@@ -606,28 +622,18 @@ class LSTEventSource(EventSource):
 
     def fill_pointing_info(self, array_event):
         tel_id = self.tel_id
-        # for now, make filling pointing info optional,
-        # only do it when a drive report has been given.
-        if self.pointing_source.drive_report_path.tel[tel_id] is not None:
+        pointing = self.pointing_source.get_pointing_position_altaz(
+            tel_id, array_event.trigger.time,
+        )
+        array_event.pointing.tel[tel_id] = pointing
+        array_event.pointing.array_altitude = pointing.altitude
+        array_event.pointing.array_azimuth = pointing.azimuth
 
-            pointing = self.pointing_source.get_pointing_position_altaz(
-                tel_id, array_event.trigger.time,
-            )
-            array_event.pointing.tel[tel_id] = pointing
-            array_event.pointing.array_altitude = pointing.altitude
-            array_event.pointing.array_azimuth = pointing.azimuth
-
-            ra, dec = self.pointing_source.get_pointing_position_icrs(
-                tel_id, array_event.trigger.time
-            )
-            array_event.pointing.array_ra = ra
-            array_event.pointing.array_dec = dec
-
-        elif array_event.count == 0:
-            # but make a warning on the first event if it is missing
-            self.log.warning(
-                'No drive report specified, pointing info will not be filled'
-            )
+        ra, dec = self.pointing_source.get_pointing_position_icrs(
+            tel_id, array_event.trigger.time
+        )
+        array_event.pointing.array_ra = ra
+        array_event.pointing.array_dec = dec
 
     def fill_r0r1_camera_container(self, zfits_event):
         """

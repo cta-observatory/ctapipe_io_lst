@@ -1,11 +1,16 @@
-import numpy as np
 import os
 from pathlib import Path
 import tempfile
-from ctapipe_io_lst.constants import N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS
+
+import numpy as np
+import astropy.units as u
 from traitlets.config import Config
+import pytest
+
 from ctapipe.containers import EventType
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
+
+from ctapipe_io_lst.constants import N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_dir = test_data / 'real/R0/20200218'
@@ -13,6 +18,8 @@ test_r0_path = test_r0_dir / 'LST-1.1.Run02006.0004.fits.fz'
 test_r0_path_all_streams = test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz'
 
 test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
+
+test_drive_report = test_data / 'real/monitoring/DrivePositioning/drive_log_20200218.txt'
 
 # ADC_SAMPLES_SHAPE = (2, 14, 40)
 
@@ -29,6 +36,7 @@ def test_loop_over_events():
         input_url=test_r0_path,
         max_events=n_events,
         apply_drs4_corrections=False,
+        pointing_information=False,
     )
 
     for i, event in enumerate(source):
@@ -53,6 +61,7 @@ def test_multifile():
     with LSTEventSource(
         input_url=test_r0_path_all_streams,
         apply_drs4_corrections=False,
+        pointing_information=False,
     ) as source:
         assert len(set(source.file_list)) == 4
         assert len(source) == 200
@@ -103,6 +112,7 @@ def test_missing_modules():
     source = LSTEventSource(
         test_missing_module_path,
         apply_drs4_corrections=False,
+        pointing_information=False,
     )
 
     assert source.lst_service.telescope_id == 1
@@ -125,6 +135,7 @@ def test_gain_selected():
         LSTEventSource=dict(
             default_trigger_type='tib',  # ucts unreliable in this run
             apply_drs4_corrections=True,
+            pointing_information=False,
             LSTR0Corrections=dict(
                 apply_drs4_pedestal_correction=False,
                 apply_spike_correction=False,
@@ -163,17 +174,70 @@ def test_gain_selected():
     assert event.count == 199
 
 
+def test_pointing_info():
+
+    from ctapipe_io_lst import LSTEventSource
+
+    # test source works when not requesting pointing info
+    with LSTEventSource(
+        test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
+        apply_drs4_corrections=False,
+        pointing_information=False,
+        max_events=1
+    ) as source:
+        for e in source:
+            assert np.isnan(e.pointing.tel[1].azimuth)
+
+    # test we get an error when requesting pointing info but nor drive report given
+    with pytest.raises(ValueError):
+        with LSTEventSource(
+            test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
+            apply_drs4_corrections=False,
+            max_events=1
+        ) as source:
+            next(iter(source))
+
+
+    config = {
+        'LSTEventSource': {
+            'apply_drs4_corrections': False,
+            'max_events': 1,
+            'PointingSource': {
+                'drive_report_path': str(test_drive_report)
+            },
+        },
+    }
+
+    with LSTEventSource(
+        test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
+        config=Config(config),
+    ) as source:
+        for e in source:
+            # Tue Feb 18 21:03:09 2020 1582059789 Az 197.318 197.287 197.349 0 El 7.03487 7.03357 7.03618 0.0079844 RA 83.6296 Dec 22.0144
+            assert u.isclose(e.pointing.array_ra, 83.6296 * u.deg)
+            assert u.isclose(e.pointing.array_dec, 22.0144 * u.deg)
+
+            expected_alt = (90 - 7.03487) * u.deg
+            assert u.isclose(e.pointing.tel[1].altitude.to(u.deg), expected_alt, rtol=1e-2)
+
+            expected_az = 197.318 * u.deg
+            assert u.isclose(e.pointing.tel[1].azimuth.to(u.deg), expected_az, rtol=1e-2)
+
+
+
 def test_len():
     from ctapipe_io_lst import LSTEventSource
 
     with LSTEventSource(
         test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
         apply_drs4_corrections=False,
+        pointing_information=False,
     ) as source:
         assert len(source) == 200
 
     with LSTEventSource(
         test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
+        pointing_information=False,
         apply_drs4_corrections=False,
         max_events=10,
     ) as source:
