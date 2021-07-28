@@ -198,6 +198,9 @@ class LSTEventSource(EventSource):
         ),
     ).tag(config=True)
 
+    trigger_information = Bool(default_value=True).tag(config=True)
+    pointing_information = Bool(default_value=True).tag(config=True)
+
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
@@ -338,9 +341,11 @@ class LSTEventSource(EventSource):
 
             self.fill_r0r1_container(array_event, zfits_event)
             self.fill_lst_event_container(array_event, zfits_event)
-            self.fill_trigger_info(array_event)
+            if self.trigger_information:
+                self.fill_trigger_info(array_event)
             self.fill_mon_container(array_event, zfits_event)
-            self.fill_pointing_info(array_event)
+            if self.pointing_information:
+                self.fill_pointing_info(array_event)
 
             # apply low level corrections
             if self.apply_drs4_corrections:
