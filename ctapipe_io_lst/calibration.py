@@ -506,6 +506,30 @@ class LSTR0Corrections(TelescopeComponent):
 
         container.waveform = waveform
 
+    def update_last_readout_time(self, event, tel_id):
+        """
+        Perform time lapse baseline corrections.
+        Fill the R1 container or modifies R0 container.
+        Parameters
+        ----------
+        event : `ctapipe` event-container
+        tel_id : id of the telescope
+        """
+        lst = event.lst.tel[tel_id]
+
+        # We have 2 functions: one for data from 2018/10/10 to 2019/11/04 and
+        # one for data from 2019/11/05 (from Run 1574) after update firmware.
+        # The old readout (before 2019/11/05) is shifted by 1 cell.
+        run_id = event.lst.tel[tel_id].svc.configuration_id
+
+        update_last_readout_time(
+            local_clock_counter=lst.evt.local_clock_counter,
+            first_capacitors=self.first_cap[tel_id],
+            last_readout_time=self.last_readout_time[tel_id],
+            expected_pixels_id=lst.svc.pixel_ids,
+            run_id=run_id,
+        )
+
     def interpolate_spikes(self, event, tel_id):
         """
         Interpolates spike A & B.
@@ -768,7 +792,7 @@ def apply_timelapse_correction_pixel(
 
 
 @njit(cache=True)
-def update_last_readout_time(
+def update_last_readout_time_pixel(
     pixel_in_module,
     first_capacitor,
     time_now,
@@ -802,7 +826,7 @@ def update_last_readout_time(
 
 
 @njit(cache=True)
-def update_last_readout_time_old_firmware(pixel_in_module, first_capacitor, time_now, last_readout_time):
+def update_last_readout_time_pixel_old_firmware(pixel_in_module, first_capacitor, time_now, last_readout_time):
     for sample in range(-1, N_SAMPLES - 1):
         capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
         last_readout_time[capacitor] = time_now
@@ -858,14 +882,49 @@ def apply_timelapse_correction(
                 )
 
                 if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-                    update_last_readout_time(
+                    update_last_readout_time_pixel(
                         pixel_in_module=pixel_in_module,
                         first_capacitor=first_capacitors[gain, pixel_id],
                         time_now=time_now,
                         last_readout_time=last_readout_time[gain, pixel_id],
                     )
                 else:
-                    update_last_readout_time_old_firmware(
+                    update_last_readout_time_pixel_old_firmware(
+                        pixel_in_module=pixel_in_module,
+                        first_capacitor=first_capacitors[gain, pixel_id],
+                        time_now=time_now,
+                        last_readout_time=last_readout_time[gain, pixel_id],
+                    )
+
+
+@njit(cache=True)
+def update_last_readout_time(
+    local_clock_counter,
+    first_capacitors,
+    last_readout_time,
+    expected_pixels_id,
+    run_id,
+):
+    """
+    Update the last readout times of each capacitor
+    """
+    n_modules = len(expected_pixels_id) // N_PIXELS_MODULE
+    for gain in range(N_GAINS):
+        for module in range(n_modules):
+            time_now = local_clock_counter[module]
+            for pixel_in_module in range(N_PIXELS_MODULE):
+                pixel_index = module * N_PIXELS_MODULE + pixel_in_module
+                pixel_id = expected_pixels_id[pixel_index]
+
+                if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+                    update_last_readout_time_pixel(
+                        pixel_in_module=pixel_in_module,
+                        first_capacitor=first_capacitors[gain, pixel_id],
+                        time_now=time_now,
+                        last_readout_time=last_readout_time[gain, pixel_id],
+                    )
+                else:
+                    update_last_readout_time_pixel_old_firmware(
                         pixel_in_module=pixel_in_module,
                         first_capacitor=first_capacitors[gain, pixel_id],
                         time_now=time_now,
