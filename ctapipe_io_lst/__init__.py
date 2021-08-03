@@ -139,7 +139,9 @@ def read_pulse_shapes():
 
 
 class LSTEventSource(EventSource):
-    """EventSource for LST r0 data."""
+    """
+    EventSource for LST R0 data.
+    """
     multi_streams = Bool(
         True,
         help='Read in parallel all streams '
@@ -201,6 +203,18 @@ class LSTEventSource(EventSource):
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
+        '''
+        Create a new LSTEventSource.
+
+        Parameters
+        ----------
+        input_url: Path
+            Path to or url understood by ``ctapipe.core.traits.Path``.
+            If ``multi_streams`` is ``True``, the source will try to read all
+            streams matching the given ``input_url``
+        **kwargs:
+            Any of the traitlets. See ``LSTEventSource.class_print_help``
+        '''
         super().__init__(input_url=input_url, **kwargs)
 
         if self.multi_streams:
