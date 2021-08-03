@@ -216,14 +216,12 @@ class LSTR0Corrections(TelescopeComponent):
 
         for tel_id, r0 in event.r0.tel.items():
             r1 = event.r1.tel[tel_id]
-            # fill r1 waveform with a copy of the r0 converted to float32
-            # float32 can represent all values of uint16 exactly, so this
-            # does not loose precision.
+            # If r1 was not yet filled, copy of r0 converted
             if r1.waveform is None:
                 r1.waveform = r0.waveform
-            else:
-                r1.waveform = r1.waveform
 
+            # float32 can represent all values of uint16 exactly,
+            # so this does not loose precision.
             r1.waveform = r1.waveform.astype(np.float32, copy=False)
 
             # apply drs4 corrections
@@ -246,8 +244,7 @@ class LSTR0Corrections(TelescopeComponent):
             if r1.selected_gain_channel is None:
                 r1.waveform[mon.pixel_status.hardware_failing_pixels] = 0.0
             else:
-                idx = np.arange(N_PIXELS)
-                broken = mon.pixel_status.hardware_failing_pixels[r1.selected_gain_channel, idx]
+                broken = mon.pixel_status.hardware_failing_pixels[r1.selected_gain_channel, PIXEL_INDEX]
                 r1.waveform[broken] = 0.0
 
 

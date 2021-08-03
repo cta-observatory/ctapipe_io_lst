@@ -611,7 +611,7 @@ class LSTEventSource(EventSource):
     def fill_r0r1_camera_container(self, zfits_event):
         """
         Fill the r0 or r1 container, depending on whether gain
-        selection has already happened (r0) or not (r1)
+        selection has already happened (r1) or not (r0)
 
         This will create waveforms of shape (N_GAINS, N_PIXELS, N_SAMPLES),
         or (N_PIXELS, N_SAMPLES) respectively regardless of the n_pixels, n_samples
