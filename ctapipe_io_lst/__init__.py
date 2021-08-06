@@ -61,6 +61,12 @@ class TriggerBits(IntFlag):
 
 
 class PixelStatus(IntFlag):
+    '''
+    Pixel status information
+
+    See Section A.5 of the CTA R1 Data Model:
+    https://forge.in2p3.fr/dmsf/files/8627
+    '''
     RESERVED_0 = auto()
     RESERVED_1 = auto()
     HIGH_GAIN_STORED = auto()
