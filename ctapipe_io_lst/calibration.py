@@ -557,6 +557,21 @@ def interpolate_spike_A(waveform, position):
 
 @njit(cache=True)
 def get_spike_A_positions(current_fc, last_fc):
+    '''
+    Find spike positions for the firmware after run `LAST_RUN_WITH_OLD_FIRMWARE`
+
+    Parameters
+    ----------
+    fc : ndarray
+        First capacitor of the current event
+    fc_old : ndarray
+        First capacitor of the previous event
+
+    Returns
+    -------
+    positions: List[int]
+        List of spike positions
+    '''
     LAST_IN_FIRST_HALF = N_CAPACITORS_CHANNEL // 2 - 1
 
     positions = []
@@ -566,7 +581,9 @@ def get_spike_A_positions(current_fc, last_fc):
         abspos = N_CAPACITORS_CHANNEL + 1 - N_SAMPLES - 2 - last_fc + k * N_CAPACITORS_CHANNEL + N_CAPACITORS_PIXEL
         spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
 
-        if 2 < spike_A_position < (N_SAMPLES - 2):
+        # a spike affects the position itself and the two following slices
+        # so we include also spikes two slices before the readout window
+        if -2 < spike_A_position < N_SAMPLES:
             # The correction is only needed for even
             # last capacitor (lc) in the first half of the
             # DRS4 ring
@@ -577,7 +594,7 @@ def get_spike_A_positions(current_fc, last_fc):
         # looking for spike A second case
         abspos = N_SAMPLES - 1 + last_fc + k * N_CAPACITORS_CHANNEL
         spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
-        if 2 < spike_A_position < (N_SAMPLES-2):
+        if -2 < spike_A_position < N_SAMPLES:
             # The correction is only needed for even last capacitor (lc) in the first half of the DRS4 ring
             last_lc = last_fc + N_SAMPLES - 1
             if last_lc % 2 == 0 and last_lc % N_CAPACITORS_CHANNEL <= (N_CAPACITORS_CHANNEL // 2 - 1):
@@ -587,53 +604,58 @@ def get_spike_A_positions(current_fc, last_fc):
 
 
 @njit(cache=True)
-def interpolate_spikes_pixel(waveform, current_fc, last_fc):
-    positions = get_spike_A_positions(current_fc, last_fc)
-    for spike_A_position in positions:
-        interpolate_spike_A(waveform, spike_A_position)
-
-
-@njit(cache=True)
-def interpolate_spikes_pixel_old_firmware(waveform, current_fc, last_fc):
+def get_spike_A_positions_old_firmware(current_fc, last_fc):
     """
-    Interpolate Spike A
+    Find spike positions for the old firmware.
+
     This is function for data from 2018/10/10 to 2019/11/04 with old firmware.
-    Change waveform array.
 
     Parameters
     ----------
-    waveform : ndarray
-        Waveform stored in a numpy array of shape
-        (N_GAINS, N_PIXELS, N_SAMPLES).
     fc : ndarray
-        Value of first capacitor stored in a numpy array of shape
-        (N_GAINS, N_PIXELS).
+        First capacitor of the current event
     fc_old : ndarray
-        Value of first capacitor from previous event
-        stored in a numpy array of shape
-        (N_GAINS, N_PIXELS).
+        First capacitor of the previous event
+
+    Returns
+    -------
+    positions: List[int]
+        List of spike positions
     """
+    positions = []
+
     for k in range(4):
         # looking for spike A first case
         abspos = N_CAPACITORS_CHANNEL - N_SAMPLES - 2 - last_fc + k * N_CAPACITORS_CHANNEL + N_CAPACITORS_PIXEL
         spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
-        if 2 < spike_A_position < (N_SAMPLES - 2):
+
+        # a spike affects the poistion itself and the two following slices
+        # so we include also spikes two slices before the readout window
+        if -2 < spike_A_position < N_SAMPLES:
             # The correction is only needed for even
             # last capacitor (lc) in the first half of the
             # DRS4 ring
             last_capacitor = (last_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
             if last_capacitor % 2 == 0 and last_capacitor <= (N_CAPACITORS_CHANNEL // 2 - 2):
-                interpolate_spike_A(waveform, spike_A_position)
+                positions.append(spike_A_position)
 
         # looking for spike A second case
         abspos = N_SAMPLES - 2 + last_fc + k * N_CAPACITORS_CHANNEL
         spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
-        if 2 < spike_A_position < (N_SAMPLES-2):
+        if -2 < spike_A_position < N_SAMPLES:
             # The correction is only needed for even last capacitor (lc) in the
             # first half of the DRS4 ring
             last_lc = last_fc + N_SAMPLES - 1
             if last_lc % 2 == 0 and last_lc % N_CAPACITORS_CHANNEL <= (N_CAPACITORS_CHANNEL // 2 - 1):
-                interpolate_spike_A(waveform, spike_A_position)
+                positions.append(spike_A_position)
+
+
+@njit(cache=True)
+def interpolate_spike_positions(waveform, positions):
+    '''Interpolate all spikes at given positions in waveform'''
+    for spike_A_position in positions:
+        if 2 < spike_A_position < (N_SAMPLES - 2):
+            interpolate_spike_A(waveform, spike_A_position)
 
 
 @njit(cache=True)
@@ -660,17 +682,14 @@ def interpolate_spikes(waveform, first_capacitors, previous_first_capacitors, ru
             last_fc = previous_first_capacitors[gain, pixel]
 
             if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-                interpolate_spikes_pixel(
-                    waveform=waveform[gain, pixel],
-                    current_fc=current_fc,
-                    last_fc=last_fc,
-                )
+                positions = get_spike_A_positions(current_fc, last_fc)
             else:
-                interpolate_spikes_pixel_old_firmware(
-                    waveform=waveform[gain, pixel],
-                    current_fc=current_fc,
-                    last_fc=last_fc,
-                )
+                positions = get_spike_A_positions_old_firmware(current_fc, last_fc)
+
+            interpolate_spike_positions(
+                waveform=waveform[gain, pixel],
+                positions=positions,
+            )
 
 
 @njit(cache=True)
@@ -698,17 +717,14 @@ def interpolate_spikes_gain_selected(waveform, first_capacitors, previous_first_
         last_fc = previous_first_capacitors[gain, pixel]
 
         if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-            interpolate_spikes_pixel(
-                waveform=waveform[pixel],
-                current_fc=current_fc,
-                last_fc=last_fc,
-            )
+            positions = get_spike_A_positions(current_fc, last_fc)
         else:
-            interpolate_spikes_pixel_old_firmware(
-                waveform=waveform[pixel],
-                current_fc=current_fc,
-                last_fc=last_fc,
-            )
+            positions = get_spike_A_positions_old_firmware(current_fc, last_fc)
+
+        interpolate_spike_positions(
+            waveform=waveform[pixel],
+            positions=positions,
+        )
 
 
 @njit(cache=True)
