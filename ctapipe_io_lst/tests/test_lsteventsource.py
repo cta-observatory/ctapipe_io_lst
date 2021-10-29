@@ -52,7 +52,8 @@ def test_multifile():
         input_url=test_r0_path_all_streams,
         apply_drs4_corrections=False,
     )
-    assert len(set(source.file_list)) == 4
+    assert len(source.file_list) == 4
+    assert len(source) == 200
 
     for i, event in enumerate(source):
         # make sure all events are present and in the correct order

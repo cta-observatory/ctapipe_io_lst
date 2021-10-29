@@ -728,6 +728,10 @@ class LSTEventSource(EventSource):
         status_container.hardware_failing_pixels[:] = channel_info == 0
 
 
+    def __len__(self):
+        return len(self.multi_file)
+
+
 class MultiFiles:
     """
     This class open all the files in file_list and read the events following
