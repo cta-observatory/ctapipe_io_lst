@@ -99,8 +99,13 @@ class MultiFiles:
         return total_length
 
     def rewind(self):
-        for file in self._file.values():
-            file.Events.protobuf_i_fits.rewind()
+        # remove already read events from the buffer
+        self._events.clear()
+
+        # start each of the tables fresh
+        for path, file in self._file.items():
+            file.Events.event_index = -1
+            self._events[path] = next(file.Events)
 
     def num_inputs(self):
         return len(self._file)
