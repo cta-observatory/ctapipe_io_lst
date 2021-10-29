@@ -9,6 +9,7 @@ setup(
         'ctapipe~=0.10.0',
         'protozfits~=2.0',
         'setuptools_scm',
+        'traitlets~=5.0.5', # remove when upgrading to ctapipe > 0.11
     ],
     package_data={
         'ctapipe_io_lst': ['resources/*'],
