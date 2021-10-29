@@ -6,10 +6,11 @@ __all__ = ['MultiFiles']
 
 
 class MultiFiles:
+    '''Open multiple stream files and iterate over events in order'''
 
     def __init__(self, paths):
         """
-        Iterate over events in `paths`  in order of ``event_id``
+        Create a new MultiFiles object from an iterable of paths
 
         Parameters
         ----------
@@ -58,6 +59,7 @@ class MultiFiles:
             self.camera_config = next(iter(self._camera_config.values()))
 
     def close(self):
+        '''Close the underlying files'''
         for f in self._file.values():
             f.close()
 
@@ -71,9 +73,6 @@ class MultiFiles:
         return self
 
     def __next__(self):
-        return self.next_event()
-
-    def next_event(self):
         # check for the minimal event id
         if not self._events:
             raise StopIteration
