@@ -1,8 +1,9 @@
+name: lstio
 channels:
   - default
 dependencies:
   - astropy>=4.2
-  - python=3.7 # nail the python version, so conda does not try upgrading / dowgrading
+  - python=3.8 # nail the python version, so conda does not try upgrading / dowgrading
   - conda-forge::ctapipe=0.10
   - conda-forge::eventio
   - conda-forge::corsikaio
