@@ -1,16 +1,21 @@
 from ctapipe.core import Provenance
 from protozfits import File
+import warnings
 
 __all__ = ['MultiFiles']
 
 
 class MultiFiles:
-    """
-    This class open all the files in file_list and read the events following
-    the event_id order
-    """
 
     def __init__(self, paths):
+        """
+        Iterate over events in `paths`  in order of ``event_id``
+
+        Parameters
+        ----------
+        paths: Iterable[string|Path]
+            The input paths
+        """
 
         paths = list(paths)
         if len(paths) == 0:
@@ -32,9 +37,19 @@ class MultiFiles:
 
                 if hasattr(self._file[path], 'CameraConfig'):
                     self._camera_config[path] = next(self._file[path].CameraConfig)
+                else:
+                    warnings.warn(f'No CameraConfig found in {path}')
 
             except StopIteration:
                 pass
+
+        run_ids = {
+            config.configuration_id
+            for config in self._camera_config.values()
+        }
+
+        if len(run_ids) > 1:
+            raise IOError(f'Found multiple run_ids: {run_ids}')
 
         # verify that we found a CameraConfig
         if len(self._camera_config) == 0:
