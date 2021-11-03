@@ -48,18 +48,21 @@ def test_loop_over_events():
 def test_multifile():
     from ctapipe_io_lst import LSTEventSource
 
-    source = LSTEventSource(
+    event_count = 0
+
+    with LSTEventSource(
         input_url=test_r0_path_all_streams,
         apply_drs4_corrections=False,
-    )
-    assert len(set(source.file_list)) == 4
+    ) as source:
+        assert len(set(source.file_list)) == 4
 
-    for i, event in enumerate(source):
-        # make sure all events are present and in the correct order
-        assert event.index.event_id == i + 1
+        for event in source:
+            event_count += 1
+            # make sure all events are present and in the correct order
+            assert event.index.event_id == event_count
 
     # make sure we get all events from all streams (50 per stream)
-    assert (i + 1) == 200
+    assert event_count == 200
 
 
 def test_is_compatible():
