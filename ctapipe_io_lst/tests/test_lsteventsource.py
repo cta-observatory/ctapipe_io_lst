@@ -55,6 +55,7 @@ def test_multifile():
         apply_drs4_corrections=False,
     ) as source:
         assert len(set(source.file_list)) == 4
+        assert len(source) == 200
 
         for event in source:
             event_count += 1

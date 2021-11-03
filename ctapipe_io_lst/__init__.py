@@ -731,5 +731,8 @@ class LSTEventSource(EventSource):
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
+    def __len__(self):
+        return len(self.multi_file)
+
     def close(self):
         self.multi_file.close()
