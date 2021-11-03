@@ -13,7 +13,7 @@ jobs:
     strategy:
       matrix:
         python-version: [3.7, 3.8]
-        ctapipe-version: [v0.10.5]
+        ctapipe-version: [v0.10.5, v0.11.0]
 
     steps:
       - uses: actions/checkout@v2
