@@ -649,6 +649,8 @@ def get_spike_A_positions_old_firmware(current_fc, last_fc):
             if last_lc % 2 == 0 and last_lc % N_CAPACITORS_CHANNEL <= (N_CAPACITORS_CHANNEL // 2 - 1):
                 positions.append(spike_A_position)
 
+    return positions
+
 
 @njit(cache=True)
 def interpolate_spike_positions(waveform, positions):
