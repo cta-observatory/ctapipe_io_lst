@@ -87,9 +87,14 @@ class LSTR0Corrections(TelescopeComponent):
     """
     offset = IntTelescopeParameter(
         default_value=400,
+        help='Offset of the baseline. Will be subtracted from the waveform.'
+    ).tag(config=True)
+
+    drs4_offset = IntTelescopeParameter(
+        default_value=400,
         help=(
-            'Define the offset of the baseline'
-            ', set to 0 to disable offset subtraction'
+            'Offset of the drs4 pedestal values.'
+            ' Will be subtracted from the pedestal coefficients.'
         )
     ).tag(config=True)
 
@@ -441,7 +446,7 @@ class LSTR0Corrections(TelescopeComponent):
         """
         pedestal = self._get_drs4_pedestal_data(
             self.drs4_pedestal_path.tel[tel_id],
-            offset=self.offset.tel[tel_id],
+            offset=self.drs4_offset.tel[tel_id],
         )
         if event.r1.tel[tel_id].selected_gain_channel is None:
             subtract_pedestal(
