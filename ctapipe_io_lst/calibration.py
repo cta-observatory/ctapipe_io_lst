@@ -128,12 +128,12 @@ class LSTR0Corrections(TelescopeComponent):
     ).tag(config=True)
 
     calib_scale_high_gain = FloatTelescopeParameter(
-        default_value=1.18,
+        default_value=1.0,
         help='High gain waveform is multiplied by this number'
     ).tag(config=True)
 
     calib_scale_low_gain = FloatTelescopeParameter(
-        default_value=1.09,
+        default_value=1.0,
         help='Low gain waveform is multiplied by this number'
     ).tag(config=True)
 
