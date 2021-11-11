@@ -732,6 +732,8 @@ class LSTEventSource(EventSource):
         self.close()
 
     def __len__(self):
+        if self.max_events is not None:
+            return min(self.max_events, len(self.multi_file))
         return len(self.multi_file)
 
     def close(self):

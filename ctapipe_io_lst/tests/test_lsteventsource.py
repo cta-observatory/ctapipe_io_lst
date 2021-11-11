@@ -161,3 +161,20 @@ def test_gain_selected():
             assert np.allclose(event.r1.tel[1].waveform, waveform)
 
     assert event.count == 199
+
+
+def test_len():
+    from ctapipe_io_lst import LSTEventSource
+
+    with LSTEventSource(
+        test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
+        apply_drs4_corrections=False,
+    ) as source:
+        assert len(source) == 200
+
+    with LSTEventSource(
+        test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
+        apply_drs4_corrections=False,
+        max_events=10,
+    ) as source:
+        assert len(source) == 10
