@@ -88,8 +88,8 @@ class LSTR0Corrections(TelescopeComponent):
     offset = IntTelescopeParameter(
         default_value=0,
         help=(
-            'Define the offset the offset of the baseline to be subtracted'
-            ' from the waveform *additionally* to the drs4 pedestal offset.'
+            'Define offset to be subtracted from the waveform *additionally*'
+            ' to the drs4 pedestal offset.'
             ' Only set this to a value != 0 when not using the drs4 offset '
             ' calibration.'
         )
