@@ -543,12 +543,9 @@ class LSTR0Corrections(TelescopeComponent):
 
     def interpolate_spikes(self, event, tel_id):
         """
-        Interpolates spike A & B.
-        Fill the R1 container.
-        Parameters
-        ----------
-        event : `ctapipe` event-container
-        tel_id : id of the telescope
+        Interpolate spikes at known positions from their neighboring values
+
+        Mutates the R1 waveform.
         """
         run_id = event.lst.tel[tel_id].svc.configuration_id
 
@@ -571,12 +568,9 @@ class LSTR0Corrections(TelescopeComponent):
 
     def subtract_spikes(self, event, tel_id):
         """
-        Interpolates spike A & B.
-        Fill the R1 container.
-        Parameters
-        ----------
-        event : `ctapipe` event-container
-        tel_id : id of the telescope
+        Subtract mean spike height from known spike positions
+
+        Mutates the R1 waveform.
         """
         run_id = event.lst.tel[tel_id].svc.configuration_id
         spike_height = self._get_spike_heights(self.drs4_pedestal_path.tel[tel_id])
@@ -608,6 +602,7 @@ def convert_to_pe(waveform, calibration, selected_gain_channel):
     else:
         waveform -= calibration.pedestal_per_sample[selected_gain_channel, PIXEL_INDEX, np.newaxis]
         waveform *= calibration.dc_to_pe[selected_gain_channel, PIXEL_INDEX, np.newaxis]
+
 
 @njit(cache=True)
 def interpolate_spike_A(waveform, position):
@@ -785,6 +780,12 @@ def interpolate_spikes_gain_selected(waveform, first_capacitors, previous_first_
         Value of first capacitor from previous event
         stored in a numpy array of shape
         (N_GAINS, N_PIXELS).
+    selected_gain_channel: ndarray
+        ndarray of shape (N_PIXELS, ) containing the selected gain channel
+        for each pixel
+    run_id: int
+        Run id of the run, used to determine if code for new firmware
+        or old firmware has to be used
     """
 
     for pixel in range(N_PIXELS):
@@ -822,7 +823,9 @@ def subtract_spikes(
     spike_height,
 ):
     """
-    Interpolate Spike type A. Modifies waveform in place
+    Subtract mean spike heights for spike type A.
+
+    Modifies waveform in place.
 
     Parameters
     ----------
@@ -836,7 +839,10 @@ def subtract_spikes(
         Value of first capacitor from previous event
         stored in a numpy array of shape
         (N_GAINS, N_PIXELS).
-    spike_heights: ndarray
+    run_id: int
+        Run id of the run, used to determine if code for new firmware
+        or old firmware has to be used
+    spike_height: ndarray
         ndarry of shape (N_GAINS, N_PIXELS, 3) of the three spike_heights
     """
     for gain in range(N_GAINS):
@@ -866,7 +872,9 @@ def subtract_spikes_gain_selected(
     spike_height,
 ):
     """
-    Interpolate Spike type A. Modifies waveform in place
+    Subtract mean spike heights for spike type A for gain selected input data
+
+    Modifies waveform in place.
 
     Parameters
     ----------
@@ -880,6 +888,14 @@ def subtract_spikes_gain_selected(
         Value of first capacitor from previous event
         stored in a numpy array of shape
         (N_GAINS, N_PIXELS).
+    selected_gain_channel: ndarray
+        ndarray of shape (N_PIXELS, ) containing the selected gain channel
+        for each pixel
+    run_id: int
+        Run id of the run, used to determine if code for new firmware
+        or old firmware has to be used
+    spike_height: ndarray
+        ndarry of shape (N_GAINS, N_PIXELS, 3) of the three spike_heights
     """
 
     for pixel in range(N_PIXELS):
