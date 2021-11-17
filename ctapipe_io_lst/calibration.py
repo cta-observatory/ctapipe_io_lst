@@ -449,21 +449,10 @@ class LSTR0Corrections(TelescopeComponent):
                 " but no pedestal file provided for telescope"
             )
 
-        spike_height = []
         with tables.open_file(path) as f:
-            for key in ['spike1', 'spike2', 'spike3']:
-                mean = f.root[key].mean[:].astype(np.float32) / 100
-                counts = f.root[key].counts[:]
-                # average over capacitors to get a mean spike height per pixel
-                # we do not have enough stats to do it per cap
-                per_pixel = np.average(mean, weights=counts, axis=2)
-                spike_height.append(per_pixel)
+            spike_height = f.root.spike_height[:]
 
-        spike_height = np.array(spike_height)
-
-        # transform to shape (N_GAIN, N_PIXEL, 3)
-        spike_height = np.swapaxes(spike_height, 0, 2)
-        return np.ascontiguousarray(spike_height)
+        return spike_height
 
     def subtract_pedestal(self, event, tel_id):
         """
