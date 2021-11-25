@@ -192,6 +192,14 @@ class LSTEventSource(EventSource):
         )
     ).tag(config=True)
 
+    use_flatfield_heuristic = Bool(
+        default_value=True,
+        help=(
+            'If true, try to identify flat field events independent of the'
+            ' trigger type in the event. See option ``min_flatfield_adc``'
+        ),
+    ).tag(config=True)
+
     calibrate_flatfields_and_pedestals = Bool(
         default_value=True,
         help='If True, flat field and pedestal events are also calibrated.'
@@ -369,7 +377,8 @@ class LSTEventSource(EventSource):
 
                 # flat field tagging is performed on r1 data, so can only
                 # be done after the drs4 corrections are applied
-                self.tag_flatfield_events(array_event)
+                if self.use_flatfield_heuristic:
+                    self.tag_flatfield_events(array_event)
 
             # gain select and calibrate to pe
             if self.r0_r1_calibrator.calibration_path is not None:
