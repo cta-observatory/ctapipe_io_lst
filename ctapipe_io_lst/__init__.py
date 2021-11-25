@@ -597,12 +597,19 @@ class LSTEventSource(EventSource):
         in_range = (image >= self.min_flatfield_adc) & (image <= self.max_flatfield_adc)
         n_in_range = np.count_nonzero(in_range)
 
-        if n_in_range >= self.min_flatfield_pixel_fraction * image.size:
+        looks_like_ff = n_in_range >= self.min_flatfield_pixel_fraction * image.size
+        if looks_like_ff:
+            array_event.trigger.event_type = EventType.FLATFIELD
             self.log.debug(
                 'Setting event type of event'
                 f' {array_event.index.event_id} to FLATFIELD'
             )
-            array_event.trigger.event_type = EventType.FLATFIELD
+        elif array_event.trigger.event_type == EventType.FLATFIELD:
+            self.log.warning(
+                'Found FF event that does not fulfill FF critera: %d',
+                array_event.index.event_id,
+            )
+            array_event.trigger.event_type = EventType.UNKNOWN
 
     def fill_pointing_info(self, array_event):
         tel_id = self.tel_id
