@@ -141,7 +141,6 @@ def test_ucts_jumps():
 
     for i in range(n_events):
         for col in table.colnames:
-            print(type(table[col][i]))
             setattr(lst.evt, col, table[col][i])
 
         time_calculator(tel_id, event)
@@ -162,6 +161,7 @@ def test_ucts_jumps():
         for col in table.colnames:
             setattr(lst.evt, col, table[col][i])
         event.index.event_id = table['event_id'][i]
+        event.lst.tel[tel_id].evt.ucts_jump = False
 
         time = time_calculator(tel_id, event)
 
@@ -176,6 +176,11 @@ def test_ucts_jumps():
             assert len(time_calculator.previous_ucts_timestamps[tel_id]) == 1
         elif i < 17:
             assert len(time_calculator.previous_ucts_timestamps[tel_id]) == 2
+
+        if i in {5, 13, 17}:
+            assert event.lst.tel[tel_id].evt.ucts_jump, f'jump not found in {i}'
+        else:
+            assert not event.lst.tel[tel_id].evt.ucts_jump, f'unexpected jump in {i}'
 
         ucts_trigger_types.append(lst.evt.ucts_trigger_type)
 

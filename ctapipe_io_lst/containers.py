@@ -102,16 +102,18 @@ class LSTEventContainer(Container):
     swat_array_flag = Field(-1, "SWAT array negative flag")
     swat_array_event_num = Field(-1, "SWAT array event number")
 
-    pps_counter= Field([], "Dragon pulse per second counter (n_modules)")
-    tenMHz_counter = Field([], "Dragon 10 MHz counter (n_modules)")
-    event_counter = Field([], "Dragon event counter (n_modules)")
-    trigger_counter = Field([], "Dragon trigger counter (n_modules)")
-    local_clock_counter = Field([], "Dragon local 133 MHz counter (n_modules)")
+    pps_counter= Field(None, "Dragon pulse per second counter (n_modules)")
+    tenMHz_counter = Field(None, "Dragon 10 MHz counter (n_modules)")
+    event_counter = Field(None, "Dragon event counter (n_modules)")
+    trigger_counter = Field(None, "Dragon trigger counter (n_modules)")
+    local_clock_counter = Field(None, "Dragon local 133 MHz counter (n_modules)")
 
-    chips_flags = Field([], "chips flags")
-    first_capacitor_id = Field([], "first capacitor id")
-    drs_tag_status = Field([], "DRS tag status")
-    drs_tag = Field([], "DRS tag")
+    chips_flags = Field(None, "chips flags")
+    first_capacitor_id = Field(None, "first capacitor id")
+    drs_tag_status = Field(None, "DRS tag status")
+    drs_tag = Field(None, "DRS tag")
+
+    ucts_jump = Field(False, "A ucts jump happened in the current event")
 
 
 class LSTMonitoringContainer(Container):

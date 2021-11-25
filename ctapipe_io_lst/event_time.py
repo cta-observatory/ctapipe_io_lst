@@ -369,6 +369,7 @@ class EventTimeCalculator(TelescopeComponent):
             self.previous_ucts_timestamps[tel_id].appendleft(ucts_timestamp)
             self.previous_ucts_trigger_types[tel_id].appendleft(ucts_trigger_type)
             self.detected_jumps[tel_id].append((event.count, event.index.event_id, delta))
+            lst.evt.ucts_jump = True
 
             # fall back to dragon time / tib trigger
             lst.evt.ucts_timestamp = dragon_timestamp
