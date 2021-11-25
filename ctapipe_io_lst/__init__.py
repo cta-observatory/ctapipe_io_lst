@@ -615,7 +615,7 @@ class LSTEventSource(EventSource):
             )
         elif array_event.trigger.event_type == EventType.FLATFIELD:
             self.log.warning(
-                'Found FF event that does not fulfill FF critera: %d',
+                'Found FF event that does not fulfill FF criteria: %d',
                 array_event.index.event_id,
             )
             array_event.trigger.event_type = EventType.UNKNOWN
