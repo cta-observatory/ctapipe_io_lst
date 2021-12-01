@@ -192,6 +192,14 @@ class LSTEventSource(EventSource):
         )
     ).tag(config=True)
 
+    use_flatfield_heuristic = Bool(
+        default_value=True,
+        help=(
+            'If true, try to identify flat field events independent of the'
+            ' trigger type in the event. See option ``min_flatfield_adc``'
+        ),
+    ).tag(config=True)
+
     calibrate_flatfields_and_pedestals = Bool(
         default_value=True,
         help='If True, flat field and pedestal events are also calibrated.'
@@ -369,7 +377,8 @@ class LSTEventSource(EventSource):
 
                 # flat field tagging is performed on r1 data, so can only
                 # be done after the drs4 corrections are applied
-                self.tag_flatfield_events(array_event)
+                if self.use_flatfield_heuristic:
+                    self.tag_flatfield_events(array_event)
 
             # gain select and calibrate to pe
             if self.r0_r1_calibrator.calibration_path is not None:
@@ -597,12 +606,19 @@ class LSTEventSource(EventSource):
         in_range = (image >= self.min_flatfield_adc) & (image <= self.max_flatfield_adc)
         n_in_range = np.count_nonzero(in_range)
 
-        if n_in_range >= self.min_flatfield_pixel_fraction * image.size:
+        looks_like_ff = n_in_range >= self.min_flatfield_pixel_fraction * image.size
+        if looks_like_ff:
+            array_event.trigger.event_type = EventType.FLATFIELD
             self.log.debug(
                 'Setting event type of event'
                 f' {array_event.index.event_id} to FLATFIELD'
             )
-            array_event.trigger.event_type = EventType.FLATFIELD
+        elif array_event.trigger.event_type == EventType.FLATFIELD:
+            self.log.warning(
+                'Found FF event that does not fulfill FF criteria: %d',
+                array_event.index.event_id,
+            )
+            array_event.trigger.event_type = EventType.UNKNOWN
 
     def fill_pointing_info(self, array_event):
         tel_id = self.tel_id
