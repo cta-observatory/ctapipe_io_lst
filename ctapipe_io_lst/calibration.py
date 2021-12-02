@@ -560,7 +560,7 @@ def get_spike_A_positions_base(current_first_cap, previous_first_cap, shift):
     '''
     Find spike positions.
 
-    For the new firmware, use shift=1, for the old firmware shift=2.
+    For the new firmware, use shift=0; for the old firmware shift=1.
 
     Parameters
     ----------
@@ -586,8 +586,8 @@ def get_spike_A_positions_base(current_first_cap, previous_first_cap, shift):
 
     # we have two cases for spikes that can occur in each of the 4 channels
     base_positions = (
-        N_CAPACITORS_PIXEL - N_SAMPLES - previous_first_cap - shift,
-        previous_first_cap + N_SAMPLES - shift
+        N_CAPACITORS_PIXEL - last_capacitor - 2 - shift,
+        last_capacitor - shift
     )
 
     positions = []
@@ -626,7 +626,7 @@ def get_spike_A_positions(current_first_cap, previous_first_cap):
     return get_spike_A_positions_base(
         current_first_cap=current_first_cap,
         previous_first_cap=previous_first_cap,
-        shift=1
+        shift=0
     )
 
 
@@ -652,7 +652,7 @@ def get_spike_A_positions_old_firmware(current_first_cap, previous_first_cap):
     return get_spike_A_positions_base(
         current_first_cap=current_first_cap,
         previous_first_cap=previous_first_cap,
-        shift=2
+        shift=1
     )
 
 
