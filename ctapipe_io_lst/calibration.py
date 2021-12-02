@@ -594,12 +594,16 @@ def get_spike_A_positions_base(current_first_cap, previous_first_cap, shift):
     for k in range(4):
         for base_position in base_positions:
             abspos = base_position + k * N_CAPACITORS_CHANNEL
+
             spike_A_position = (abspos - current_first_cap) % N_CAPACITORS_PIXEL
 
             # a spike affects the position itself and the two following slices
             # so we include also spikes two slices before the readout window
+            spike_A_position_shifted = spike_A_position - N_CAPACITORS_PIXEL
             if spike_A_position < N_SAMPLES:
                 positions.append(spike_A_position)
+            elif spike_A_position_shifted >= -2:
+                positions.append(spike_A_position_shifted)
 
     return positions
 
