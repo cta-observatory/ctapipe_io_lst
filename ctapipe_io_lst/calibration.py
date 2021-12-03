@@ -13,7 +13,7 @@ from ctapipe.core.traits import (
 
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 from ctapipe.containers import MonitoringContainer
-from ctapipe.io import HDF5TableReader
+from ctapipe.io import HDF5TableReader, read_table
 from .containers import LSTArrayEventContainer
 from traitlets import Enum
 
@@ -114,6 +114,7 @@ class LSTR0Corrections(TelescopeComponent):
         help=(
             'Path to the LST pedestal file'
             ', required when `apply_drs4_pedestal_correction=True`'
+            ' or when using spike subtraction'
         ),
     ).tag(config=True)
 
@@ -414,7 +415,7 @@ class LSTR0Corrections(TelescopeComponent):
 
     @staticmethod
     @lru_cache(maxsize=4)
-    def _get_drs4_pedestal_data(path):
+    def _get_drs4_pedestal_data(path, tel_id):
         """
         Function to load pedestal file.
 
@@ -430,28 +431,27 @@ class LSTR0Corrections(TelescopeComponent):
                 " but no file provided for telescope"
             )
 
+        table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
+
         pedestal_data = np.empty(
             (N_GAINS, N_PIXELS_MODULE * N_MODULES, N_CAPACITORS_PIXEL + N_SAMPLES),
             dtype=np.float32
         )
-        with tables.open_file(path) as f:
-            pedestal_data[:, :, :N_CAPACITORS_PIXEL] = f.root.baseline.mean[:].astype(np.float32) / 100
-
+        pedestal_data[:, :, :N_CAPACITORS_PIXEL] = table[0]['baseline_mean']
         pedestal_data[:, :, N_CAPACITORS_PIXEL:] = pedestal_data[:, :, :N_SAMPLES]
 
         return pedestal_data
 
     @lru_cache(maxsize=4)
-    def _get_spike_heights(self, path):
+    def _get_spike_heights(self, path, tel_id):
         if path is None:
             raise ValueError(
                 "DRS4 spike correction requested"
                 " but no pedestal file provided for telescope"
             )
 
-        with tables.open_file(path) as f:
-            spike_height = f.root.spike_height[:]
-
+        table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
+        spike_height = np.array(table[0]['spike_height'])
         return spike_height
 
     def subtract_pedestal(self, event, tel_id):
@@ -464,7 +464,8 @@ class LSTR0Corrections(TelescopeComponent):
         tel_id : id of the telescope
         """
         pedestal = self._get_drs4_pedestal_data(
-            self.drs4_pedestal_path.tel[tel_id]
+            self.drs4_pedestal_path.tel[tel_id],
+            tel_id,
         )
 
         if event.r1.tel[tel_id].selected_gain_channel is None:
@@ -562,7 +563,7 @@ class LSTR0Corrections(TelescopeComponent):
         Mutates the R1 waveform.
         """
         run_id = event.lst.tel[tel_id].svc.configuration_id
-        spike_height = self._get_spike_heights(self.drs4_pedestal_path.tel[tel_id])
+        spike_height = self._get_spike_heights(self.drs4_pedestal_path.tel[tel_id], tel_id)
 
         r1 = event.r1.tel[tel_id]
         if r1.selected_gain_channel is None:
