@@ -556,55 +556,86 @@ def interpolate_spike_A(waveform, position):
 
 
 @njit(cache=True)
-def get_spike_A_positions(current_fc, last_fc):
+def get_spike_A_positions_base(current_first_cap, previous_first_cap, shift):
     '''
-    Find spike positions for the firmware after run `LAST_RUN_WITH_OLD_FIRMWARE`
+    Find spike positions.
+
+    For the new firmware, use shift=0; for the old firmware shift=1.
 
     Parameters
     ----------
-    fc : ndarray
+    current_first_cap: ndarray
         First capacitor of the current event
-    fc_old : ndarray
+    previous_first_cap: ndarray
         First capacitor of the previous event
 
     Returns
     -------
-    positions: List[int]
+    positions: list[int]
         List of spike positions
     '''
-    LAST_IN_FIRST_HALF = N_CAPACITORS_CHANNEL // 2 - 1
+    last_in_first_half = N_CAPACITORS_CHANNEL // 2 - 1
+    last_capacitor = (previous_first_cap + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
+
+    # The correction is only needed for even last capacitor
+    # in the first half of the DRS4 ring
+    if last_capacitor % 2 != 0 or last_capacitor > last_in_first_half:
+        # bad trickery to get numba to compile an empty list with type int
+        # see https://numba.pydata.org/numba-doc/latest/user/troubleshoot.html
+        return [int(x) for x in range(0)]
+
+    # we have two cases for spikes that can occur in each of the 4 channels
+    base_positions = (
+        N_CAPACITORS_PIXEL - last_capacitor - 2 - shift,
+        last_capacitor - shift
+    )
 
     positions = []
-
     for k in range(4):
-        # looking for spike A first case
-        abspos = N_CAPACITORS_CHANNEL + 1 - N_SAMPLES - 2 - last_fc + k * N_CAPACITORS_CHANNEL + N_CAPACITORS_PIXEL
-        spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
+        for base_position in base_positions:
+            abspos = base_position + k * N_CAPACITORS_CHANNEL
 
-        # a spike affects the position itself and the two following slices
-        # so we include also spikes two slices before the readout window
-        if -2 < spike_A_position < N_SAMPLES:
-            # The correction is only needed for even
-            # last capacitor (lc) in the first half of the
-            # DRS4 ring
-            last_capacitor = (last_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
-            if last_capacitor % 2 == 0 and last_capacitor <= LAST_IN_FIRST_HALF:
-                positions.append(spike_A_position)
+            spike_A_position = (abspos - current_first_cap) % N_CAPACITORS_PIXEL
 
-        # looking for spike A second case
-        abspos = N_SAMPLES - 1 + last_fc + k * N_CAPACITORS_CHANNEL
-        spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
-        if -2 < spike_A_position < N_SAMPLES:
-            # The correction is only needed for even last capacitor (lc) in the first half of the DRS4 ring
-            last_lc = last_fc + N_SAMPLES - 1
-            if last_lc % 2 == 0 and last_lc % N_CAPACITORS_CHANNEL <= (N_CAPACITORS_CHANNEL // 2 - 1):
+            # a spike affects the position itself and the two following slices
+            # so we include also spikes two slices before the readout window
+            spike_A_position_shifted = spike_A_position - N_CAPACITORS_PIXEL
+            if spike_A_position < N_SAMPLES:
                 positions.append(spike_A_position)
+            elif spike_A_position_shifted >= -2:
+                positions.append(spike_A_position_shifted)
 
     return positions
 
 
 @njit(cache=True)
-def get_spike_A_positions_old_firmware(current_fc, last_fc):
+def get_spike_A_positions(current_first_cap, previous_first_cap):
+    """
+    Find spike positions for the old firmware.
+
+    This is function for data starting at 2019/11/05 with new firmware.
+
+    Parameters
+    ----------
+    current_first_cap: ndarray
+        First capacitor of the current event
+    previous_first_cap: ndarray
+        First capacitor of the previous event
+
+    Returns
+    -------
+    positions: list[int]
+        List of spike positions
+    """
+    return get_spike_A_positions_base(
+        current_first_cap=current_first_cap,
+        previous_first_cap=previous_first_cap,
+        shift=0
+    )
+
+
+@njit(cache=True)
+def get_spike_A_positions_old_firmware(current_first_cap, previous_first_cap):
     """
     Find spike positions for the old firmware.
 
@@ -612,44 +643,21 @@ def get_spike_A_positions_old_firmware(current_fc, last_fc):
 
     Parameters
     ----------
-    fc : ndarray
+    current_first_cap: ndarray
         First capacitor of the current event
-    fc_old : ndarray
+    previous_first_cap: ndarray
         First capacitor of the previous event
 
     Returns
     -------
-    positions: List[int]
+    positions: list[int]
         List of spike positions
     """
-    positions = []
-
-    for k in range(4):
-        # looking for spike A first case
-        abspos = N_CAPACITORS_CHANNEL - N_SAMPLES - 2 - last_fc + k * N_CAPACITORS_CHANNEL + N_CAPACITORS_PIXEL
-        spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
-
-        # a spike affects the poistion itself and the two following slices
-        # so we include also spikes two slices before the readout window
-        if -2 < spike_A_position < N_SAMPLES:
-            # The correction is only needed for even
-            # last capacitor (lc) in the first half of the
-            # DRS4 ring
-            last_capacitor = (last_fc + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
-            if last_capacitor % 2 == 0 and last_capacitor <= (N_CAPACITORS_CHANNEL // 2 - 2):
-                positions.append(spike_A_position)
-
-        # looking for spike A second case
-        abspos = N_SAMPLES - 2 + last_fc + k * N_CAPACITORS_CHANNEL
-        spike_A_position = (abspos - current_fc + N_CAPACITORS_PIXEL) % N_CAPACITORS_PIXEL
-        if -2 < spike_A_position < N_SAMPLES:
-            # The correction is only needed for even last capacitor (lc) in the
-            # first half of the DRS4 ring
-            last_lc = last_fc + N_SAMPLES - 1
-            if last_lc % 2 == 0 and last_lc % N_CAPACITORS_CHANNEL <= (N_CAPACITORS_CHANNEL // 2 - 1):
-                positions.append(spike_A_position)
-
-    return positions
+    return get_spike_A_positions_base(
+        current_first_cap=current_first_cap,
+        previous_first_cap=previous_first_cap,
+        shift=1
+    )
 
 
 @njit(cache=True)
