@@ -129,6 +129,7 @@ def test_gain_selected():
                 apply_drs4_pedestal_correction=False,
                 apply_spike_correction=False,
                 apply_timelapse_correction=False,
+                offset=400,
             )
         )
     ))

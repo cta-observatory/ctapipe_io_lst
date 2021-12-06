@@ -86,10 +86,12 @@ class LSTR0Corrections(TelescopeComponent):
     This calibrator exists in lstchain for testing and prototyping purposes.
     """
     offset = IntTelescopeParameter(
-        default_value=400,
+        default_value=0,
         help=(
-            'Define the offset of the baseline'
-            ', set to 0 to disable offset subtraction'
+            'Define offset to be subtracted from the waveform *additionally*'
+            ' to the drs4 pedestal offset. This only needs to be given when'
+            ' the drs4 pedestal calibration is not applied or the offset of the'
+            ' drs4 run is different from the data run'
         )
     ).tag(config=True)
 
@@ -239,7 +241,9 @@ class LSTR0Corrections(TelescopeComponent):
             end = self.r1_sample_end.tel[tel_id]
             r1.waveform = r1.waveform[..., start:end]
 
-            r1.waveform -= self.offset.tel[tel_id]
+            if self.offset.tel[tel_id] != 0:
+                r1.waveform -= self.offset.tel[tel_id]
+
             mon = event.mon.tel[tel_id]
             if r1.selected_gain_channel is None:
                 r1.waveform[mon.pixel_status.hardware_failing_pixels] = 0.0
@@ -400,7 +404,7 @@ class LSTR0Corrections(TelescopeComponent):
 
     @staticmethod
     @lru_cache(maxsize=4)
-    def _get_drs4_pedestal_data(path, offset=0):
+    def _get_drs4_pedestal_data(path):
         """
         Function to load pedestal file.
 
@@ -425,9 +429,6 @@ class LSTR0Corrections(TelescopeComponent):
 
         pedestal_data[:, :, N_CAPACITORS_PIXEL:] = pedestal_data[:, :, :N_SAMPLES]
 
-        if offset != 0:
-            pedestal_data -= offset
-
         return pedestal_data
 
     def subtract_pedestal(self, event, tel_id):
@@ -440,9 +441,9 @@ class LSTR0Corrections(TelescopeComponent):
         tel_id : id of the telescope
         """
         pedestal = self._get_drs4_pedestal_data(
-            self.drs4_pedestal_path.tel[tel_id],
-            offset=self.offset.tel[tel_id],
+            self.drs4_pedestal_path.tel[tel_id]
         )
+
         if event.r1.tel[tel_id].selected_gain_channel is None:
             subtract_pedestal(
                 event.r1.tel[tel_id].waveform,

@@ -65,12 +65,6 @@ def test_read_drs4_pedestal_file():
     # check circular boundary
     assert np.all(pedestal[..., :N_SAMPLES] == pedestal[..., N_CAPACITORS_PIXEL:])
 
-    # check offset is applied
-    pedestal_offset = LSTR0Corrections._get_drs4_pedestal_data(
-        test_drs4_pedestal_path, offset=100,
-    )
-    assert np.all((pedestal - pedestal_offset) == 100)
-
 
 def test_read_drs_time_calibration_file():
     from ctapipe_io_lst.calibration import LSTR0Corrections, N_GAINS, N_PIXELS
