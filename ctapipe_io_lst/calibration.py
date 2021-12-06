@@ -89,9 +89,9 @@ class LSTR0Corrections(TelescopeComponent):
         default_value=0,
         help=(
             'Define offset to be subtracted from the waveform *additionally*'
-            ' to the drs4 pedestal offset.'
-            ' Only set this to a value != 0 when not using the drs4 offset '
-            ' calibration.'
+            ' to the drs4 pedestal offset. This only needs to be given when'
+            ' the drs4 pedestal calibration is not applied or the offset of the'
+            ' drs4 run is different from the data run'
         )
     ).tag(config=True)
 
