@@ -525,6 +525,8 @@ class LSTEventSource(EventSource):
         lst_evt.drs_tag_status = zfits_event.lstcam.drs_tag_status
         lst_evt.drs_tag = zfits_event.lstcam.drs_tag
 
+        lst_evt.ucts_jump = False
+
     def fill_trigger_info(self, array_event):
         tel_id = self.tel_id
 
