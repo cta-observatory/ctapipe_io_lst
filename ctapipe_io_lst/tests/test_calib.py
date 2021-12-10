@@ -31,7 +31,11 @@ def test_get_first_capacitor():
     )
 
     tel_id = 1
-    source = LSTEventSource(test_r0_calib_path, apply_drs4_corrections=False)
+    source = LSTEventSource(
+        test_r0_calib_path,
+        apply_drs4_corrections=False,
+        pointing_information=False,
+    )
     event = next(iter(source))
 
     first_capacitor_id = event.lst.tel[tel_id].evt.first_capacitor_id
@@ -90,6 +94,7 @@ def test_source_with_drs4_pedestal():
 
     config = Config({
         'LSTEventSource': {
+            'pointing_information': False,
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
             },
@@ -112,6 +117,7 @@ def test_source_with_calibration():
 
     config = Config({
         'LSTEventSource': {
+            'pointing_information': False,
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'calibration_path': test_calib_path,
@@ -135,6 +141,7 @@ def test_source_with_all():
 
     config = Config({
         'LSTEventSource': {
+            'pointing_information': False,
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'drs4_time_calibration_path': test_time_calib_path,
@@ -161,6 +168,7 @@ def test_missing_module():
 
     config = Config({
         'LSTEventSource': {
+            'pointing_information': False,
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'drs4_time_calibration_path': test_time_calib_path,
@@ -198,6 +206,7 @@ def test_no_gain_selection():
 
     config = Config({
         'LSTEventSource': {
+            'pointing_information': False,
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'drs4_time_calibration_path': test_time_calib_path,
@@ -260,6 +269,7 @@ def test_no_gain_selection_no_drs4time_calib():
 
     config = Config({
         'LSTEventSource': {
+            'pointing_information': False,
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'calibration_path': test_calib_path,
@@ -286,6 +296,7 @@ def test_already_gain_selected():
 
     config = Config({
         'LSTEventSource': {
+            'pointing_information': False,
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'drs4_time_calibration_path': test_time_calib_path,
