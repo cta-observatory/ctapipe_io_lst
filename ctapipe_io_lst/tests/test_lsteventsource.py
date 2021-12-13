@@ -6,6 +6,7 @@ import numpy as np
 import astropy.units as u
 from traitlets.config import Config
 import pytest
+import tables
 
 from ctapipe.containers import EventType
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
@@ -243,3 +244,24 @@ def test_len():
         max_events=10,
     ) as source:
         assert len(source) == 10
+
+
+def test_pedestal_events(tmp_path):
+    from ctapipe_io_lst import LSTEventSource
+
+    path = tmp_path / 'pedestal_events.h5'
+    with tables.open_file(path, 'w') as f:
+        data = np.array([(2008, 5), (2008, 11)], dtype=[('obs_id', int), ('event_id', int)])
+        f.create_table('/', 'interleaved_pedestal_ids', obj=data)
+
+    with LSTEventSource(
+        test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
+        pedestal_ids_path=path,
+        apply_drs4_corrections=False,
+        pointing_information=False,
+    ) as source:
+        for event in source:
+            if event.index.event_id in {5, 11}:
+                assert event.trigger.event_type == EventType.SKY_PEDESTAL
+            else:
+                assert event.trigger.event_type != EventType.SKY_PEDESTAL

@@ -18,9 +18,9 @@ from ctapipe.instrument import (
 )
 from enum import IntFlag, auto
 
-from ctapipe.io import EventSource
+from ctapipe.io import EventSource, read_table
 from ctapipe.io.datalevels import DataLevel
-from ctapipe.core.traits import Bool, Float, Enum
+from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
     PixelStatusContainer, EventType, R0CameraContainer, R1CameraContainer,
 )
@@ -219,6 +219,7 @@ class LSTEventSource(EventSource):
         default_value=True,
         help='Fill trigger information.'
     ).tag(config=True)
+
     pointing_information = Bool(
         default_value=True,
         help=(
@@ -226,6 +227,14 @@ class LSTEventSource(EventSource):
             ' Requires specifying `PointingSource.drive_report_path`'
         ),
     ).tag(config=True)
+
+    pedestal_ids_path = Path(
+        exists=True,
+        help=(
+            'Path to a file containing the ids of the interleaved pedestal events'
+            ' for the current input file'
+        )
+    )
 
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
@@ -288,6 +297,8 @@ class LSTEventSource(EventSource):
         )
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
         self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
+
+        self.read_pedestal_ids()
 
     @property
     def subarray(self):
@@ -395,6 +406,9 @@ class LSTEventSource(EventSource):
                 # be done after the drs4 corrections are applied
                 if self.use_flatfield_heuristic:
                     self.tag_flatfield_events(array_event)
+
+            if self.pedestal_ids is not None:
+                self.check_interleaved_pedestal(array_event)
 
             # gain select and calibrate to pe
             if self.r0_r1_calibrator.calibration_path is not None:
@@ -762,3 +776,31 @@ class LSTEventSource(EventSource):
 
     def close(self):
         self.multi_file.close()
+
+    def read_pedestal_ids(self):
+        if self.pedestal_ids_path is not None:
+            t = read_table(self.pedestal_ids_path, '/interleaved_pedestal_ids')
+            Provenance().add_input_file(
+                self.pedestal_ids_path, role="InterleavedPedestalIDs"
+            )
+            self.pedestal_ids = set(t['event_id'])
+        else:
+            self.pedestal_ids = None
+
+
+    def check_interleaved_pedestal(self, array_event):
+        event_id = array_event.index.event_id
+
+        if event_id in self.pedestal_ids:
+            array_event.trigger.event_type = EventType.SKY_PEDESTAL
+            self.log.debug("Event %d is an interleaved pedestal", event_id)
+
+        elif array_event.trigger.event_type == EventType.SKY_PEDESTAL:
+            # wrongly tagged pedestal event must be cosmic, since it would
+            # have been changed to flatfield by the flatfield tagging if ff
+            array_event.trigger.event_type = EventType.SUBARRAY
+            self.log.debug(
+                "Event %d is tagged as pedestal but not a known pedestal event",
+                event_id,
+            )
+
