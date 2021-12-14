@@ -1,7 +1,6 @@
 from functools import lru_cache
 
 import numpy as np
-from astropy.io import fits
 import astropy.units as u
 from numba import njit
 import tables
@@ -14,8 +13,9 @@ from ctapipe.core.traits import (
 
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 from ctapipe.containers import MonitoringContainer
-from ctapipe.io import HDF5TableReader
+from ctapipe.io import HDF5TableReader, read_table
 from .containers import LSTArrayEventContainer
+from traitlets import Enum
 
 
 from .constants import (
@@ -114,6 +114,7 @@ class LSTR0Corrections(TelescopeComponent):
         help=(
             'Path to the LST pedestal file'
             ', required when `apply_drs4_pedestal_correction=True`'
+            ' or when using spike subtraction'
         ),
     ).tag(config=True)
 
@@ -175,6 +176,12 @@ class LSTR0Corrections(TelescopeComponent):
         help='Threshold for the ThresholdGainSelector.'
     ).tag(config=True)
 
+    spike_correction_method = Enum(
+        values=['subtraction', 'interpolation'],
+        default_value='subtraction',
+        help='Wheter to use spike subtraction (default) or interpolation',
+    ).tag(config=True)
+
     def __init__(self, subarray, config=None, parent=None, **kwargs):
         """
         The R0 calibrator for LST data.
@@ -234,7 +241,11 @@ class LSTR0Corrections(TelescopeComponent):
                 self.time_lapse_corr(event, tel_id)
 
             if self.apply_spike_correction:
-                self.interpolate_spikes(event, tel_id)
+                if self.spike_correction_method == 'subtraction':
+                    self.subtract_spikes(event, tel_id)
+                else:
+                    self.interpolate_spikes(event, tel_id)
+
 
             # remove samples at beginning / end of waveform
             start = self.r1_sample_start.tel[tel_id]
@@ -404,7 +415,7 @@ class LSTR0Corrections(TelescopeComponent):
 
     @staticmethod
     @lru_cache(maxsize=4)
-    def _get_drs4_pedestal_data(path):
+    def _get_drs4_pedestal_data(path, tel_id):
         """
         Function to load pedestal file.
 
@@ -420,16 +431,28 @@ class LSTR0Corrections(TelescopeComponent):
                 " but no file provided for telescope"
             )
 
+        table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
+
         pedestal_data = np.empty(
             (N_GAINS, N_PIXELS_MODULE * N_MODULES, N_CAPACITORS_PIXEL + N_SAMPLES),
-            dtype=np.int16
+            dtype=np.float32
         )
-        with fits.open(path) as f:
-            pedestal_data[:, :, :N_CAPACITORS_PIXEL] = f[1].data
-
+        pedestal_data[:, :, :N_CAPACITORS_PIXEL] = table[0]['baseline_mean']
         pedestal_data[:, :, N_CAPACITORS_PIXEL:] = pedestal_data[:, :, :N_SAMPLES]
 
         return pedestal_data
+
+    @lru_cache(maxsize=4)
+    def _get_spike_heights(self, path, tel_id):
+        if path is None:
+            raise ValueError(
+                "DRS4 spike correction requested"
+                " but no pedestal file provided for telescope"
+            )
+
+        table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
+        spike_height = np.array(table[0]['spike_height'])
+        return spike_height
 
     def subtract_pedestal(self, event, tel_id):
         """
@@ -441,7 +464,8 @@ class LSTR0Corrections(TelescopeComponent):
         tel_id : id of the telescope
         """
         pedestal = self._get_drs4_pedestal_data(
-            self.drs4_pedestal_path.tel[tel_id]
+            self.drs4_pedestal_path.tel[tel_id],
+            tel_id,
         )
 
         if event.r1.tel[tel_id].selected_gain_channel is None:
@@ -509,12 +533,9 @@ class LSTR0Corrections(TelescopeComponent):
 
     def interpolate_spikes(self, event, tel_id):
         """
-        Interpolates spike A & B.
-        Fill the R1 container.
-        Parameters
-        ----------
-        event : `ctapipe` event-container
-        tel_id : id of the telescope
+        Interpolate spikes at known positions from their neighboring values
+
+        Mutates the R1 waveform.
         """
         run_id = event.lst.tel[tel_id].svc.configuration_id
 
@@ -535,6 +556,34 @@ class LSTR0Corrections(TelescopeComponent):
                 run_id=run_id,
             )
 
+    def subtract_spikes(self, event, tel_id):
+        """
+        Subtract mean spike height from known spike positions
+
+        Mutates the R1 waveform.
+        """
+        run_id = event.lst.tel[tel_id].svc.configuration_id
+        spike_height = self._get_spike_heights(self.drs4_pedestal_path.tel[tel_id], tel_id)
+
+        r1 = event.r1.tel[tel_id]
+        if r1.selected_gain_channel is None:
+            subtract_spikes(
+                waveform=r1.waveform,
+                first_capacitors=self.first_cap[tel_id],
+                previous_first_capacitors=self.first_cap_old[tel_id],
+                run_id=run_id,
+                spike_height=spike_height
+            )
+        else:
+            subtract_spikes_gain_selected(
+                waveform=r1.waveform,
+                first_capacitors=self.first_cap[tel_id],
+                previous_first_capacitors=self.first_cap_old[tel_id],
+                selected_gain_channel=r1.selected_gain_channel,
+                run_id=run_id,
+                spike_height=spike_height
+            )
+
 
 def convert_to_pe(waveform, calibration, selected_gain_channel):
     if selected_gain_channel is None:
@@ -543,6 +592,7 @@ def convert_to_pe(waveform, calibration, selected_gain_channel):
     else:
         waveform -= calibration.pedestal_per_sample[selected_gain_channel, PIXEL_INDEX, np.newaxis]
         waveform *= calibration.dc_to_pe[selected_gain_channel, PIXEL_INDEX, np.newaxis]
+
 
 @njit(cache=True)
 def interpolate_spike_A(waveform, position):
@@ -720,6 +770,12 @@ def interpolate_spikes_gain_selected(waveform, first_capacitors, previous_first_
         Value of first capacitor from previous event
         stored in a numpy array of shape
         (N_GAINS, N_PIXELS).
+    selected_gain_channel: ndarray
+        ndarray of shape (N_PIXELS, ) containing the selected gain channel
+        for each pixel
+    run_id: int
+        Run id of the run, used to determine if code for new firmware
+        or old firmware has to be used
     """
 
     for pixel in range(N_PIXELS):
@@ -735,6 +791,117 @@ def interpolate_spikes_gain_selected(waveform, first_capacitors, previous_first_
         interpolate_spike_positions(
             waveform=waveform[pixel],
             positions=positions,
+        )
+
+
+@njit(cache=True)
+def subtract_spikes_at_positions(waveform, positions, spike_height):
+    '''Subtract the spikes at given positions in waveform'''
+    for spike_position in positions:
+        for i in range(3):
+            sample = spike_position + i
+            if 0 <= sample < N_SAMPLES:
+                waveform[sample] -= spike_height[i]
+
+
+@njit(cache=True)
+def subtract_spikes(
+    waveform,
+    first_capacitors,
+    previous_first_capacitors,
+    run_id,
+    spike_height,
+):
+    """
+    Subtract mean spike heights for spike type A.
+
+    Modifies waveform in place.
+
+    Parameters
+    ----------
+    waveform : ndarray
+        Waveform stored in a numpy array of shape
+        (N_GAINS, N_PIXELS, N_SAMPLES).
+    first_capacitors : ndarray
+        Value of first capacitor stored in a numpy array of shape
+        (N_GAINS, N_PIXELS).
+    previous_first_capacitors : ndarray
+        Value of first capacitor from previous event
+        stored in a numpy array of shape
+        (N_GAINS, N_PIXELS).
+    run_id: int
+        Run id of the run, used to determine if code for new firmware
+        or old firmware has to be used
+    spike_height: ndarray
+        ndarry of shape (N_GAINS, N_PIXELS, 3) of the three spike_heights
+    """
+    for gain in range(N_GAINS):
+        for pixel in range(N_PIXELS):
+            current_fc = first_capacitors[gain, pixel]
+            last_fc = previous_first_capacitors[gain, pixel]
+
+            if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+                positions = get_spike_A_positions(current_fc, last_fc)
+            else:
+                positions = get_spike_A_positions_old_firmware(current_fc, last_fc)
+
+            subtract_spikes_at_positions(
+                waveform=waveform[gain, pixel],
+                positions=positions,
+                spike_height=spike_height[gain, pixel],
+            )
+
+
+@njit(cache=True)
+def subtract_spikes_gain_selected(
+    waveform,
+    first_capacitors,
+    previous_first_capacitors,
+    selected_gain_channel,
+    run_id,
+    spike_height,
+):
+    """
+    Subtract mean spike heights for spike type A for gain selected input data
+
+    Modifies waveform in place.
+
+    Parameters
+    ----------
+    waveform : ndarray
+        Waveform stored in a numpy array of shape
+        (N_GAINS, N_PIXELS, N_SAMPLES).
+    first_capacitors : ndarray
+        Value of first capacitor stored in a numpy array of shape
+        (N_GAINS, N_PIXELS).
+    previous_first_capacitors : ndarray
+        Value of first capacitor from previous event
+        stored in a numpy array of shape
+        (N_GAINS, N_PIXELS).
+    selected_gain_channel: ndarray
+        ndarray of shape (N_PIXELS, ) containing the selected gain channel
+        for each pixel
+    run_id: int
+        Run id of the run, used to determine if code for new firmware
+        or old firmware has to be used
+    spike_height: ndarray
+        ndarry of shape (N_GAINS, N_PIXELS, 3) of the three spike_heights
+    """
+
+    for pixel in range(N_PIXELS):
+        gain = selected_gain_channel[pixel]
+        current_fc = first_capacitors[gain, pixel]
+        last_fc = previous_first_capacitors[gain, pixel]
+
+        if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
+            positions = get_spike_A_positions(current_fc, last_fc)
+        else:
+            positions = get_spike_A_positions_old_firmware(current_fc, last_fc)
+
+        subtract_spikes_at_positions(
+            waveform=waveform[pixel],
+            positions=positions,
+            spike_height=spike_height[gain, pixel],
         )
 
 

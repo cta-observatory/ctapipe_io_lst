@@ -14,9 +14,9 @@ resource_dir = Path(pkg_resources.resource_filename(
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
 test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0000_first50.fits.fz'
 test_r0_calib_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz'
-test_calib_path = test_data / 'real/calibration/20200218/v05/calibration.Run2006.0000.hdf5'
-test_drs4_pedestal_path = test_data / 'real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits'
-test_time_calib_path = test_data / 'real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5'
+test_calib_path = test_data / 'real/monitoring/PixelCalibration/LevelA/calibration/20200218/v0.7.6.dev568+gdecfb58c/calibration_filters_52.Run02006.0000.h5'
+test_drs4_pedestal_path = test_data / 'real/monitoring/PixelCalibration/LevelA/drs4_baseline/20200218/v0.7.6.dev568+gdecfb58c/drs4_pedestal.Run02005.0000.h5'
+test_time_calib_path = test_data / 'real/monitoring/PixelCalibration/LevelA/drs4_time_sampling_from_FF/20191124/v0.7.6.dev568+gdecfb58c/time_calibration.Run01625.0000.h5'
 test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
 test_r0_gainselected_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0000_first50_gainselected.fits.fz'
 
@@ -63,7 +63,7 @@ def test_read_calib_file():
 def test_read_drs4_pedestal_file():
     from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS_PIXEL, N_SAMPLES
 
-    pedestal = LSTR0Corrections._get_drs4_pedestal_data(test_drs4_pedestal_path)
+    pedestal = LSTR0Corrections._get_drs4_pedestal_data(test_drs4_pedestal_path, tel_id=1)
 
     assert pedestal.shape[-1] == N_CAPACITORS_PIXEL + N_SAMPLES
     # check circular boundary
