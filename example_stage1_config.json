@@ -4,9 +4,9 @@
   },
   "LSTEventSource": {
     "LSTR0Corrections": {
-      "drs4_pedestal_path": "test_data/real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.fits",
-      "drs4_time_calibration_path": "test_data/real/calibration/20200218/v05/time_calibration.Run2006.0000.hdf5",
-      "calibration_path": "test_data/real/calibration/20200218/v05/calibration.Run2006.0000.hdf5",
+      "drs4_pedestal_path": "test_data/real/calibration/20200218/v05/drs4_pedestal.Run2005.0000.h5",
+      "drs4_time_calibration_path": "test_data/real/calibration/20200218/v05/time_calibration.Run2006.0000.h5",
+      "calibration_path": "test_data/real/calibration/20200218/v05/calibration.Run2006.0000.h5",
       "gain_selection_threshold": 3500,
       "add_calibration_timeshift": true
     },
