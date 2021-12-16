@@ -968,8 +968,7 @@ def apply_timelapse_correction_pixel(
 
             # FIXME: Why only for values < 100 ms, negligible otherwise?
             if time_diff_ms < 100:
-                # prevent underflow of the unsigned int value
-                waveform[sample] -= min(ped_time(time_diff_ms), waveform[sample])
+                waveform[sample] -= ped_time(time_diff_ms)
 
 
 @njit(cache=True)
