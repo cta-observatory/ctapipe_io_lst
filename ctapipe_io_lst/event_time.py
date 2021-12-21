@@ -104,8 +104,12 @@ def module_id_to_index(expected_module_ids, module_id):
     return np.where(expected_module_ids == module_id)[0][0]
 
 
-def abs_diff(a, b):
-    return max(a, b) - min(a, b)
+def uint64_diff(a, b):
+    '''Calculate the diff of two uint64 numbers without risking underflow'''
+    if a > b:
+        return (a - b).astype(np.int64)
+    else:
+        return  -(b - a).astype(np.int64)
 
 
 class EventTimeCalculator(TelescopeComponent):
@@ -359,11 +363,20 @@ class EventTimeCalculator(TelescopeComponent):
         # event rate), and set its ucts_trigger_type to -1,
         # which will tell us a jump happened and hence this
         # event does not have proper UCTS info.
-        delta = abs_diff(ucts_timestamp, dragon_timestamp)
+        delta = uint64_diff(ucts_timestamp, dragon_timestamp)
+        if delta < -1e3:
+            self.log.warning(
+                f'Found dragon time much ahead of ucts time in event {event.index.event_id}'
+                f', dragon time: {dragon_timestamp:d}'
+                f', ucts time: {ucts_timestamp:d}'
+                f', delta: {delta / 1000:.0f} µs'
+            )
+
         if delta > 1e3:
             self.log.warning(
                 f'Found UCTS jump in event {event.index.event_id}'
                 f', dragon time: {dragon_timestamp:d}'
+                f', ucts time: {ucts_timestamp:d}'
                 f', delta: {delta / 1000:.0f} µs'
             )
             self.previous_ucts_timestamps[tel_id].appendleft(ucts_timestamp)
