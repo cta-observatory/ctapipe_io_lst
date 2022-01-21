@@ -19,5 +19,3 @@ dependencies:
   - zlib
   - pip
   - h5py
-  - pip:
-      - pytest_runner

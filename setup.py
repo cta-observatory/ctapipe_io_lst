@@ -14,5 +14,4 @@ setup(
         'ctapipe_io_lst': ['resources/*'],
     },
     tests_require=['pytest'],
-    setup_requires=['pytest_runner'],
 )
