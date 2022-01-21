@@ -24,6 +24,7 @@ from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
     PixelStatusContainer, EventType, R0CameraContainer, R1CameraContainer,
 )
+from ctapipe.coordinates import CameraFrame
 
 from .multifiles import MultiFiles
 from .containers import LSTArrayEventContainer, LSTServiceContainer
@@ -110,7 +111,9 @@ def load_camera_geometry(version=4):
         'ctapipe_io_lst', f'resources/LSTCam-{version:03d}.camgeom.fits.gz'
     )
     Provenance().add_input_file(f, role="CameraGeometry")
-    return CameraGeometry.from_table(f)
+    cam = CameraGeometry.from_table(f)
+    cam.frame = CameraFrame(focal_length=OPTICS.equivalent_focal_length)
+    return cam
 
 
 def read_pulse_shapes():
@@ -229,7 +232,9 @@ class LSTEventSource(EventSource):
     ).tag(config=True)
 
     pedestal_ids_path = Path(
+        default_value=None,
         exists=True,
+        allow_none=True,
         help=(
             'Path to a file containing the ids of the interleaved pedestal events'
             ' for the current input file'

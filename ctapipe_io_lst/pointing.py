@@ -17,7 +17,7 @@ NAN_ANGLE = np.nan * u.deg
 class PointingSource(TelescopeComponent):
     """Provides access to pointing information stored in LST drive reports."""
     drive_report_path = TelescopeParameter(
-        trait=Path(exists=True, directory_ok=False),
+        trait=Path(exists=True, directory_ok=False, allow_none=True),
         help='Path to the LST drive report file',
         default_value=None,
     ).tag(config=True)

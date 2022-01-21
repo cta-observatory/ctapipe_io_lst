@@ -18,13 +18,12 @@ test_drive_report = test_data / 'real/monitoring/DrivePositioning/drive_log_2020
 test_run_summary = test_data / 'real/monitoring/RunSummary/RunSummary_20200218.ecsv'
 
 
-def test_stage1(tmpdir):
+def test_stage1(tmp_path):
     """Test the ctapipe stage1 tool can read in LST real data using the event source"""
-    from ctapipe.tools.stage1 import Stage1Tool
+    from ctapipe.tools.process import ProcessorTool
     from ctapipe.core.tool import run_tool
 
-    tmpdir = Path(tmpdir)
-    config_path = tmpdir / 'config.json'
+    config_path = tmp_path / 'config.json'
 
     config = {
         'LSTEventSource': {
@@ -58,8 +57,8 @@ def test_stage1(tmpdir):
     with config_path.open('w') as f:
         json.dump(config, f)
 
-    tool = Stage1Tool()
-    output = tmpdir / "test_dl1.h5"
+    tool = ProcessorTool()
+    output = tmp_path / "test_dl1.h5"
 
     ret = run_tool(tool, argv=[
         f'--input={test_r0_path}',
@@ -89,13 +88,12 @@ def test_stage1(tmpdir):
     assert event_type_counts[EventType.SUBARRAY.value] == 198
 
 
-def test_no_ff_tagging(tmpdir):
+def test_no_ff_tagging(tmp_path):
     """Test the ctapipe stage1 tool can read in LST real data using the event source"""
-    from ctapipe.tools.stage1 import Stage1Tool
+    from ctapipe.tools.process import ProcessorTool
     from ctapipe.core.tool import run_tool
 
-    tmpdir = Path(tmpdir)
-    config_path = tmpdir / 'config.json'
+    config_path = tmp_path / 'config.json'
 
     config = {
         'LSTEventSource': {
@@ -130,8 +128,8 @@ def test_no_ff_tagging(tmpdir):
     with config_path.open('w') as f:
         json.dump(config, f)
 
-    tool = Stage1Tool()
-    output = tmpdir / "test_dl1.h5"
+    tool = ProcessorTool()
+    output = tmp_path / "test_dl1.h5"
 
     ret = run_tool(tool, argv=[
         f'--input={test_r0_path}',

@@ -4,11 +4,10 @@ channels:
 dependencies:
   - astropy>=4.2
   - python=3.8 # nail the python version, so conda does not try upgrading / dowgrading
-  - conda-forge::ctapipe=0.11
+  - conda-forge::ctapipe=0.12
   - conda-forge::eventio
   - conda-forge::corsikaio
   - conda-forge::protozfits=2.0
-  - traitlets=5.0 # remove when upgrading to ctapipe > 0.11
   - zeromq
   - ipython
   - numba

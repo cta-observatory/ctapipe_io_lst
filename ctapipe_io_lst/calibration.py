@@ -108,7 +108,7 @@ class LSTR0Corrections(TelescopeComponent):
     ).tag(config=True)
 
     drs4_pedestal_path = TelescopeParameter(
-        trait=Path(exists=True, directory_ok=False),
+        trait=Path(exists=True, directory_ok=False, allow_none=True),
         allow_none=True,
         default_value=None,
         help=(
@@ -119,12 +119,12 @@ class LSTR0Corrections(TelescopeComponent):
     ).tag(config=True)
 
     calibration_path = Path(
-        exists=True, directory_ok=False,
+        None, exists=True, directory_ok=False, allow_none=True,
         help='Path to LST calibration file',
     ).tag(config=True)
 
     drs4_time_calibration_path = TelescopeParameter(
-        trait=Path(exists=True, directory_ok=False),
+        trait=Path(exists=True, directory_ok=False, allow_none=True),
         help='Path to the time calibration file',
         default_value=None,
         allow_none=True,

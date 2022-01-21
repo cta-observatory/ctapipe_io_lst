@@ -177,7 +177,7 @@ class EventTimeCalculator(TelescopeComponent):
     ).tag(config=True)
 
     run_summary_path = TelescopeParameter(
-        Path(exists=True, directory_ok=False),
+        Path(exists=True, directory_ok=False, allow_none=True),
         default_value=None,
         help=(
             'Path to the run summary for the correct night.'
