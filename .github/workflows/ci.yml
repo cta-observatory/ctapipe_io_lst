@@ -20,22 +20,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v2
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Install dependencies
+      - name: Set python version
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
-          CTAPIPE_VERSION: ${{ matrix.ctapipe-version }}
-
         run: |
-          . $CONDA/etc/profile.d/conda.sh
-          conda config --set always_yes yes --set changeps1 no
           sed -i -e "s/- python=.*/- python=$PYTHON_VERSION/g" environment.yml
-          conda env create -n ci -f environment.yml
-          conda activate ci
+
+      - name: Create and activate env
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          mamba-version: "*"
+          use-mamba: true
+          activate-environment: lstio
+          environment-file: environment.yml
+
+      - name: Install
+        shell: bash -l {0}
+        env:
+          CTAPIPE_VERSION: ${{ matrix.ctapipe-version }}
+        run: |
           # we install ctapipe using pip to be able to select any commit, e.g. the current master
           pip install pytest-cov "git+https://github.com/cta-observatory/ctapipe@$CTAPIPE_VERSION"
           pip install -e .
@@ -48,14 +51,11 @@ jobs:
         run: |
           ./download_test_data.sh
 
-
-
       - name: Tests
+        shell: bash -l {0}
         run: |
           # github actions starts a new shell for each "step", so we need to 
           # activate our env again
-          source $CONDA/etc/profile.d/conda.sh
-          conda activate ci
           pytest --cov=ctapipe_io_lst --cov-report=xml
 
       - uses: codecov/codecov-action@v1
