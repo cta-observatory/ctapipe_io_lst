@@ -8,33 +8,12 @@ from ctapipe.containers import ArrayEventContainer
 
 
 __all__ = [
-    'LSTDriveContainer',
     'LSTEventContainer',
-    'LSTMonitoringContainer',
     'LSTServiceContainer',
     'LSTCameraContainer',
     'LSTContainer',
-    'LSTMonitoringContainer',
     'LSTArrayEventContainer',
 ]
-
-
-class LSTDriveContainer(Container):
-    """
-    Drive report container
-    """
-    date = Field(" ", "observation date")
-    time_stamp = Field(-1, "timestamp")
-    epoch = Field(-1, "Epoch")
-    time = Field(-1, "time",)
-    azimuth_avg = Field(nan * u.rad, "Azimuth", unit=u.rad)
-    azimuth_min = Field(nan * u.rad, "Azimuth min", unit=u.rad)
-    azimuth_max = Field(nan * u.rad, "Azimuth max", unit=u.rad)
-    azimuth_rmse = Field(nan * u.rad, "Azimuth root-mean-square error", unit=u.rad)
-    altitude_avg = Field(nan * u.rad, "Altitude", unit=u.rad)
-    altitude_min = Field(nan * u.rad, "Altitude min", unit=u.rad)
-    altitude_max = Field(nan * u.rad, "Altitude max", unit=u.rad)
-    altitude_rmse = Field(nan * u.rad, "Altitude root-mean-square error", unit=u.rad)
 
 
 class LSTServiceContainer(Container):
@@ -116,21 +95,12 @@ class LSTEventContainer(Container):
     ucts_jump = Field(False, "A ucts jump happened in the current event")
 
 
-class LSTMonitoringContainer(Container):
-    """
-    Container for Fields/containers that are specific for the LST monitoring
-    e.g. the pointing data
-    """
-    drive = Field(LSTDriveContainer(), "container for LST drive reports")
-
-
 class LSTCameraContainer(Container):
     """
     Container for Fields that are specific to each LST camera
     """
     evt = Field(LSTEventContainer(), "LST specific event Information")
     svc = Field(LSTServiceContainer(), "LST specific camera_config Information")
-    mon = Field(LSTMonitoringContainer(), "LST specific monitoring Information")
 
 
 class LSTContainer(Container):
