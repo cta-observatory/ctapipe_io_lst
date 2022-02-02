@@ -27,7 +27,7 @@ from ctapipe.containers import (
 from ctapipe.coordinates import CameraFrame
 
 from .multifiles import MultiFiles
-from .containers import LSTArrayEventContainer, LSTServiceContainer
+from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer
 from .version import __version__
 from .calibration import LSTR0Corrections
 from .event_time import EventTimeCalculator
@@ -50,6 +50,7 @@ class TriggerBits(IntFlag):
     '''
     See TIB User manual
     '''
+    UNKNOWN = 0
     MONO = auto()
     STEREO = auto()
     CALIBRATION = auto()
@@ -488,7 +489,10 @@ class LSTEventSource(EventSource):
         """
         tel_id = self.tel_id
 
-        lst_evt = array_event.lst.tel[tel_id].evt
+        # create a fresh container so we are sure we have the invalid value
+        # markers in case on subsystem is going missing mid of run
+        lst_evt = LSTEventContainer()
+        array_event.lst.tel[tel_id].evt = lst_evt
 
         lst_evt.configuration_id = zfits_event.configuration_id
         lst_evt.event_id = zfits_event.event_id
