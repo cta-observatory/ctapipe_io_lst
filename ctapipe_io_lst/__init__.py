@@ -50,6 +50,7 @@ class TriggerBits(IntFlag):
     '''
     See TIB User manual
     '''
+    UNKNOWN = 0
     MONO = auto()
     STEREO = auto()
     CALIBRATION = auto()
