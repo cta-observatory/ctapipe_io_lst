@@ -240,7 +240,7 @@ class LSTEventSource(EventSource):
             'Path to a file containing the ids of the interleaved pedestal events'
             ' for the current input file'
         )
-    )
+    ).tag(config=True)
 
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
