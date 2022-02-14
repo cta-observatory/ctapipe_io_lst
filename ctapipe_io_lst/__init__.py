@@ -462,8 +462,11 @@ class LSTEventSource(EventSource):
         """
         Fill LSTServiceContainer with specific LST service data data
         (from the CameraConfig table of zfit file)
-
         """
+        # some runs (e.g 2920) were taken with a MODIFIED IDAQ,
+        # i.e. a build with uncommited changes in the SVN.
+        idaq_version = camera_config.lstcam.idaq_version
+        idaq_version = int(idaq_version.rstrip('M'))
         return LSTServiceContainer(
             telescope_id=tel_id,
             cs_serial=camera_config.cs_serial,
@@ -475,7 +478,7 @@ class LSTEventSource(EventSource):
             data_model_version=camera_config.data_model_version,
             num_modules=camera_config.lstcam.num_modules,
             module_ids=camera_config.lstcam.expected_modules_id,
-            idaq_version=camera_config.lstcam.idaq_version,
+            idaq_version=idaq_version,
             cdhs_version=camera_config.lstcam.cdhs_version,
             algorithms=camera_config.lstcam.algorithms,
             pre_proc_algorithms=camera_config.lstcam.pre_proc_algorithms,
@@ -513,7 +516,7 @@ class LSTEventSource(EventSource):
 
         # if UCTS data are there
         if lst_evt.extdevices_presence & 2:
-            if int(array_event.lst.tel[tel_id].svc.idaq_version) > 37201:
+            if array_event.lst.tel[tel_id].svc.idaq_version > 37201:
                 cdts = zfits_event.lstcam.cdts_data.view(CDTS_AFTER_37201_DTYPE)[0]
                 lst_evt.ucts_timestamp = cdts[0]
                 lst_evt.ucts_address = cdts[1]        # new
