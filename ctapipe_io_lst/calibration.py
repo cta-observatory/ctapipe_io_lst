@@ -334,6 +334,10 @@ class LSTR0Corrections(TelescopeComponent):
 
             event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
 
+
+            for key in ['calibration', 'pedestal', 'flatfield', 'pixel_status']:
+                event.mon.tel[tel_id][key] = self.mon_data.tel[tel_id][key]
+
     @staticmethod
     def _read_calibration_file(path):
         """
