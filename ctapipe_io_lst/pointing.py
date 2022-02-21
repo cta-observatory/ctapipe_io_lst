@@ -1,23 +1,28 @@
-from ctapipe.core import TelescopeComponent
-from ctapipe.core.traits import Path, TelescopeParameter
+from pathlib import Path
+
+import numpy as np
+from scipy.interpolate import interp1d
+
 from astropy.table import Table
 from astropy import units as u
-from scipy.interpolate import interp1d
+
+from ctapipe.core import TelescopeComponent, Provenance
+from ctapipe.core import traits
 from ctapipe.containers import TelescopePointingContainer
-import numpy as np
 
 
 __all__ = [
     'PointingSource'
 ]
 
+
 NAN_ANGLE = np.nan * u.deg
 
 
 class PointingSource(TelescopeComponent):
     """Provides access to pointing information stored in LST drive reports."""
-    drive_report_path = TelescopeParameter(
-        trait=Path(exists=True, directory_ok=False, allow_none=True),
+    drive_report_path = traits.TelescopeParameter(
+        trait=traits.Path(exists=True, directory_ok=False, allow_none=True),
         help='Path to the LST drive report file',
         default_value=None,
     ).tag(config=True)
@@ -46,6 +51,8 @@ class PointingSource(TelescopeComponent):
              A table of drive reports
 
         """
+        path = Path(path)
+        Provenance().add_input_file(str(path), 'drive positioning')
         data = Table.read(
             path, format='ascii', delimiter=' ',
             header_start=None,
@@ -55,9 +62,56 @@ class PointingSource(TelescopeComponent):
                 'Az', 'azimuth_avg', 'azimuth_min', 'azimuth_max', 'azimuth_std',
                 'El', 'zenith_avg', 'zenith_min', 'zenith_max', 'zenith_std',
                 'Ra', 'target_ra', 'Dec', 'target_dec',
-            ]
+            ],
+            exclude_names=['weekday', 'month', 'day', 'time', 'year', 'Az', 'El', 'Ra', 'Dec'],
         )
+
+        # check for bending model corrections
+        bending_path = path.with_name(path.name.replace('drive', 'bendingmodelcorrection'))
+        if not bending_path.exists():
+            return data
+
+        corrections = PointingSource._read_bending_model_corrections(bending_path)
+
+        # according to an email by Armand Fiasson, the timestamps are guaranteed to be equal
+        if len(corrections) != len(data):
+            raise IOError('Pointing report and bending model correction lengths differ')
+
+        if np.any(data['unix_time'] != corrections['unix_time']):
+            raise IOError('Drive report and corrections timestamps differ')
+
+        for col in ['azimuth', 'zenith']:
+            for key in ['avg', 'min', 'max']:
+                data[f'{col}_{key}'] += corrections[f'{col}_correction']
+
         return data
+
+    @staticmethod
+    def _read_bending_model_corrections(path):
+        '''
+        Read a bendingmodelcorrection report.
+        '''
+        Provenance().add_input_file(str(path), 'bending model corrections')
+        return Table.read(
+            path,
+            format="ascii",
+            delimiter=" ",
+            header_start=None,
+            data_start=0,
+            names=[
+                "weekday",
+                "month",
+                "day",
+                "time",
+                "year",
+                "unix_time",
+                "Az",
+                "azimuth_correction",
+                "El",
+                "zenith_correction",
+            ],
+            exclude_names=["weekday", "month", "day", "time", "year", "Az", "El"],
+        )
 
     def _read_drive_report_for_tel(self, tel_id):
         path = self.drive_report_path.tel[tel_id]
