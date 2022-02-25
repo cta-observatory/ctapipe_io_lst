@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import os
 
 setup(
-    packages=find_packages(),
+    packages=find_packages(exclude=["ctapipe_io_lst._dev_version"]),
     use_scm_version={"write_to": os.path.join("ctapipe_io_lst", "_version.py")},
     install_requires=[
         'astropy~=4.2',
