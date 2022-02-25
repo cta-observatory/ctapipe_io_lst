@@ -57,13 +57,15 @@ class PointingSource(TelescopeComponent):
             path, format='ascii', delimiter=' ',
             header_start=None,
             data_start=0,
+            # the Az, Zd, Ra, Dec columns are just dummies, the file
+            # always contains "Az", "Zd" (or "El" for older files), "Ra", "Dec"
             names=[
                 'weekday', 'month', 'day', 'time', 'year', 'unix_time',
                 'Az', 'azimuth_avg', 'azimuth_min', 'azimuth_max', 'azimuth_std',
-                'El', 'zenith_avg', 'zenith_min', 'zenith_max', 'zenith_std',
+                'Zd', 'zenith_avg', 'zenith_min', 'zenith_max', 'zenith_std',
                 'Ra', 'target_ra', 'Dec', 'target_dec',
             ],
-            exclude_names=['weekday', 'month', 'day', 'time', 'year', 'Az', 'El', 'Ra', 'Dec'],
+            exclude_names=['weekday', 'month', 'day', 'time', 'year', 'Az', 'Zd', 'Ra', 'Dec'],
         )
 
         # check for bending model corrections
@@ -105,12 +107,13 @@ class PointingSource(TelescopeComponent):
                 "time",
                 "year",
                 "unix_time",
-                "Az",
+                "Az", # dummy for the column always containing "Az"
                 "azimuth_correction",
-                "El",
+                # dummy for the column always containing "Zd" or "El" for older files
+                "Zd",
                 "zenith_correction",
             ],
-            exclude_names=["weekday", "month", "day", "time", "year", "Az", "El"],
+            exclude_names=["weekday", "month", "day", "time", "year", "Az", "Zd"],
         )
 
     def _read_drive_report_for_tel(self, tel_id):
