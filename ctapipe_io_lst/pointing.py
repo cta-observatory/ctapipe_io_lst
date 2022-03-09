@@ -76,8 +76,12 @@ class PointingSource(TelescopeComponent):
         corrections = PointingSource._read_bending_model_corrections(bending_path)
 
         # according to an email by Armand Fiasson, the timestamps are guaranteed to be equal
+        # but it might happen that one report has more rows than the other due to different
+        # times when they are synced to fefs during the night
         if len(corrections) != len(data):
-            raise IOError('Pointing report and bending model correction lengths differ')
+            n_common = min(len(corrections), len(data))
+            corrections = corrections[:n_common]
+            data = data[:n_common]
 
         if np.any(data['unix_time'] != corrections['unix_time']):
             raise IOError('Drive report and corrections timestamps differ')
