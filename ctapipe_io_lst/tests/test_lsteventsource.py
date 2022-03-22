@@ -137,6 +137,7 @@ def test_gain_selected():
             default_trigger_type='tib',  # ucts unreliable in this run
             apply_drs4_corrections=True,
             pointing_information=False,
+            use_flatfield_heuristic=True,
             LSTR0Corrections=dict(
                 apply_drs4_pedestal_correction=False,
                 apply_spike_correction=False,
