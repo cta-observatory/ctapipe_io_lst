@@ -197,10 +197,12 @@ class LSTEventSource(EventSource):
     ).tag(config=True)
 
     use_flatfield_heuristic = Bool(
-        default_value=True,
+        default_value=False,
         help=(
             'If true, try to identify flat field events independent of the'
-            ' trigger type in the event. See option ``min_flatfield_adc``'
+            ' trigger type in the event. This should only be needed for data'
+            ' from before 2022, when a TIB firmware update fixed the issue with'
+            ' unreliable UCTS information in the event data'
         ),
     ).tag(config=True)
 
