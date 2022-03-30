@@ -17,6 +17,7 @@ from ctapipe.instrument import (
     OpticsDescription,
 )
 from enum import IntFlag, auto
+from astropy.time import Time
 
 from ctapipe.io import EventSource, read_table
 from ctapipe.io.datalevels import DataLevel
@@ -43,7 +44,12 @@ from .constants import (
     HIGH_GAIN, N_GAINS, N_PIXELS, N_SAMPLES
 )
 
+
 __all__ = ['LSTEventSource', '__version__']
+
+
+# Date from which the flatfield heuristic will be switch off by default
+NO_FF_HEURISTIC_DATE = Time("2022-01-01T00:00:00")
 
 
 class TriggerBits(IntFlag):
@@ -197,12 +203,14 @@ class LSTEventSource(EventSource):
     ).tag(config=True)
 
     use_flatfield_heuristic = Bool(
-        default_value=False,
+        default_value=None,
+        allow_none=True,
         help=(
-            'If true, try to identify flat field events independent of the'
-            ' trigger type in the event. This should only be needed for data'
-            ' from before 2022, when a TIB firmware update fixed the issue with'
-            ' unreliable UCTS information in the event data'
+            'Whether or not to try to identify flat field events independent of'
+            ' the trigger type in the event. If None (the default) the decision'
+            ' will be made based on the date of the run, as this should only be'
+            ' needed for data from before 2022, when a TIB firmware update fixed'
+            ' the issue with unreliable UCTS information in the event data'
         ),
     ).tag(config=True)
 
@@ -307,6 +315,11 @@ class LSTEventSource(EventSource):
         self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
 
         self.read_pedestal_ids()
+
+        if self.use_flatfield_heuristic is None:
+            date_of_run = Time(self.camera_config.date, format='unix')
+            self.use_flatfield_heuristic = date_of_run < NO_FF_HEURISTIC_DATE
+            self.log.info(f"Changed `use_flatfield_heuristic` to {self.use_flatfield_heuristic}")
 
     @property
     def subarray(self):
