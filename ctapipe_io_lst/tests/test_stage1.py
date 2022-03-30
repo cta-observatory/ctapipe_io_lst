@@ -27,7 +27,6 @@ def test_stage1(tmp_path):
 
     config = {
         'LSTEventSource': {
-            'use_flatfield_heuristic': True,
             'LSTR0Corrections': {
                 'drs4_pedestal_path': str(test_drs4_pedestal_path),
                 'drs4_time_calibration_path': str(test_time_calib_path),
@@ -70,6 +69,9 @@ def test_stage1(tmp_path):
 
     # test our custom default works
     assert tool.event_source.r0_r1_calibrator.gain_selector.threshold == 3500
+
+    # test it used the ff heuristic because run is from before 2022
+    assert tool.event_source.use_flatfield_heuristic
 
     parameters = read_table(output, '/dl1/event/telescope/parameters/tel_001')
     assert len(parameters) == 200
