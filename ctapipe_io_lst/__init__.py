@@ -67,6 +67,7 @@ class TriggerBits(IntFlag):
 
     PHYSICS = MONO | STEREO
     OTHER = CALIBRATION | SINGLE_PE | SOFTWARE | PEDESTAL | SLOW_CONTROL
+    CALIBRATION_AND_PEDESTAL = PEDESTAL | CALIBRATION
 
 
 class PixelStatus(IntFlag):
@@ -629,6 +630,10 @@ class LSTEventSource(EventSource):
         # for all other we only check if the flag is present
         if (trigger_bits & TriggerBits.PHYSICS) and not (trigger_bits & TriggerBits.OTHER):
             trigger.event_type = EventType.SUBARRAY
+        # some rare events have both trigger bits set for calibox and pedestal trigger
+        # to be safe we set it to unknown
+        elif (trigger_bits & TriggerBits.CALIBRATION_AND_PEDESTAL) == TriggerBits.CALIBRATION_AND_PEDESTAL:
+            trigger.event_type = EventType.UNKNOWN
         elif trigger_bits & TriggerBits.CALIBRATION:
             trigger.event_type = EventType.FLATFIELD
         elif trigger_bits & TriggerBits.PEDESTAL:
