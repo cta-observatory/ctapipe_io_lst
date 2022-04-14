@@ -27,6 +27,7 @@ def test_stage1(tmp_path):
 
     config = {
         'LSTEventSource': {
+            "default_trigger_type": "tib",
             'LSTR0Corrections': {
                 'drs4_pedestal_path': str(test_drs4_pedestal_path),
                 'drs4_time_calibration_path': str(test_time_calib_path),
@@ -100,6 +101,7 @@ def test_no_ff_tagging(tmp_path):
 
     config = {
         'LSTEventSource': {
+            "default_trigger_type": "tib",
             "use_flatfield_heuristic": False,
             'LSTR0Corrections': {
                 'drs4_pedestal_path': str(test_drs4_pedestal_path),
