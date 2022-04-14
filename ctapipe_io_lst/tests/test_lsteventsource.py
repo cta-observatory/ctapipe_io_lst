@@ -275,6 +275,8 @@ def test_pedestal_events(tmp_path):
     "trigger_bits,expected_type",
     [
         (TriggerBits.MONO, EventType.SUBARRAY),
+        (TriggerBits.MONO | TriggerBits.STEREO, EventType.SUBARRAY),
+        (TriggerBits.MONO | TriggerBits.PEDESTAL, EventType.UNKNOWN),
         (TriggerBits.STEREO, EventType.SUBARRAY),
         (TriggerBits.CALIBRATION, EventType.FLATFIELD),
         (TriggerBits.CALIBRATION | TriggerBits.PEDESTAL, EventType.UNKNOWN),
