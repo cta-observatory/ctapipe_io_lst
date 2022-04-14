@@ -280,13 +280,12 @@ def test_pedestal_events(tmp_path):
         (TriggerBits.STEREO, EventType.SUBARRAY),
         (TriggerBits.CALIBRATION, EventType.FLATFIELD),
         (TriggerBits.CALIBRATION | TriggerBits.PEDESTAL, EventType.UNKNOWN),
-        (TriggerBits.CALIBRATION | TriggerBits.MONO, EventType.UNKNOWN),
+        (TriggerBits.CALIBRATION | TriggerBits.MONO, EventType.FLATFIELD),
         (TriggerBits.PEDESTAL, EventType.SKY_PEDESTAL),
     ]
 )
 def test_trigger_bits_to_event_type(trigger_bits, expected_type):
     from ctapipe_io_lst import LSTEventSource
-    from ctapipe.containers import EventType
 
     event_type = LSTEventSource._event_type_from_trigger_bits(trigger_bits)
     assert event_type == expected_type

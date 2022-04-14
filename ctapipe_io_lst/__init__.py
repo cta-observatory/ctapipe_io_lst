@@ -593,10 +593,13 @@ class LSTEventSource(EventSource):
         if trigger_bits == TriggerBits.CALIBRATION:
             return EventType.FLATFIELD
 
+        if trigger_bits == (TriggerBits.CALIBRATION | TriggerBits.MONO):
+            return EventType.FLATFIELD
+
         if trigger_bits == TriggerBits.PEDESTAL:
             return EventType.SKY_PEDESTAL
 
-        if trigger_bits & TriggerBits.SINGLE_PE:
+        if trigger_bits == TriggerBits.SINGLE_PE:
             return EventType.SINGLE_PE
 
         return EventType.UNKNOWN

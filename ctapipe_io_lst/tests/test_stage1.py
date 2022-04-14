@@ -1,6 +1,7 @@
 from pathlib import Path
 import json
 import os
+from collections import Counter
 
 from ctapipe.io import read_table
 from ctapipe.containers import EventType
