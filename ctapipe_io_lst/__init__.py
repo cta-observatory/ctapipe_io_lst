@@ -590,12 +590,15 @@ class LSTEventSource(EventSource):
             return EventType.SUBARRAY
 
         # We only want to tag events as flatfield that *only* have the CALIBRATION bit
+        # or both CALIBRATION and MONO bits, since flatfield events might 
+        # trigger the physics trigger
         if trigger_bits == TriggerBits.CALIBRATION:
             return EventType.FLATFIELD
 
         if trigger_bits == (TriggerBits.CALIBRATION | TriggerBits.MONO):
             return EventType.FLATFIELD
 
+        # all other event types must match exactly
         if trigger_bits == TriggerBits.PEDESTAL:
             return EventType.SKY_PEDESTAL
 
