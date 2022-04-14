@@ -67,7 +67,6 @@ class TriggerBits(IntFlag):
 
     PHYSICS = MONO | STEREO
     OTHER = CALIBRATION | SINGLE_PE | SOFTWARE | PEDESTAL | SLOW_CONTROL
-    CALIBRATION_AND_PEDESTAL = PEDESTAL | CALIBRATION
 
 
 class PixelStatus(IntFlag):
@@ -582,6 +581,26 @@ class LSTEventSource(EventSource):
 
         lst_evt.ucts_jump = False
 
+    @staticmethod
+    def _event_type_from_trigger_bits(trigger_bits):
+        # first bit mono trigger, second stereo.
+        # If *only* those two are set, we assume it's a physics event
+        # for all other we only check if the flag is present
+        if (trigger_bits & TriggerBits.PHYSICS) and not (trigger_bits & TriggerBits.OTHER):
+            return EventType.SUBARRAY
+
+        # We only want to tag events as flatfield that *only* have the CALIBRATION bit
+        if trigger_bits == TriggerBits.CALIBRATION:
+            return EventType.FLATFIELD
+
+        if trigger_bits == TriggerBits.PEDESTAL:
+            return EventType.SKY_PEDESTAL
+
+        if trigger_bits & TriggerBits.SINGLE_PE:
+            return EventType.SINGLE_PE
+
+        return EventType.UNKNOWN
+
     def fill_trigger_info(self, array_event):
         tel_id = self.tel_id
 
@@ -625,24 +644,9 @@ class LSTEventSource(EventSource):
                 ' Consider switching to TIB using `default_trigger_type="tib"`'
             )
 
-        # first bit mono trigger, second stereo.
-        # If *only* those two are set, we assume it's a physics event
-        # for all other we only check if the flag is present
-        if (trigger_bits & TriggerBits.PHYSICS) and not (trigger_bits & TriggerBits.OTHER):
-            trigger.event_type = EventType.SUBARRAY
-        # some rare events have both trigger bits set for calibox and pedestal trigger
-        # to be safe we set it to unknown
-        elif (trigger_bits & TriggerBits.CALIBRATION_AND_PEDESTAL) == TriggerBits.CALIBRATION_AND_PEDESTAL:
-            trigger.event_type = EventType.UNKNOWN
-        elif trigger_bits & TriggerBits.CALIBRATION:
-            trigger.event_type = EventType.FLATFIELD
-        elif trigger_bits & TriggerBits.PEDESTAL:
-            trigger.event_type = EventType.SKY_PEDESTAL
-        elif trigger_bits & TriggerBits.SINGLE_PE:
-            trigger.event_type = EventType.SINGLE_PE
-        else:
+        trigger.event_type = self._event_type_from_trigger_bits(trigger_bits)
+        if trigger.event_type == EventType.UNKNOWN:
             self.log.warning(f'Event {array_event.index.event_id} has unknown event type, trigger: {trigger_bits:08b}')
-            trigger.event_type = EventType.UNKNOWN
 
     def tag_flatfield_events(self, array_event):
         '''
