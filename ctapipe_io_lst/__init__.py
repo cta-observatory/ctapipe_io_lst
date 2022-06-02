@@ -101,8 +101,8 @@ OPTICS_EFFECTIVE = OpticsDescription(
     # From LST1.cfg in in cta-observatory/lst-sim-config
     equivalent_focal_length=u.Quantity(29.30565, u.m),
     num_mirrors=1,
-    mirror_area=u.Quantity(386.73, u.m**2),
-    num_mirror_tiles=198,
+    mirror_area=OPTICS_NOMINAL.mirror_area,
+    num_mirror_tiles=OPTICS_NOMINAL.num_mirror_tiles,
 )
 
 
