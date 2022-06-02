@@ -266,3 +266,27 @@ def test_pedestal_events(tmp_path):
                 assert event.trigger.event_type == EventType.SKY_PEDESTAL
             else:
                 assert event.trigger.event_type != EventType.SKY_PEDESTAL
+
+
+def test_focal_length_choice():
+    from ctapipe_io_lst import LSTEventSource
+
+    # check effective is the default and correct value
+    with LSTEventSource(
+        test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
+        apply_drs4_corrections=False,
+        pointing_information=False,
+    ) as source:
+        focal_length = source.subarray.tel[1].optics.equivalent_focal_length
+        assert u.isclose(focal_length, 29.30565 * u.m) 
+
+
+    # check nominal is possible
+    with LSTEventSource(
+        test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
+        apply_drs4_corrections=False,
+        pointing_information=False,
+        focal_length_choice="nominal",
+    ) as source:
+        focal_length = source.subarray.tel[1].optics.equivalent_focal_length
+        assert u.isclose(focal_length, 28.0 * u.m) 

@@ -21,7 +21,7 @@ from astropy.time import Time
 
 from ctapipe.io import EventSource, read_table
 from ctapipe.io.datalevels import DataLevel
-from ctapipe.core.traits import Bool, Float, Enum, Path
+from ctapipe.core.traits import Bool, Float, Enum, Path, CaselessStrEnum
 from ctapipe.containers import (
     PixelStatusContainer, EventType, R0CameraContainer, R1CameraContainer,
 )
@@ -88,9 +88,18 @@ class PixelStatus(IntFlag):
 
     BOTH_GAINS_STORED = HIGH_GAIN_STORED | LOW_GAIN_STORED
 
-OPTICS = OpticsDescription(
+OPTICS_NOMINAL = OpticsDescription(
     'LST',
     equivalent_focal_length=u.Quantity(28, u.m),
+    num_mirrors=1,
+    mirror_area=u.Quantity(386.73, u.m**2),
+    num_mirror_tiles=198,
+)
+
+OPTICS_EFFECTIVE = OpticsDescription(
+    'LST',
+    # From LST1.cfg in in cta-observatory/lst-sim-config
+    equivalent_focal_length=u.Quantity(29.30565, u.m),
     num_mirrors=1,
     mirror_area=u.Quantity(386.73, u.m**2),
     num_mirror_tiles=198,
@@ -113,14 +122,26 @@ def get_channel_info(pixel_status):
     return (pixel_status & 0b1100) >> 2
 
 
-def load_camera_geometry(version=4):
+def get_optics(focal_length_choice="effective") -> OpticsDescription:
+    '''Return the LST optics description for given focal_length_choice'''
+    if focal_length_choice == "effective":
+        return OPTICS_EFFECTIVE
+
+    if focal_length_choice == "nominal":
+        return OPTICS_NOMINAL
+
+    raise ValueError(f"Invalid focal_length_choice: {focal_length_choice}")
+
+
+def load_camera_geometry(version=4, focal_length_choice="effective"):
     ''' Load camera geometry from bundled resources of this repo '''
     f = resource_filename(
         'ctapipe_io_lst', f'resources/LSTCam-{version:03d}.camgeom.fits.gz'
     )
     Provenance().add_input_file(f, role="CameraGeometry")
     cam = CameraGeometry.from_table(f)
-    cam.frame = CameraFrame(focal_length=OPTICS.equivalent_focal_length)
+    optics = get_optics(focal_length_choice)
+    cam.frame = CameraFrame(focal_length=optics.equivalent_focal_length)
     return cam
 
 
@@ -253,6 +274,17 @@ class LSTEventSource(EventSource):
         )
     ).tag(config=True)
 
+    focal_length_choice = CaselessStrEnum(
+        ["nominal", "effective"],
+        default_value="effective",
+        help=(
+            "Specifies which focal length is filled into the SubarrayDescription"
+            ", which will be used in CameraFrame to TelescopeFrame"
+            " coordinate transforms. Use of the effective focal length is preferred"
+            " as it means applying the corrections for coma in the transformations"
+        ),
+    ).tag(config=True)
+
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
@@ -302,7 +334,11 @@ class LSTEventSource(EventSource):
             )
         )
         self.tel_id = self.camera_config.telescope_id
-        self._subarray = self.create_subarray(self.geometry_version, self.tel_id)
+        self._subarray = self.create_subarray(
+            geometry_version=self.geometry_version,
+            tel_id=self.tel_id,
+            focal_length_choice=self.focal_length_choice,
+        )
         self.r0_r1_calibrator = LSTR0Corrections(
             subarray=self._subarray, parent=self
         )
@@ -345,7 +381,7 @@ class LSTEventSource(EventSource):
         self.multi_file.rewind()
 
     @staticmethod
-    def create_subarray(geometry_version, tel_id=1):
+    def create_subarray(geometry_version, tel_id=1, focal_length_choice="effective"):
         """
         Obtain the subarray from the EventSource
         Returns
@@ -368,8 +404,12 @@ class LSTEventSource(EventSource):
 
         camera = CameraDescription('LSTCam', camera_geom, camera_readout)
 
+
         lst_tel_descr = TelescopeDescription(
-            name='LST', tel_type='LST', optics=OPTICS, camera=camera
+            name='LST',
+            tel_type='LST',
+            optics=get_optics(focal_length_choice),
+            camera=camera
         )
 
         tel_descriptions = {tel_id: lst_tel_descr}
