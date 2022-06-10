@@ -31,6 +31,7 @@ from .multifiles import MultiFiles
 from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer
 from .version import __version__
 from .calibration import LSTR0Corrections
+from .calibration_loader import HDF5CalibrationLoader
 from .event_time import EventTimeCalculator
 from .pointing import PointingSource
 from .anyarray_dtypes import (
@@ -45,7 +46,7 @@ from .constants import (
 )
 
 
-__all__ = ['LSTEventSource', '__version__']
+__all__ = ['LSTEventSource',  'HDF5CalibrationLoader', '__version__']
 
 
 # Date from which the flatfield heuristic will be switch off by default
@@ -337,7 +338,7 @@ class LSTEventSource(EventSource):
 
     @property
     def datalevels(self):
-        if self.r0_r1_calibrator.calibration_path is not None:
+        if self.r0_r1_calibrator.is_calibration_available():
             return (DataLevel.R0, DataLevel.R1)
         return (DataLevel.R0, )
 
@@ -433,7 +434,7 @@ class LSTEventSource(EventSource):
                 self.check_interleaved_pedestal(array_event)
 
             # gain select and calibrate to pe
-            if self.r0_r1_calibrator.calibration_path is not None:
+            if self.r0_r1_calibrator.is_calibration_available():
                 # skip flatfield and pedestal events if asked
                 if (
                     self.calibrate_flatfields_and_pedestals

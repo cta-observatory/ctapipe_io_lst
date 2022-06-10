@@ -15,6 +15,7 @@ from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 from ctapipe.containers import MonitoringContainer
 from ctapipe.io import HDF5TableReader, read_table
 from .containers import LSTArrayEventContainer
+from .calibration_loader import HDF5CalibrationLoader
 from traitlets import Enum
 
 
@@ -104,30 +105,7 @@ class LSTR0Corrections(TelescopeComponent):
     r1_sample_end = IntTelescopeParameter(
         default_value=39,
         help='End sample for r1 waveform',
-        allow_none=True,
-    ).tag(config=True)
 
-    drs4_pedestal_path = TelescopeParameter(
-        trait=Path(exists=True, directory_ok=False, allow_none=True),
-        allow_none=True,
-        default_value=None,
-        help=(
-            'Path to the LST pedestal file'
-            ', required when `apply_drs4_pedestal_correction=True`'
-            ' or when using spike subtraction'
-        ),
-    ).tag(config=True)
-
-    calibration_path = Path(
-        None, exists=True, directory_ok=False, allow_none=True,
-        help='Path to LST calibration file',
-    ).tag(config=True)
-
-    drs4_time_calibration_path = TelescopeParameter(
-        trait=Path(exists=True, directory_ok=False, allow_none=True),
-        help='Path to the time calibration file',
-        default_value=None,
-        allow_none=True,
     ).tag(config=True)
 
     calib_scale_high_gain = FloatTelescopeParameter(
@@ -143,6 +121,11 @@ class LSTR0Corrections(TelescopeComponent):
     select_gain = Bool(
         default_value=True,
         help='Set to False to keep both gains.'
+    ).tag(config=True)
+
+    use_calibration_database = Bool(
+        default_value=False,
+        help='Set to true to load calibration data from the database.'
     ).tag(config=True)
 
     apply_drs4_pedestal_correction = Bool(
@@ -182,7 +165,13 @@ class LSTR0Corrections(TelescopeComponent):
         help='Wheter to use spike subtraction (default) or interpolation',
     ).tag(config=True)
 
-    def __init__(self, subarray, config=None, parent=None, **kwargs):
+    def __init__(
+            self,
+            subarray,
+            config=None,
+            parent=None,
+            **kwargs
+    ):
         """
         The R0 calibrator for LST data.
         Fill the r1 container.
@@ -194,6 +183,10 @@ class LSTR0Corrections(TelescopeComponent):
             subarray=subarray, config=config, parent=parent, **kwargs
         )
 
+        if not self.use_calibration_database:
+            self.calibration_loader = HDF5CalibrationLoader(subarray, parent=self)
+        else:
+            raise NotImplementedError("Calibration database configuration not implemented.")
         self.mon_data = None
         self.last_readout_time = {}
         self.first_cap = {}
@@ -217,8 +210,10 @@ class LSTR0Corrections(TelescopeComponent):
         else:
             self.gain_selector = None
 
-        if self.calibration_path is not None:
-            self.mon_data = self._read_calibration_file(self.calibration_path)
+        self.mon_data = self.calibration_loader.load_calibration_data()
+
+    def is_calibration_available(self):
+        return self.calibration_loader.is_calibration_available()
 
     def apply_drs4_corrections(self, event: LSTArrayEventContainer):
         self.update_first_capacitors(event)
@@ -334,70 +329,21 @@ class LSTR0Corrections(TelescopeComponent):
 
             event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
 
-    @staticmethod
-    def _read_calibration_file(path):
-        """
-        Read the correction from hdf5 calibration file
-        """
-        mon = MonitoringContainer()
-
-        with tables.open_file(path) as f:
-            tel_ids = [
-                int(key[4:]) for key in f.root._v_children.keys()
-                if key.startswith('tel_')
-            ]
-
-        for tel_id in tel_ids:
-            with HDF5TableReader(path) as h5_table:
-                base = f'/tel_{tel_id}'
-                # read the calibration data
-                table = base + '/calibration'
-                next(h5_table.read(table, mon.tel[tel_id].calibration))
-
-                # read pedestal data
-                table = base + '/pedestal'
-                next(h5_table.read(table, mon.tel[tel_id].pedestal))
-
-                # read flat-field data
-                table = base + '/flatfield'
-                next(h5_table.read(table, mon.tel[tel_id].flatfield))
-
-                # read the pixel_status container
-                table = base + '/pixel_status'
-                next(h5_table.read(table, mon.tel[tel_id].pixel_status))
-
-        return mon
-
-    @staticmethod
-    def load_drs4_time_calibration_file(path):
-        """
-        Function to load calibration file.
-        """
-        with tables.open_file(path, 'r') as f:
-            fan = f.root.fan[:]
-            fbn = f.root.fbn[:]
-
-        return fan, fbn
-
-    def load_drs4_time_calibration_file_for_tel(self, tel_id):
-        self.fan[tel_id], self.fbn[tel_id] = self.load_drs4_time_calibration_file(
-            self.drs4_time_calibration_path.tel[tel_id]
-        )
-
     def get_drs4_time_correction(self, tel_id, first_capacitors, selected_gain_channel=None):
         """
         Return pulse time after time correction.
         """
 
-        if self.drs4_time_calibration_path.tel[tel_id] is None:
-            if selected_gain_channel is None:
-                return np.zeros((N_GAINS, N_PIXELS))
-            else:
-                return np.zeros(N_PIXELS)
-
         # load calib file if not already done
         if tel_id not in self.fan:
-            self.load_drs4_time_calibration_file_for_tel(tel_id)
+            res = self.calibration_loader.load_drs4_time_calibration_data(tel_id)
+            if res is None:
+                if selected_gain_channel is None:
+                    return np.zeros((N_GAINS, N_PIXELS))
+                else:
+                    return np.zeros((N_PIXELS,))
+            self.fan[tel_id], self.fbn[tel_id] = res
+
 
         if selected_gain_channel is not None:
             return calc_drs4_time_correction_gain_selected(
@@ -413,47 +359,6 @@ class LSTR0Corrections(TelescopeComponent):
                 self.fbn[tel_id],
             )
 
-    @staticmethod
-    @lru_cache(maxsize=4)
-    def _get_drs4_pedestal_data(path, tel_id):
-        """
-        Function to load pedestal file.
-
-        To make boundary conditions unnecessary,
-        the first N_SAMPLES values are repeated at the end of the array
-
-        The result is cached so we can repeatedly call this method
-        using the configured path without reading it each time.
-        """
-        if path is None:
-            raise ValueError(
-                "DRS4 pedestal correction requested"
-                " but no file provided for telescope"
-            )
-
-        table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
-
-        pedestal_data = np.empty(
-            (N_GAINS, N_PIXELS_MODULE * N_MODULES, N_CAPACITORS_PIXEL + N_SAMPLES),
-            dtype=np.float32
-        )
-        pedestal_data[:, :, :N_CAPACITORS_PIXEL] = table[0]['baseline_mean']
-        pedestal_data[:, :, N_CAPACITORS_PIXEL:] = pedestal_data[:, :, :N_SAMPLES]
-
-        return pedestal_data
-
-    @lru_cache(maxsize=4)
-    def _get_spike_heights(self, path, tel_id):
-        if path is None:
-            raise ValueError(
-                "DRS4 spike correction requested"
-                " but no pedestal file provided for telescope"
-            )
-
-        table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
-        spike_height = np.array(table[0]['spike_height'])
-        return spike_height
-
     def subtract_pedestal(self, event, tel_id):
         """
         Subtract cell offset using pedestal file.
@@ -463,10 +368,7 @@ class LSTR0Corrections(TelescopeComponent):
         event : `ctapipe` event-container
         tel_id : id of the telescope
         """
-        pedestal = self._get_drs4_pedestal_data(
-            self.drs4_pedestal_path.tel[tel_id],
-            tel_id,
-        )
+        pedestal = self.calibration_loader.load_drs4_baseline_data(tel_id)
 
         if event.r1.tel[tel_id].selected_gain_channel is None:
             subtract_pedestal(
@@ -563,7 +465,7 @@ class LSTR0Corrections(TelescopeComponent):
         Mutates the R1 waveform.
         """
         run_id = event.lst.tel[tel_id].svc.configuration_id
-        spike_height = self._get_spike_heights(self.drs4_pedestal_path.tel[tel_id], tel_id)
+        spike_height = self.calibration_loader.load_spike_heights(tel_id)
 
         r1 = event.r1.tel[tel_id]
         if r1.selected_gain_channel is None:
