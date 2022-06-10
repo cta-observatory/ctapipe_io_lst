@@ -4,12 +4,18 @@ from functools import lru_cache
 import tables
 import numpy as np
 
-from ctapipe.containers import MonitoringContainer
+from ctapipe.containers import (
+    MonitoringContainer,
+    FlatFieldContainer,
+    PedestalContainer,
+    PixelStatusContainer,
+    WaveformCalibrationContainer,
+)
 from ctapipe.io import HDF5TableReader, read_table
 
 from ctapipe.core import TelescopeComponent
 from ctapipe.core.traits import (
-    Path, TelescopeParameter, Integer, Unicode
+    Path, TelescopeParameter, Integer, Unicode, Undefined
 )
 
 from .lst_database_connection import LSTDatabaseConnection
@@ -104,7 +110,7 @@ class HDF5CalibrationLoader(TelescopeComponent):
             return None
         return self._load_drs4_time_calibration_data(path)
 
-    def load_spike_heights(self, tel_id):
+    def load_drs4_spike_heights(self, tel_id):
         path = self.drs4_pedestal_path.tel[tel_id]
         if path is None:
             raise ValueError(
@@ -112,7 +118,7 @@ class HDF5CalibrationLoader(TelescopeComponent):
                 " but no pedestal file provided for telescope"
             )
 
-        return self._load_spike_heights(path, tel_id)
+        return self._load_drs4_spike_heights(path, tel_id)
 
     @staticmethod
     @lru_cache(maxsize=4)
@@ -183,7 +189,7 @@ class HDF5CalibrationLoader(TelescopeComponent):
         return fan, fbn
 
     @lru_cache(maxsize=4)
-    def _load_spike_heights(self, path, tel_id):
+    def _load_drs4_spike_heights(self, path, tel_id):
         table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
         spike_height = np.array(table[0]['spike_height'])
         return spike_height
@@ -216,36 +222,79 @@ class DatabaseCalibrationLoader(TelescopeComponent):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.lst_connection = LSTDatabaseConnection(
-            self.database_user,
-            self.database_name,
-            autocommit=False  # No need to commit anything as read-only
-        )
+        self.lst_connection = None
+        if self.is_calibration_available():
+            self.lst_connection = LSTDatabaseConnection(
+                self.database_user,
+                self.database_name,
+                autocommit=False  # No need to commit anything as read-only
+            )
 
     def is_calibration_available(self):
         """ Tell if data can be calibrated (valid path to calibration data). """
-        raise NotImplementedError()
+        return (
+            self.run_calibration is not None
+            and self.database_user is not None
+            and self.database_name is not None
+        )
 
     def load_calibration_data(self):
         """ Load the waveform calibration data. """
+        if self.run_calibration is Undefined:
+            return None
         with self.lst_connection as connection:
-            raise NotImplementedError()
+            kwargs = connection.load_calibration_data(self.run_calibration)
+            container = MonitoringContainer()
+            container.tel[1].calibration = WaveformCalibrationContainer(
+                **kwargs['calibration'])
+            container.tel[1].flatfield = FlatFieldContainer(
+                **kwargs['flatfield'])
+            container.tel[1].pedestal = PedestalContainer(
+                **kwargs['pedestal'])
+            container.tel[1].pixel_status = PixelStatusContainer(
+                **kwargs['pixel_status'])
+        return container
 
-    def load_drs4_baseline_data(self):
+    def load_drs4_baseline_data(self, tel_id):
         """ Load the drs4 baseline calibration data. """
-        raise NotImplementedError()
+        if self.run_drs4_pedestal is Undefined:
+            raise ValueError(
+                "DRS4 pedestal correction requested"
+                " but no file provided for telescope"
+            )
 
-    def load_drs4_time_calibration_data(self):
+        pedestal_data = np.empty(
+            (N_GAINS, N_PIXELS_MODULE * N_MODULES, N_CAPACITORS_PIXEL + N_SAMPLES),
+            dtype=np.float32
+        )
+        with self.lst_connection as connection:
+            res = connection.load_drs4_pedestal_data(
+                self.run_drs4_pedestal,
+            )
+            pedestal_data[:, :, :N_CAPACITORS_PIXEL] = res
+            pedestal_data[:, :, N_CAPACITORS_PIXEL:] = pedestal_data[:, :, :N_SAMPLES]
+
+        return pedestal_data
+
+    def load_drs4_time_calibration_data(self, tel_id):
         """ Load drs4 time calibration from FF."""
-        raise NotImplementedError()
+        if self.run_drs4_time is Undefined:
+            return None
+        with self.lst_connection as connection:
+            time_data = connection.load_drs4_time_calibration_data(
+                self.run_drs4_time
+            )
+        return time_data
 
-    def load_drs4_time_calibration_data_for_tel(self, tel_id):
-        """
-        Load the drs4 time calibration from FF
-        for a given telescope id.
-        """
-        raise NotImplementedError()
-
-    def load_drs4_spike_height(self, tel_id):
+    def load_drs4_spike_heights(self, tel_id):
         """ Load the spike height from drs4 baseline data. """
-        raise NotImplementedError()
+        if self.run_drs4_pedestal is Undefined:
+            raise ValueError(
+                "DRS4 spike correction requested"
+                " but no pedestal file provided for telescope"
+            )
+        with self.lst_connection as connection:
+            spike_heights = connection.load_drs4_spike_height_data(
+                self.run_drs4_pedestal,
+            )
+        return spike_heights

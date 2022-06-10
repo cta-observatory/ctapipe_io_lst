@@ -465,7 +465,7 @@ class LSTR0Corrections(TelescopeComponent):
         Mutates the R1 waveform.
         """
         run_id = event.lst.tel[tel_id].svc.configuration_id
-        spike_height = self.calibration_loader.load_spike_heights(tel_id)
+        spike_height = self.calibration_loader.load_drs4_spike_heights(tel_id)
 
         r1 = event.r1.tel[tel_id]
         if r1.selected_gain_channel is None:
