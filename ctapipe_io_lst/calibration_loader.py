@@ -9,8 +9,10 @@ from ctapipe.io import HDF5TableReader, read_table
 
 from ctapipe.core import TelescopeComponent
 from ctapipe.core.traits import (
-    Path, TelescopeParameter
+    Path, TelescopeParameter, Integer, Unicode
 )
+
+from .lst_database_connection import LSTDatabaseConnection
 
 from .constants import (
     N_GAINS, N_PIXELS, N_MODULES, N_SAMPLES,
@@ -19,6 +21,12 @@ from .constants import (
 
 
 class CalibrationLoader(Protocol):
+    """
+    Define the Protocol for a calibration data loader.
+
+    This protocol must be implemented in a separate class for .h5 files
+    and database access.
+    """
 
     def is_calibration_available(self):
         """ Tell if data can be calibrated (valid path to calibration data). """
@@ -44,6 +52,9 @@ class CalibrationLoader(Protocol):
 
 
 class HDF5CalibrationLoader(TelescopeComponent):
+    """
+    Load the calibration data from the .h5 file system (standard method).
+    """
 
     calibration_path = Path(
         None, exists=True, directory_ok=False, allow_none=True,
@@ -176,3 +187,65 @@ class HDF5CalibrationLoader(TelescopeComponent):
         table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
         spike_height = np.array(table[0]['spike_height'])
         return spike_height
+
+
+class DatabaseCalibrationLoader(TelescopeComponent):
+    """
+    Load the calibration data from the LST calibration database.
+    """
+
+    database_user = Unicode(
+        help='Name of the database user used for connection'
+    ).tag(config=True)
+
+    database_name = Unicode(
+        help='Name of the database used for connection'
+    ).tag(config=True)
+
+    run_calibration = Integer(
+        help='Run number defining the calibration data'
+    ).tag(config=True)
+
+    run_drs4_pedestal = Integer(
+        help='Run number defining the drs4 pedestal data'
+    ).tag(config=True)
+
+    run_drs4_time = Integer(
+        help='Run number defining the drs4 time calibration data'
+    ).tag(config=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lst_connection = LSTDatabaseConnection(
+            self.database_user,
+            self.database_name,
+            autocommit=False  # No need to commit anything as read-only
+        )
+
+    def is_calibration_available(self):
+        """ Tell if data can be calibrated (valid path to calibration data). """
+        raise NotImplementedError()
+
+    def load_calibration_data(self):
+        """ Load the waveform calibration data. """
+        with self.lst_connection as connection:
+            raise NotImplementedError()
+
+    def load_drs4_baseline_data(self):
+        """ Load the drs4 baseline calibration data. """
+        raise NotImplementedError()
+
+    def load_drs4_time_calibration_data(self):
+        """ Load drs4 time calibration from FF."""
+        raise NotImplementedError()
+
+    def load_drs4_time_calibration_data_for_tel(self, tel_id):
+        """
+        Load the drs4 time calibration from FF
+        for a given telescope id.
+        """
+        raise NotImplementedError()
+
+    def load_drs4_spike_height(self, tel_id):
+        """ Load the spike height from drs4 baseline data. """
+        raise NotImplementedError()

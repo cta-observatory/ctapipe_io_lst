@@ -31,7 +31,8 @@ from .multifiles import MultiFiles
 from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer
 from .version import __version__
 from .calibration import LSTR0Corrections
-from .calibration_loader import HDF5CalibrationLoader
+from .calibration_loader import HDF5CalibrationLoader, DatabaseCalibrationLoader
+from .lst_database_connection import LSTDatabaseConnection
 from .event_time import EventTimeCalculator
 from .pointing import PointingSource
 from .anyarray_dtypes import (
@@ -46,7 +47,11 @@ from .constants import (
 )
 
 
-__all__ = ['LSTEventSource',  'HDF5CalibrationLoader', '__version__']
+__all__ = [
+    'LSTEventSource',
+    'HDF5CalibrationLoader',
+    'DatabaseCalibrationLoader',
+    '__version__']
 
 
 # Date from which the flatfield heuristic will be switch off by default

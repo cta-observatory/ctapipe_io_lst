@@ -15,7 +15,7 @@ from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 from ctapipe.containers import MonitoringContainer
 from ctapipe.io import HDF5TableReader, read_table
 from .containers import LSTArrayEventContainer
-from .calibration_loader import HDF5CalibrationLoader
+from .calibration_loader import HDF5CalibrationLoader, DatabaseCalibrationLoader
 from traitlets import Enum
 
 
@@ -186,7 +186,7 @@ class LSTR0Corrections(TelescopeComponent):
         if not self.use_calibration_database:
             self.calibration_loader = HDF5CalibrationLoader(subarray, parent=self)
         else:
-            raise NotImplementedError("Calibration database configuration not implemented.")
+            self.calibration_loader = DatabaseCalibrationLoader(subarray, parent=self)
         self.mon_data = None
         self.last_readout_time = {}
         self.first_cap = {}
