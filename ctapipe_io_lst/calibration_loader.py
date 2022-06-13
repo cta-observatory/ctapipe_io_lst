@@ -255,6 +255,7 @@ class DatabaseCalibrationLoader(TelescopeComponent):
                 **kwargs['pixel_status'])
         return container
 
+    @lru_cache(maxsize=4)
     def load_drs4_baseline_data(self, tel_id):
         """ Load the drs4 baseline calibration data. """
         if self.run_drs4_pedestal is Undefined:
@@ -276,6 +277,7 @@ class DatabaseCalibrationLoader(TelescopeComponent):
 
         return pedestal_data
 
+    @lru_cache(maxsize=4)
     def load_drs4_time_calibration_data(self, tel_id):
         """ Load drs4 time calibration from FF."""
         if self.run_drs4_time is Undefined:
@@ -286,6 +288,7 @@ class DatabaseCalibrationLoader(TelescopeComponent):
             )
         return time_data
 
+    @lru_cache(maxsize=4)
     def load_drs4_spike_heights(self, tel_id):
         """ Load the spike height from drs4 baseline data. """
         if self.run_drs4_pedestal is Undefined:
