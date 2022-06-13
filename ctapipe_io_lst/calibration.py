@@ -78,6 +78,13 @@ def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
     return fc
 
 
+def time_conversion(value, unit):
+    try:
+        return value.to_value(unit)  # Astropy Quantity
+    except AttributeError:
+        return value * (u.s / (1*unit)).decompose().value
+
+
 class LSTR0Corrections(TelescopeComponent):
     """
     The base R0-level calibrator. Changes the r0 container.
@@ -311,9 +318,12 @@ class LSTR0Corrections(TelescopeComponent):
                 # time_shift is subtracted in ctapipe,
                 # but time_correction should be added
                 if r1.selected_gain_channel is not None:
-                    time_shift -= time_corr[r1.selected_gain_channel, PIXEL_INDEX].to_value(u.ns)
+                    time_shift -= time_conversion(
+                        time_corr[r1.selected_gain_channel, PIXEL_INDEX],
+                        u.ns)
                 else:
-                    time_shift -= time_corr.to_value(u.ns)
+                    time_shift -= time_conversion(
+                        time_corr, u.ns)
 
             event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
