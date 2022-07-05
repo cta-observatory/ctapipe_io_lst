@@ -1,4 +1,3 @@
-from typing import Protocol
 from functools import lru_cache
 
 import tables
@@ -24,37 +23,6 @@ from .constants import (
     N_GAINS, N_PIXELS, N_MODULES, N_SAMPLES,
     N_PIXELS_MODULE, N_CAPACITORS_PIXEL, N_CAPACITORS_CHANNEL,
 )
-
-
-class CalibrationLoader(Protocol):
-    """
-    Define the Protocol for a calibration data loader.
-
-    This protocol must be implemented in a separate class for .h5 files
-    and database access.
-    """
-
-    def is_calibration_available(self):
-        """ Tell if data can be calibrated (valid path to calibration data). """
-
-    def load_calibration_data(self):
-        """ Load the waveform calibration data. """
-
-    def load_drs4_baseline_data(self):
-        """ Load the drs4 baseline calibration data. """
-
-    def load_drs4_time_calibration_data(self):
-        """ Load drs4 time calibration from FF."""
-
-    def load_drs4_time_calibration_data_for_tel(self, tel_id):
-        """
-        Load the drs4 time calibration from FF
-        for a given telescope id.
-        """
-
-    def load_drs4_spike_height(self, tel_id):
-        """ Load the spike height from drs4 baseline data. """
-
 
 
 class HDF5CalibrationLoader(TelescopeComponent):
