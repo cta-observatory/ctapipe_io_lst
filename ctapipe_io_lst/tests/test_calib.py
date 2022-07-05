@@ -61,7 +61,7 @@ def test_read_calib_file():
 
 
 def test_read_drs4_pedestal_file():
-    from ctapipe_io_lst.calibration import N_CAPACITORS_PIXEL, N_SAMPLE
+    from ctapipe_io_lst.calibration import N_CAPACITORS_PIXEL, N_SAMPLES
     from ctapipe_io_lst.calibration_loader import HDF5CalibrationLoader
 
     pedestal = HDF5CalibrationLoader._load_drs4_baseline_data(test_drs4_pedestal_path, tel_id=1)
