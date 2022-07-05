@@ -12,6 +12,7 @@ from ctapipe.containers import EventType
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
 from ctapipe_io_lst.constants import N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS
+from ctapipe_io_lst import TriggerBits
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_dir = test_data / 'real/R0/20200218'
@@ -266,3 +267,25 @@ def test_pedestal_events(tmp_path):
                 assert event.trigger.event_type == EventType.SKY_PEDESTAL
             else:
                 assert event.trigger.event_type != EventType.SKY_PEDESTAL
+
+
+
+
+@pytest.mark.parametrize(
+    "trigger_bits,expected_type",
+    [
+        (TriggerBits.MONO, EventType.SUBARRAY),
+        (TriggerBits.MONO | TriggerBits.STEREO, EventType.SUBARRAY),
+        (TriggerBits.MONO | TriggerBits.PEDESTAL, EventType.UNKNOWN),
+        (TriggerBits.STEREO, EventType.SUBARRAY),
+        (TriggerBits.CALIBRATION, EventType.FLATFIELD),
+        (TriggerBits.CALIBRATION | TriggerBits.PEDESTAL, EventType.UNKNOWN),
+        (TriggerBits.CALIBRATION | TriggerBits.MONO, EventType.FLATFIELD),
+        (TriggerBits.PEDESTAL, EventType.SKY_PEDESTAL),
+    ]
+)
+def test_trigger_bits_to_event_type(trigger_bits, expected_type):
+    from ctapipe_io_lst import LSTEventSource
+
+    event_type = LSTEventSource._event_type_from_trigger_bits(trigger_bits)
+    assert event_type == expected_type
