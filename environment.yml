@@ -5,6 +5,7 @@ channels:
 dependencies:
   - astropy>=4.2
   - python=3.8 # nail the python version, so conda does not try upgrading / dowgrading
+  - psycopg2
   - ctapipe=0.12
   - eventio
   - corsikaio
