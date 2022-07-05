@@ -53,17 +53,18 @@ def test_get_first_capacitor():
 
 
 def test_read_calib_file():
-    from ctapipe_io_lst.calibration import LSTR0Corrections
+    from ctapipe_io_lst.calibration_loader import HDF5CalibrationLoader
 
-    mon = LSTR0Corrections._read_calibration_file(test_calib_path)
+    mon = HDF5CalibrationLoader._load_calibration_data(test_calib_path)
     # only one telescope in that file
     assert mon.tel.keys() == {1, }
 
 
 def test_read_drs4_pedestal_file():
-    from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS_PIXEL, N_SAMPLES
+    from ctapipe_io_lst.calibration import N_CAPACITORS_PIXEL, N_SAMPLE
+    from ctapipe_io_lst.calibration_loader import HDF5CalibrationLoader
 
-    pedestal = LSTR0Corrections._get_drs4_pedestal_data(test_drs4_pedestal_path, tel_id=1)
+    pedestal = HDF5CalibrationLoader._load_drs4_baseline_data(test_drs4_pedestal_path, tel_id=1)
 
     assert pedestal.shape[-1] == N_CAPACITORS_PIXEL + N_SAMPLES
     # check circular boundary
@@ -71,9 +72,10 @@ def test_read_drs4_pedestal_file():
 
 
 def test_read_drs_time_calibration_file():
-    from ctapipe_io_lst.calibration import LSTR0Corrections, N_GAINS, N_PIXELS
+    from ctapipe_io_lst.calibration import N_GAINS, N_PIXELS
+    from ctapipe_io_lst.calibration_loader import HDF5CalibrationLoader
 
-    fan, fbn = LSTR0Corrections.load_drs4_time_calibration_file(test_time_calib_path)
+    fan, fbn = HDF5CalibrationLoader._load_drs4_time_calibration_data(test_time_calib_path)
 
     assert fan.shape == fbn.shape
     assert fan.shape[0] == N_GAINS
@@ -96,7 +98,7 @@ def test_source_with_drs4_pedestal():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'HDF5CalibrationLoader:' {
+                'HDF5CalibrationLoader': {
                     'drs4_pedestal_path': test_drs4_pedestal_path,
                 }
             },
@@ -121,7 +123,7 @@ def test_source_with_calibration():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'HDF5CalibrationLoader:' {
+                'HDF5CalibrationLoader': {
                     'drs4_pedestal_path': test_drs4_pedestal_path,
                     'calibration_path': test_calib_path,
                 }
@@ -147,7 +149,7 @@ def test_source_with_all():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'HDF5CalibrationLoader:' {
+                'HDF5CalibrationLoader': {
                     'drs4_pedestal_path': test_drs4_pedestal_path,
                     'drs4_time_calibration_path': test_time_calib_path,
                     'calibration_path': test_calib_path,
@@ -176,7 +178,7 @@ def test_missing_module():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'HDF5CalibrationLoader:' {
+                'HDF5CalibrationLoader': {
                     'drs4_pedestal_path': test_drs4_pedestal_path,
                     'drs4_time_calibration_path': test_time_calib_path,
                     'calibration_path': test_calib_path,
@@ -217,7 +219,7 @@ def test_no_gain_selection():
             'pointing_information': False,
             'LSTR0Corrections': {
                 'select_gain': False,
-                'HDF5CalibrationLoader:' {
+                'HDF5CalibrationLoader': {
                     'drs4_pedestal_path': test_drs4_pedestal_path,
                     'drs4_time_calibration_path': test_time_calib_path,
                     'calibration_path': test_calib_path,
@@ -248,7 +250,7 @@ def test_no_gain_selection_no_drs4time_calib():
             'pointing_information': False,
             'LSTR0Corrections': {
                 'select_gain': False,
-                'HDF5CalibrationLoader:' {
+                'HDF5CalibrationLoader': {
                     'drs4_pedestal_path': test_drs4_pedestal_path,
                     'calibration_path': test_calib_path,
                 }
@@ -276,7 +278,7 @@ def test_already_gain_selected():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'HDF5CalibrationLoader:' {
+                'HDF5CalibrationLoader': {
                     'drs4_pedestal_path': test_drs4_pedestal_path,
                     'drs4_time_calibration_path': test_time_calib_path,
                     'calibration_path': test_calib_path,
