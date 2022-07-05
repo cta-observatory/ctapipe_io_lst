@@ -96,7 +96,9 @@ def test_source_with_drs4_pedestal():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
+                'HDF5CalibrationLoader:' {
+                    'drs4_pedestal_path': test_drs4_pedestal_path,
+                }
             },
         },
     })
@@ -119,8 +121,10 @@ def test_source_with_calibration():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'calibration_path': test_calib_path,
+                'HDF5CalibrationLoader:' {
+                    'drs4_pedestal_path': test_drs4_pedestal_path,
+                    'calibration_path': test_calib_path,
+                }
             },
         },
     })
@@ -143,9 +147,11 @@ def test_source_with_all():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'drs4_time_calibration_path': test_time_calib_path,
-                'calibration_path': test_calib_path,
+                'HDF5CalibrationLoader:' {
+                    'drs4_pedestal_path': test_drs4_pedestal_path,
+                    'drs4_time_calibration_path': test_time_calib_path,
+                    'calibration_path': test_calib_path,
+                    }
             },
         },
     })
@@ -170,9 +176,11 @@ def test_missing_module():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'drs4_time_calibration_path': test_time_calib_path,
-                'calibration_path': test_calib_path,
+                'HDF5CalibrationLoader:' {
+                    'drs4_pedestal_path': test_drs4_pedestal_path,
+                    'drs4_time_calibration_path': test_time_calib_path,
+                    'calibration_path': test_calib_path,
+                }
             },
         },
     })
@@ -208,10 +216,12 @@ def test_no_gain_selection():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'drs4_time_calibration_path': test_time_calib_path,
-                'calibration_path': test_calib_path,
                 'select_gain': False,
+                'HDF5CalibrationLoader:' {
+                    'drs4_pedestal_path': test_drs4_pedestal_path,
+                    'drs4_time_calibration_path': test_time_calib_path,
+                    'calibration_path': test_calib_path,
+                }
             },
         },
     })
@@ -237,9 +247,11 @@ def test_no_gain_selection_no_drs4time_calib():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'calibration_path': test_calib_path,
                 'select_gain': False,
+                'HDF5CalibrationLoader:' {
+                    'drs4_pedestal_path': test_drs4_pedestal_path,
+                    'calibration_path': test_calib_path,
+                }
             },
         },
     })
@@ -264,9 +276,11 @@ def test_already_gain_selected():
         'LSTEventSource': {
             'pointing_information': False,
             'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'drs4_time_calibration_path': test_time_calib_path,
-                'calibration_path': test_calib_path,
+                'HDF5CalibrationLoader:' {
+                    'drs4_pedestal_path': test_drs4_pedestal_path,
+                    'drs4_time_calibration_path': test_time_calib_path,
+                    'calibration_path': test_calib_path,
+                }
             },
         },
     })
