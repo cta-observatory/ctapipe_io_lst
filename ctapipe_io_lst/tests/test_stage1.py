@@ -28,9 +28,11 @@ def test_stage1(tmp_path):
     config = {
         'LSTEventSource': {
             'LSTR0Corrections': {
-                'drs4_pedestal_path': str(test_drs4_pedestal_path),
-                'drs4_time_calibration_path': str(test_time_calib_path),
-                'calibration_path': str(test_calib_path),
+                'HDF5CalibrationLoader': {
+                    'drs4_pedestal_path': str(test_drs4_pedestal_path),
+                    'drs4_time_calibration_path': str(test_time_calib_path),
+                    'calibration_path': str(test_calib_path),
+                }
             },
             'PointingSource': {
                 'drive_report_path': str(test_drive_report)
@@ -102,9 +104,11 @@ def test_no_ff_tagging(tmp_path):
         'LSTEventSource': {
             "use_flatfield_heuristic": False,
             'LSTR0Corrections': {
-                'drs4_pedestal_path': str(test_drs4_pedestal_path),
-                'drs4_time_calibration_path': str(test_time_calib_path),
-                'calibration_path': str(test_calib_path),
+                'HDF5CalibrationLoader': {
+                    'drs4_pedestal_path': str(test_drs4_pedestal_path),
+                    'drs4_time_calibration_path': str(test_time_calib_path),
+                    'calibration_path': str(test_calib_path),
+                }
             },
             'PointingSource': {
                 'drive_report_path': str(test_drive_report)

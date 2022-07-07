@@ -109,7 +109,7 @@ def test_source_with_drs4_pedestal():
         input_url=test_r0_path,
         config=config,
     )
-    assert source.r0_r1_calibrator.drs4_pedestal_path.tel[1] == test_drs4_pedestal_path.absolute()
+    assert source.r0_r1_calibrator.calibration_loader.drs4_pedestal_path.tel[1] == test_drs4_pedestal_path.absolute()
 
     with source:
         for event in source:
