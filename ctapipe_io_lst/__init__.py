@@ -723,7 +723,7 @@ class LSTEventSource(EventSource):
 
         has_low_gain = (zfits_event.pixel_status & PixelStatus.LOW_GAIN_STORED).astype(bool)
         has_high_gain = (zfits_event.pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
-        not_broken = (has_low_gain | has_high_gain).astype(bool)
+        broken_pixels = ~(has_low_gain | has_high_gain)
 
         # broken pixels have both false, so gain selected means checking
         # if there are any pixels where exactly one of high or low gain is stored
@@ -732,12 +732,25 @@ class LSTEventSource(EventSource):
         # fill value for broken pixels
         dtype = zfits_event.waveform.dtype
         fill = np.iinfo(dtype).max
+
         # we assume that either all pixels are gain selected or none
         # only broken pixels are allowed to be missing completely
         if gain_selected:
             selected_gain = np.where(has_high_gain, 0, 1)
-            waveform = np.full((n_pixels, n_samples), fill, dtype=dtype)
-            waveform[not_broken] = zfits_event.waveform.reshape((-1, n_samples))
+            waveform = zfits_event.waveform.reshape((-1, n_samples))
+
+            # up-to-now, we have two cases how broken pixels are dealt with
+            # 1. mark them as broken but data is still included
+            # 2. completely removed from EVB
+            # the code here works for both cases but not for the hypothetical
+            # case of broken pixels marked as broken (so camera config as 1855 pixels)
+            # and 1855 pixel_status entries but broken pixels not contained in `waveform`
+            if np.any(broken_pixels) and len(waveform) < n_pixels:
+                raise NotImplementedError(
+                    "Case of broken pixels not contained in waveform is not implemented."
+                    "If you encounter this error, open an issue in ctapipe_io_lst noting"
+                    " the run for which this happened."
+                )
 
             reordered_waveform = np.full((N_PIXELS, N_SAMPLES), fill, dtype=dtype)
             reordered_waveform[expected_pixels] = waveform
