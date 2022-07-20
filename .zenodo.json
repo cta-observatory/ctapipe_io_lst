@@ -34,13 +34,15 @@
       "affiliation": "Institut de Fisica d'Altes Energies (IFAE), The Barcelona Institute of Science and Technology, Campus UAB, 08193 Bellaterra (Barcelona), Spain"
     },
     {
-      "name": "Daniel Morcuende"
+      "name": "Daniel Morcuende",
+      "orcid": "0000-0001-9400-0922",
+      "affiliation": "Universidad Complutense de Madrid and Institute of Particle and Cosmos Physics (IPARCOS), Spain"
     },
     {
       "name": "Jose Enrique Ruiz"
     },
     {
-      "name": "Seyia Nozaki"
+      "name": "Seiya Nozaki"
     }
   ]
 }
