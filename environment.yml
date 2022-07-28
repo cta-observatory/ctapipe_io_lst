@@ -5,7 +5,7 @@ channels:
 dependencies:
   - astropy
   - python>=3.8
-  - ctapipe>=0.15
+  - ctapipe>=0.12
   - eventio
   - corsikaio
   - protozfits=2.0
