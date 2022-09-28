@@ -95,9 +95,12 @@ def time_from_unix_tai_ns(unix_tai_ns):
     By using both arguments to time, the result will be a higher precision
     timestamp.
     '''
-    full_seconds = unix_tai_ns // S_TO_NS
-    fractional_seconds = (unix_tai_ns % S_TO_NS) * 1e-9
-    return Time(full_seconds, fractional_seconds, format='unix_tai')
+    # we need to make sure that the input argument is of type uint64
+    # otherwise the operations below will cast to float64 and loose precision
+    # since unix time in ns is larger than 2^53 for current and future dates
+    unix_tai_ns = np.asanyarray(unix_tai_ns, dtype=np.uint64)
+    seconds, nanoseconds = np.divmod(unix_tai_ns, S_TO_NS)
+    return Time(seconds, nanoseconds / S_TO_NS, format='unix_tai')
 
 
 def module_id_to_index(expected_module_ids, module_id):
