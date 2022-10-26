@@ -9,6 +9,7 @@ setup(
         'ctapipe~=0.12',
         'protozfits~=2.0',
         'setuptools_scm',
+        'numpy>=1.20,<1.23'
     ],
     package_data={
         'ctapipe_io_lst': ['resources/*'],
