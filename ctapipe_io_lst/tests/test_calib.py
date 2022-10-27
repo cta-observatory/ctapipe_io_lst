@@ -296,21 +296,3 @@ def test_spike_positions():
 
     for key, pos in positions.items():
         assert sorted(pos) == sorted(expected_positions[key])
-
-
-def test_spike_positions_old():
-    from ctapipe_io_lst.calibration import get_spike_A_positions_old_firmware
-    from ctapipe_io_lst.constants import N_CAPACITORS_PIXEL
-
-    positions = {}
-    for current in range(N_CAPACITORS_PIXEL):
-        for previous in range(N_CAPACITORS_PIXEL):
-            pos = get_spike_A_positions_old_firmware(current, previous)
-            if pos:
-                positions[(current, previous)] = pos
-
-    with (test_data / 'spike_positions_old.pickle').open('rb') as f:
-        expected_positions = pickle.load(f)
-
-    for key, pos in positions.items():
-        assert sorted(pos) == sorted(expected_positions[key])

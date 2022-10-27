@@ -12,7 +12,7 @@ dependencies:
   - zeromq
   - ipython
   - numba
-  - numpy>=1.18
+  - numpy>=1.20,<1.23
   - numpydoc
   - pytest
   - pyyaml

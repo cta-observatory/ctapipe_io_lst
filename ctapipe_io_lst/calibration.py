@@ -21,7 +21,7 @@ from traitlets import Enum
 from .constants import (
     N_GAINS, N_PIXELS, N_MODULES, N_SAMPLES, LOW_GAIN, HIGH_GAIN,
     N_PIXELS_MODULE, N_CAPACITORS_PIXEL, N_CAPACITORS_CHANNEL,
-    LAST_RUN_WITH_OLD_FIRMWARE, CLOCK_FREQUENCY_KHZ,
+    CLOCK_FREQUENCY_KHZ,
     CHANNEL_ORDER_LOW_GAIN, CHANNEL_ORDER_HIGH_GAIN, N_CHANNELS_MODULE,
     PIXEL_INDEX,
 )
@@ -686,32 +686,6 @@ def get_spike_A_positions(current_first_cap, previous_first_cap):
 
 
 @njit(cache=True)
-def get_spike_A_positions_old_firmware(current_first_cap, previous_first_cap):
-    """
-    Find spike positions for the old firmware.
-
-    This is function for data from 2018/10/10 to 2019/11/04 with old firmware.
-
-    Parameters
-    ----------
-    current_first_cap: ndarray
-        First capacitor of the current event
-    previous_first_cap: ndarray
-        First capacitor of the previous event
-
-    Returns
-    -------
-    positions: list[int]
-        List of spike positions
-    """
-    return get_spike_A_positions_base(
-        current_first_cap=current_first_cap,
-        previous_first_cap=previous_first_cap,
-        shift=1
-    )
-
-
-@njit(cache=True)
 def interpolate_spike_positions(waveform, positions):
     '''Interpolate all spikes at given positions in waveform'''
     for spike_A_position in positions:
@@ -742,11 +716,7 @@ def interpolate_spikes(waveform, first_capacitors, previous_first_capacitors, ru
             current_fc = first_capacitors[gain, pixel]
             last_fc = previous_first_capacitors[gain, pixel]
 
-            if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-                positions = get_spike_A_positions(current_fc, last_fc)
-            else:
-                positions = get_spike_A_positions_old_firmware(current_fc, last_fc)
-
+            positions = get_spike_A_positions(current_fc, last_fc)
             interpolate_spike_positions(
                 waveform=waveform[gain, pixel],
                 positions=positions,
@@ -783,10 +753,7 @@ def interpolate_spikes_gain_selected(waveform, first_capacitors, previous_first_
         current_fc = first_capacitors[gain, pixel]
         last_fc = previous_first_capacitors[gain, pixel]
 
-        if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-            positions = get_spike_A_positions(current_fc, last_fc)
-        else:
-            positions = get_spike_A_positions_old_firmware(current_fc, last_fc)
+        positions = get_spike_A_positions(current_fc, last_fc)
 
         interpolate_spike_positions(
             waveform=waveform[pixel],
@@ -840,11 +807,7 @@ def subtract_spikes(
             current_fc = first_capacitors[gain, pixel]
             last_fc = previous_first_capacitors[gain, pixel]
 
-            if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-                positions = get_spike_A_positions(current_fc, last_fc)
-            else:
-                positions = get_spike_A_positions_old_firmware(current_fc, last_fc)
-
+            positions = get_spike_A_positions(current_fc, last_fc)
             subtract_spikes_at_positions(
                 waveform=waveform[gain, pixel],
                 positions=positions,
@@ -893,10 +856,7 @@ def subtract_spikes_gain_selected(
         current_fc = first_capacitors[gain, pixel]
         last_fc = previous_first_capacitors[gain, pixel]
 
-        if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-            positions = get_spike_A_positions(current_fc, last_fc)
-        else:
-            positions = get_spike_A_positions_old_firmware(current_fc, last_fc)
+        positions = get_spike_A_positions(current_fc, last_fc)
 
         subtract_spikes_at_positions(
             waveform=waveform[pixel],
@@ -1006,33 +966,6 @@ def update_last_readout_time(
 
 
 @njit(cache=True)
-def update_last_readout_time_old_firmware(pixel_in_module, first_capacitor, time_now, last_readout_time):
-    for sample in range(-1, N_SAMPLES - 1):
-        capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
-        last_readout_time[capacitor] = time_now
-
-    # now the magic of Dragon,
-    # if the ROI is in the last quarter of each DRS4
-    # for even channel numbers extra 12 slices are read in a different place
-    # code from Takayuki & Julian
-    # largely refactored by M. Nöthe
-    if pixel_in_module % 2 == 0:
-        first_capacitor_in_channel = first_capacitor % N_CAPACITORS_CHANNEL
-        if 766 < first_capacitor_in_channel < 1013:
-            start = first_capacitor + N_CAPACITORS_CHANNEL - 1
-            end = first_capacitor + N_CAPACITORS_CHANNEL + 11
-            for capacitor in range(start, end):
-                last_readout_time[capacitor % N_CAPACITORS_PIXEL] = time_now
-
-        elif first_capacitor_in_channel >= 1013:
-            start = first_capacitor + N_CAPACITORS_CHANNEL
-            channel = first_capacitor // N_CAPACITORS_CHANNEL
-            end = (channel + 2) * N_CAPACITORS_CHANNEL
-            for capacitor in range(start, end):
-                last_readout_time[capacitor % N_CAPACITORS_PIXEL] = time_now
-
-
-@njit(cache=True)
 def apply_timelapse_correction(
     waveform,
     local_clock_counter,
@@ -1061,20 +994,12 @@ def apply_timelapse_correction(
                     last_readout_time=last_readout_time[gain, pixel_id],
                 )
 
-                if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-                    update_last_readout_time(
-                        pixel_in_module=pixel_in_module,
-                        first_capacitor=first_capacitors[gain, pixel_id],
-                        time_now=time_now,
-                        last_readout_time=last_readout_time[gain, pixel_id],
-                    )
-                else:
-                    update_last_readout_time_old_firmware(
-                        pixel_in_module=pixel_in_module,
-                        first_capacitor=first_capacitors[gain, pixel_id],
-                        time_now=time_now,
-                        last_readout_time=last_readout_time[gain, pixel_id],
-                    )
+                update_last_readout_time(
+                    pixel_in_module=pixel_in_module,
+                    first_capacitor=first_capacitors[gain, pixel_id],
+                    time_now=time_now,
+                    last_readout_time=last_readout_time[gain, pixel_id],
+                )
 
 
 @njit(cache=True)
@@ -1111,20 +1036,12 @@ def apply_timelapse_correction_gain_selected(
             # we need to update the last readout times of all gains
             # not just the selected channel
             for gain in range(N_GAINS):
-                if run_id > LAST_RUN_WITH_OLD_FIRMWARE:
-                    update_last_readout_time(
-                        pixel_in_module=pixel_in_module,
-                        first_capacitor=first_capacitors[gain, pixel_id],
-                        time_now=time_now,
-                        last_readout_time=last_readout_time[gain, pixel_id],
-                    )
-                else:
-                    update_last_readout_time_old_firmware(
-                        pixel_in_module=pixel_in_module,
-                        first_capacitor=first_capacitors[gain, pixel_id],
-                        time_now=time_now,
-                        last_readout_time=last_readout_time[gain, pixel_id],
-                    )
+                update_last_readout_time(
+                    pixel_in_module=pixel_in_module,
+                    first_capacitor=first_capacitors[gain, pixel_id],
+                    time_now=time_now,
+                    last_readout_time=last_readout_time[gain, pixel_id],
+                )
 
 
 @njit(cache=True)
