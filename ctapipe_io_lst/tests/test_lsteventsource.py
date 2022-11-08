@@ -21,7 +21,7 @@ test_r0_path_all_streams = test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz'
 
 test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
 
-test_drive_report = test_data / 'real/monitoring/DrivePositioning/drive_log_20200218.txt'
+test_drive_report = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20200218.txt'
 
 # ADC_SAMPLES_SHAPE = (2, 14, 40)
 
@@ -218,8 +218,8 @@ def test_pointing_info():
     ) as source:
         for e in source:
             # Tue Feb 18 21:03:09 2020 1582059789 Az 197.318 197.287 197.349 0 El 7.03487 7.03357 7.03618 0.0079844 RA 83.6296 Dec 22.0144
-            assert u.isclose(e.pointing.array_ra, 83.6296 * u.deg)
-            assert u.isclose(e.pointing.array_dec, 22.0144 * u.deg)
+            assert np.isnan(e.pointing.array_ra)
+            assert np.isnan(e.pointing.array_dec)
 
             expected_alt = (90 - 7.03487) * u.deg
             assert u.isclose(e.pointing.tel[1].altitude.to(u.deg), expected_alt, rtol=1e-2)

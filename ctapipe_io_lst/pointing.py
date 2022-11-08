@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 from scipy.interpolate import interp1d
+import warnings
 
 from astropy.table import Table
 from astropy import units as u
@@ -20,10 +21,15 @@ NAN_ANGLE = np.nan * u.deg
 
 
 class PointingSource(TelescopeComponent):
-    """Provides access to pointing information stored in LST drive reports."""
+    """Provides access to pointing information stored in LST drive reports.
+    """
     drive_report_path = traits.TelescopeParameter(
         trait=traits.Path(exists=True, directory_ok=False, allow_none=True),
-        help='Path to the LST drive report file',
+        help=(
+            'Path to the LST drive report file.'
+            ' This has to be the new format, where files are called'
+            ' DrivePosition_log_YYYYMMDD.txt'
+        ),
         default_value=None,
     ).tag(config=True)
 
@@ -34,42 +40,38 @@ class PointingSource(TelescopeComponent):
         self.drive_report = {}
         self.interp_az = {}
         self.interp_alt = {}
-        self.interp_ra = {}
-        self.interp_dec = {}
 
     @staticmethod
     def _read_drive_report(path):
         """
         Read a drive report into an astropy table
 
-        Parameters:
-        -----------
-        str: drive report file
+        Parameters
+        ----------
+        path : str or Path
+            drive report file
 
-        Returns:
-        data:`~astropy.table.Table`
-             A table of drive reports
-
+        Returns
+        -------
+        data : `~astropy.table.Table`
+            A table of drive reports
         """
         path = Path(path)
         Provenance().add_input_file(str(path), 'drive positioning')
+
         data = Table.read(
             path, format='ascii', delimiter=' ',
             header_start=None,
             data_start=0,
-            # the Az, Zd, Ra, Dec columns are just dummies, the file
-            # always contains "Az", "Zd" (or "El" for older files), "Ra", "Dec"
-            names=[
-                'weekday', 'month', 'day', 'time', 'year', 'unix_time',
-                'Az', 'azimuth_avg', 'azimuth_min', 'azimuth_max', 'azimuth_std',
-                'Zd', 'zenith_avg', 'zenith_min', 'zenith_max', 'zenith_std',
-                'Ra', 'target_ra', 'Dec', 'target_dec',
-            ],
-            exclude_names=['weekday', 'month', 'day', 'time', 'year', 'Az', 'Zd', 'Ra', 'Dec'],
+            names=["unix_time", "azimuth", "zenith"],
         )
 
         # check for bending model corrections
-        bending_path = path.with_name(path.name.replace('drive', 'bendingmodelcorrection'))
+        if "DrivePosition" not in path.name:
+            return data
+
+        bending_name = path.name.replace('DrivePosition', 'BendingModelCorrection')
+        bending_path = path.with_name(bending_name)
         if not bending_path.exists():
             return data
 
@@ -87,8 +89,7 @@ class PointingSource(TelescopeComponent):
             raise IOError('Drive report and corrections timestamps differ')
 
         for col in ['azimuth', 'zenith']:
-            for key in ['avg', 'min', 'max']:
-                data[f'{col}_{key}'] += corrections[f'{col}_correction']
+            data[col] += corrections[f'{col}_correction']
 
         return data
 
@@ -104,20 +105,7 @@ class PointingSource(TelescopeComponent):
             delimiter=" ",
             header_start=None,
             data_start=0,
-            names=[
-                "weekday",
-                "month",
-                "day",
-                "time",
-                "year",
-                "unix_time",
-                "Az", # dummy for the column always containing "Az"
-                "azimuth_correction",
-                # dummy for the column always containing "Zd" or "El" for older files
-                "Zd",
-                "zenith_correction",
-            ],
-            exclude_names=["weekday", "month", "day", "time", "year", "Az", "Zd"],
+            names=["unix_time", "azimuth_correction", "zenith_correction"],
         )
 
     def _read_drive_report_for_tel(self, tel_id):
@@ -130,20 +118,11 @@ class PointingSource(TelescopeComponent):
 
         self.interp_az[tel_id] = interp1d(
             self.drive_report[tel_id]['unix_time'],
-            self.drive_report[tel_id]['azimuth_avg'],
+            self.drive_report[tel_id]['azimuth'],
         )
         self.interp_alt[tel_id] = interp1d(
             self.drive_report[tel_id]['unix_time'],
-            90 - self.drive_report[tel_id]['zenith_avg'],
-        )
-
-        self.interp_ra[tel_id] = interp1d(
-            self.drive_report[tel_id]['unix_time'],
-            self.drive_report[tel_id]['target_ra'],
-        )
-        self.interp_dec[tel_id] = interp1d(
-            self.drive_report[tel_id]['unix_time'],
-            self.drive_report[tel_id]['target_dec'],
+            90 - self.drive_report[tel_id]['zenith'],
         )
 
     def get_pointing_position_altaz(self, tel_id, time):
@@ -170,15 +149,4 @@ class PointingSource(TelescopeComponent):
         )
 
     def get_pointing_position_icrs(self, tel_id, time):
-        if tel_id not in self.drive_report:
-            self._read_drive_report_for_tel(tel_id)
-
-        ra = u.Quantity(self.interp_ra[tel_id](time.unix), u.deg)
-        dec = u.Quantity(self.interp_dec[tel_id](time.unix), u.deg)
-
-        # drive reports contain 0 / 0 if not tracking ICRS coordinates
-        # TODO: hope we never really observe ra=0°, dec=0°
-        if ra != 0.0 and dec != 0.0:
-            return ra, dec
-
         return NAN_ANGLE, NAN_ANGLE

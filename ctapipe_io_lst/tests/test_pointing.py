@@ -1,13 +1,14 @@
 import os
 from pathlib import Path
+import numpy as np
 from astropy.time import Time
 import astropy.units as u
 from ctapipe.core import Provenance
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
-test_drive_report = test_data / 'real/monitoring/DrivePositioning/drive_log_20200218.txt'
-test_bending_report = test_data / 'real/monitoring/DrivePositioning/bendingmodelcorrection_log_22_02_20.txt'
-test_drive_report_with_bending = test_data / 'real/monitoring/DrivePositioning/drive_log_22_02_20.txt'
+test_drive_report = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20200218.txt'
+test_bending_report = test_data / 'real/monitoring/DrivePositioning/BendingModelCorrection_log_20220220.txt'
+test_drive_report_with_bending = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20220220.txt'
 
 
 def test_read_drive_report():
@@ -16,8 +17,8 @@ def test_read_drive_report():
     drive_report = PointingSource._read_drive_report(test_drive_report)
 
     assert 'time' not in drive_report.colnames
-    assert 'azimuth_avg' in drive_report.colnames
-    assert 'zenith_avg' in drive_report.colnames
+    assert 'azimuth' in drive_report.colnames
+    assert 'zenith' in drive_report.colnames
 
 
 def test_interpolation():
@@ -41,8 +42,8 @@ def test_interpolation():
     assert u.isclose(pointing.azimuth, 0.5 * (230.834 + 230.896) * u.deg)
 
     ra, dec = pointing_source.get_pointing_position_icrs(tel_id=1, time=time)
-    assert u.isclose(ra, 86.6333 * u.deg)
-    assert u.isclose(dec, 22.0144 * u.deg)
+    assert np.isnan(ra)
+    assert np.isnan(dec)
 
 
 def test_bending_corrections():

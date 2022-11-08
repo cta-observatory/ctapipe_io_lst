@@ -11,7 +11,7 @@
       "add_calibration_timeshift": true
     },
     "PointingSource": {
-      "drive_report_path": "test_data/real/monitoring/DrivePositioning/drive_log_20200218.txt"
+      "drive_report_path": "test_data/real/monitoring/DrivePositioning/DrivePosition_log_20200218.txt"
     },
     "EventTimeCalculator": {
       "run_summary_path": "test_data/real/monitoring/RunSummary/RunSummary_20200218.ecsv"
