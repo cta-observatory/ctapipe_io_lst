@@ -48,11 +48,23 @@ class PointingSource(TelescopeComponent):
         default_value=None,
     ).tag(config=True)
 
+    target_log_path = traits.TelescopeParameter(
+        trait=traits.Path(exists=True, directory_ok=False, allow_none=True),
+        help=(
+            'Path to the LST target log.'
+            ' This has to be the file usually called Target_log_YYYYMMDD.txt'
+            ' If this is None, but a drive position log is given, the PointingSource will look for '
+            ' the corresponding Target_log in the same directory'
+        ),
+        default_value=None,
+    ).tag(config=True)
+
     def __init__(self, subarray, config=None, parent=None, **kwargs):
         '''Initialize PointingSource'''
 
         super().__init__(subarray, config=config, parent=parent, **kwargs)
-        self.drive_report = {}
+        self.drive_log = {}
+        self.target_log = {}
         self.interp_az = {}
         self.interp_alt = {}
 
@@ -191,15 +203,15 @@ class PointingSource(TelescopeComponent):
         bending_model_corrections_path = self.bending_model_corrections_path.tel[tel_id]
 
         self.log.info(f'Loading drive report "{path}" for tel_id={tel_id}')
-        self.drive_report[tel_id] = self._read_drive_report(path, bending_model_corrections_path)
+        self.drive_log[tel_id] = self._read_drive_report(path, bending_model_corrections_path)
 
         self.interp_az[tel_id] = interp1d(
-            self.drive_report[tel_id]['unix_time'],
-            self.drive_report[tel_id]['azimuth'],
+            self.drive_log[tel_id]['unix_time'],
+            self.drive_log[tel_id]['azimuth'],
         )
         self.interp_alt[tel_id] = interp1d(
-            self.drive_report[tel_id]['unix_time'],
-            90 - self.drive_report[tel_id]['zenith'],
+            self.drive_log[tel_id]['unix_time'],
+            90 - self.drive_log[tel_id]['zenith'],
         )
 
     def get_pointing_position_altaz(self, tel_id, time):
@@ -214,7 +226,7 @@ class PointingSource(TelescopeComponent):
         Drivereport: Container
             a container filled with drive information
         """
-        if tel_id not in self.drive_report:
+        if tel_id not in self.drive_log:
             self._read_drive_report_for_tel(tel_id)
 
         alt = u.Quantity(self.interp_alt[tel_id](time.unix), u.deg)
@@ -227,3 +239,51 @@ class PointingSource(TelescopeComponent):
 
     def get_pointing_position_icrs(self, tel_id, time):
         return NAN_ANGLE, NAN_ANGLE
+
+    def _get_target_log_path(self, tel_id):
+        """Get the path for the Target_log_YYYYMMDD.txt file
+
+        If the explicit traitlet is None, use the ``drive_report_path`` to
+        look for a Target log in the same directory.
+        """
+        path = self.target_log_path.tel[tel_id]
+
+        if path is not None:
+            return path
+
+        drive_path = self.drive_report_path.tel[tel_id]
+        if drive_path is None:
+            return None
+
+        if "DrivePosition" in drive_path.name:
+            target_name = drive_path.name.replace('DrivePosition', 'Target')
+            target_path = drive_path.with_name(target_name)
+            if target_path.exists():
+                return target_path
+
+    def get_target(self, tel_id, time):
+        if tel_id not in self.target_log:
+            path = self._get_target_log_path(tel_id)
+            if path is None:
+                raise IOError(f"No Target log given for tel_id, {tel_id}")
+            self.target_log[tel_id] = self._read_target_log(path)
+
+        time_unix = time.unix
+        targets = self.target_log[tel_id]
+        idx = np.searchsorted(targets["start_unix"], time_unix)
+
+        # completely outside the available trackings
+        if idx == 0 or idx > len(targets):
+            return None
+
+        row = targets[idx - 1]
+
+        # start_unix <= time_unix is guaranteed by searchsorted
+        if time_unix > row["end_unix"]:
+            return None
+
+        return {
+            "name": row["name"],
+            "ra": u.Quantity(row["ra"], targets["ra"].unit),
+            "dec": u.Quantity(row["dec"], targets["dec"].unit)
+        }

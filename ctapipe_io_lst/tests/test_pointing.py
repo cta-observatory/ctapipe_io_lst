@@ -9,6 +9,7 @@ test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
 test_drive_report = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20200218.txt'
 test_bending_report = test_data / 'real/monitoring/DrivePositioning/BendingModelCorrection_log_20220220.txt'
 test_drive_report_with_bending = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20220220.txt'
+test_target_log = test_data / "real/monitoring/DrivePositioning/Target_log_20200218.txt"
 
 
 def test_read_drive_report():
@@ -61,3 +62,63 @@ def test_load_position_and_bending_corrections():
     assert len(inputs) == 2
     assert inputs[0]['url'] == str(test_drive_report_with_bending.resolve())
     assert inputs[1]['url'] == str(test_bending_report.resolve())
+
+
+def test_read_target_log(tmp_path):
+    from ctapipe_io_lst.pointing import PointingSource
+
+    targets = PointingSource._read_target_log(test_target_log)
+    assert len(targets) == 7
+    assert targets.colnames == ["start_unix", "ra", "dec", "name", "end_unix", "start", "end"]
+
+    np.testing.assert_array_equal(targets["name"], ["Crab", "OffCrabLo142"] * 3 + ["Capella"])
+    np.testing.assert_array_equal(targets["ra"], [83.6296, 86.6333] * 3 + [79.1725])
+    np.testing.assert_array_equal(targets["dec"], [22.0144] * 6 + [45.9981])
+
+    assert targets["ra"].unit == u.deg
+    assert targets["dec"].unit == u.deg
+
+    # test with empty file
+    empty_log = (tmp_path / "Target_log.txt")
+    empty_log.open("w").close()
+    targets = PointingSource._read_target_log(empty_log)
+    assert len(targets) == 0
+    assert targets.colnames == ["start_unix", "ra", "dec", "name", "end_unix", "start", "end"]
+    assert targets["ra"].unit == u.deg
+    assert targets["dec"].unit == u.deg
+
+
+def test_targets():
+    from ctapipe_io_lst import PointingSource, LSTEventSource
+
+
+
+    before_first_tracking = Time(1582058100, format="unix")
+    crab = Time(1582062520, format="unix")
+    between_obs = Time(1582066680, format="unix")
+    capella = Time(1582069585, format="unix")
+    after_last_tracking = Time(1582070175, format="unix")
+
+    subarray = LSTEventSource.create_subarray(geometry_version=4, tel_id=1)
+
+    # test explicitly giving path and with using drive_report_path
+    test_kwargs = [
+        dict(target_log_path=test_target_log),
+        dict(drive_report_path=test_drive_report),
+    ]
+
+    for kwargs in test_kwargs:
+        pointing = PointingSource(subarray, **kwargs)
+        assert pointing.get_target(tel_id=1, time=before_first_tracking) is None
+        assert pointing.get_target(tel_id=1, time=crab) == {
+            "name": "Crab",
+            "ra": u.Quantity(83.6296, u.deg),
+            "dec": u.Quantity(22.0144, u.deg),
+        }
+        assert pointing.get_target(tel_id=1, time=capella) == {
+            "name": "Capella",
+            "ra": u.Quantity(79.1725, u.deg),
+            "dec": u.Quantity(45.9981, u.deg),
+        }
+        assert pointing.get_target(tel_id=1, time=between_obs) is None
+        assert pointing.get_target(tel_id=1, time=after_last_tracking) is None
