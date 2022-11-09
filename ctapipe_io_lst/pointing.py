@@ -3,12 +3,14 @@ from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
 
-from astropy.table import Table
+from astropy.table import Table, Column
 from astropy import units as u
 
 from ctapipe.core import TelescopeComponent, Provenance
 from ctapipe.core import traits
 from ctapipe.containers import TelescopePointingContainer
+
+from astropy.time import Time
 
 
 __all__ = [
@@ -53,6 +55,61 @@ class PointingSource(TelescopeComponent):
         self.drive_report = {}
         self.interp_az = {}
         self.interp_alt = {}
+
+    @staticmethod
+    def _read_target_log(path):
+        path = Path(path)
+
+        def parse_start(tokens):
+            return {
+                "start_unix": int(tokens[0]),
+                "ra": float(tokens[2]),
+                "dec": float(tokens[3]),
+                "name": tokens[4],
+            }
+
+        def parse_end(tokens):
+            return {"end_unix": int(tokens[0])}
+
+        # state machine for Tracking/not Tracking
+        tracking = False
+        targets = []
+        with path.open("r") as f:
+            for line in f:
+                line = line.strip()
+
+                if line == "":
+                    continue
+
+                tokens = line.strip().split(" ")
+                if tokens[1] == "TrackStart":
+                    if tracking:
+                        raise ValueError(f"Expected TrackingEnd, got {line}")
+                    tracking = True
+                    targets.append(parse_start(tokens))
+
+                elif tokens[1] == "TrackEnd":
+                    if not tracking:
+                        raise ValueError(f"Expected TrackingStart, got {line}")
+                    tracking = False
+                    targets[-1].update(parse_end(tokens))
+
+        if len(targets) > 0:
+            table = Table(targets, units={"ra": u.deg, "dec": u.deg})
+        else:
+            table = Table([
+                Column([], name="start_unix", dtype=int),
+                Column([], name="ra", dtype=float, unit=u.deg),
+                Column([], name="dec", dtype=float, unit=u.deg),
+                Column([], name="name", dtype=str),
+                Column([], name="end_unix", dtype=int),
+            ])
+
+        for col in ("start", "end"):
+            table[col] = Time(table[f"{col}_unix"], format="unix")
+            table[col].format = "isot"
+
+        return table
 
     @staticmethod
     def _read_drive_report(path, bending_model_corrections_path=None):
