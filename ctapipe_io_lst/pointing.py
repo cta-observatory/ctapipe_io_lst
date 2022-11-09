@@ -84,6 +84,7 @@ class PointingSource(TelescopeComponent):
             return {"end_unix": int(tokens[0])}
 
         # state machine for Tracking/not Tracking
+        Provenance().add_input_file(str(path), "target log")
         tracking = False
         targets = []
         with path.open("r") as f:
