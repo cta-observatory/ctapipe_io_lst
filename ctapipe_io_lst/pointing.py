@@ -2,7 +2,6 @@ from pathlib import Path
 
 import numpy as np
 from scipy.interpolate import interp1d
-import warnings
 
 from astropy.table import Table
 from astropy import units as u
@@ -29,6 +28,20 @@ class PointingSource(TelescopeComponent):
             'Path to the LST drive report file.'
             ' This has to be the new format, where files are called'
             ' DrivePosition_log_YYYYMMDD.txt'
+            ' If a corresponding file BendingModelCorrection_log_YYYYMMDD.txt'
+            ' is available next to the given path, it is read and used as well'
+        ),
+        default_value=None,
+    ).tag(config=True)
+
+    bending_model_corrections_path = traits.TelescopeParameter(
+        trait=traits.Path(exists=True, directory_ok=False, allow_none=True),
+        help=(
+            'Path to the LST bending model corrections file.'
+            ' This has to be the new format, where files are called'
+            ' BendingModelCorrections_log_YYYYMMDD.txt'
+            ' If this is None, but a drive position log is given, the PointingSource will look for '
+            ' the corresponding BendingModelCorrection_log in the same directory'
         ),
         default_value=None,
     ).tag(config=True)
@@ -42,7 +55,7 @@ class PointingSource(TelescopeComponent):
         self.interp_alt = {}
 
     @staticmethod
-    def _read_drive_report(path):
+    def _read_drive_report(path, bending_model_corrections_path=None):
         """
         Read a drive report into an astropy table
 
@@ -59,23 +72,28 @@ class PointingSource(TelescopeComponent):
         path = Path(path)
         Provenance().add_input_file(str(path), 'drive positioning')
 
-        data = Table.read(
-            path, format='ascii', delimiter=' ',
-            header_start=None,
-            data_start=0,
-            names=["unix_time", "azimuth", "zenith"],
-        )
+        try:
+            data = Table.read(
+                path, format='ascii', delimiter=' ',
+                header_start=None,
+                data_start=0,
+                names=["unix_time", "azimuth", "zenith"],
+            )
+        except Exception as e:
+            raise IOError("Error reading drive report path") from e
 
         # check for bending model corrections
-        if "DrivePosition" not in path.name:
-            return data
+        # if the filename is not mathcing the general scheme, we cannot look for the bending model
+        if bending_model_corrections_path is None:
+            if "DrivePosition" not in path.name:
+                return data
 
-        bending_name = path.name.replace('DrivePosition', 'BendingModelCorrection')
-        bending_path = path.with_name(bending_name)
-        if not bending_path.exists():
-            return data
+            bending_name = path.name.replace('DrivePosition', 'BendingModelCorrection')
+            bending_model_corrections_path = path.with_name(bending_name)
+            if not bending_model_corrections_path.exists():
+                return data
 
-        corrections = PointingSource._read_bending_model_corrections(bending_path)
+        corrections = PointingSource._read_bending_model_corrections(bending_model_corrections_path)
 
         # according to an email by Armand Fiasson, the timestamps are guaranteed to be equal
         # but it might happen that one report has more rows than the other due to different
@@ -113,8 +131,10 @@ class PointingSource(TelescopeComponent):
         if path is None:
             raise ValueError(f'No drive report given for telescope {tel_id}')
 
+        bending_model_corrections_path = self.bending_model_corrections_path.tel[tel_id]
+
         self.log.info(f'Loading drive report "{path}" for tel_id={tel_id}')
-        self.drive_report[tel_id] = self._read_drive_report(path)
+        self.drive_report[tel_id] = self._read_drive_report(path, bending_model_corrections_path)
 
         self.interp_az[tel_id] = interp1d(
             self.drive_report[tel_id]['unix_time'],
