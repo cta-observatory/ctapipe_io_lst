@@ -33,18 +33,20 @@ def test_interpolation():
     )
 
     time = Time('2020-02-18T21:40:21')
-    # El is really zenith distance
-    # Tue Feb 18 21:40:20 2020 1582062020 Az 230.834 230.819 230.849 7.75551 El 10.2514 10.2485 10.2543 0.00948548 RA 86.6333 Dec 22.0144
-    # Tue Feb 18 21:40:23 2020 1582062022 Az 230.896 230.881 230.912 9.03034 El 10.2632 10.2603 10.2661 0.00948689 RA 86.6333 Dec 22.0144
-
+    # relevent lines from drive log:
+    # 1582062020 230.834 10.2514
+    # 1582062022 230.896 10.2632
     pointing = pointing_source.get_pointing_position_altaz(tel_id=1, time=time)
     expected_alt = (90 - 0.5 * (10.2514 + 10.2632)) * u.deg
     assert u.isclose(pointing.altitude, expected_alt)
     assert u.isclose(pointing.azimuth, 0.5 * (230.834 + 230.896) * u.deg)
 
+    # relevant lines from target log
+    # 1582061035 TrackStart 86.6333 22.0144 OffCrabLo142 
+    # 1582062466 TrackEnd 
     ra, dec = pointing_source.get_pointing_position_icrs(tel_id=1, time=time)
-    assert np.isnan(ra)
-    assert np.isnan(dec)
+    assert u.isclose(ra, 86.6333 * u.deg)
+    assert u.isclose(dec, 22.0144 * u.deg)
 
 
 def test_bending_corrections():

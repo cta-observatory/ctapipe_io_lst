@@ -217,9 +217,8 @@ def test_pointing_info():
         config=Config(config),
     ) as source:
         for e in source:
-            # Tue Feb 18 21:03:09 2020 1582059789 Az 197.318 197.287 197.349 0 El 7.03487 7.03357 7.03618 0.0079844 RA 83.6296 Dec 22.0144
-            assert np.isnan(e.pointing.array_ra)
-            assert np.isnan(e.pointing.array_dec)
+            assert u.isclose(e.pointing.array_ra, 83.6296 * u.deg)
+            assert u.isclose(e.pointing.array_dec, 22.0144 * u.deg)
 
             expected_alt = (90 - 7.03487) * u.deg
             assert u.isclose(e.pointing.tel[1].altitude.to(u.deg), expected_alt, rtol=1e-2)

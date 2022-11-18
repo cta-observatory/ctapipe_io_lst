@@ -239,7 +239,12 @@ class PointingSource(TelescopeComponent):
         )
 
     def get_pointing_position_icrs(self, tel_id, time):
-        return NAN_ANGLE, NAN_ANGLE
+        """Return the target pointing position in ra/dec"""
+        target = self.get_target(tel_id, time)
+        if target is None:
+            return NAN_ANGLE, NAN_ANGLE
+
+        return target["ra"], target["dec"]
 
     def _get_target_log_path(self, tel_id):
         """Get the path for the Target_log_YYYYMMDD.txt file
@@ -262,15 +267,22 @@ class PointingSource(TelescopeComponent):
             if target_path.exists():
                 return target_path
 
+        return None
+
     def get_target(self, tel_id, time):
         if tel_id not in self.target_log:
             path = self._get_target_log_path(tel_id)
             if path is None:
-                raise IOError(f"No Target log given for tel_id, {tel_id}")
-            self.target_log[tel_id] = self._read_target_log(path)
+                self.target_log[tel_id] = None
+            else:
+                self.target_log[tel_id] = self._read_target_log(path)
+
+        targets = self.target_log[tel_id]
+        if targets is None:
+            return
 
         time_unix = time.unix
-        targets = self.target_log[tel_id]
+
         idx = np.searchsorted(targets["start_unix"], time_unix)
 
         # completely outside the available trackings
