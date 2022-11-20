@@ -159,11 +159,6 @@ class LSTEventSource(EventSource):
     """
     EventSource for LST R0 data.
     """
-    multi_streams = Bool(
-        True,
-        help='Read in parallel all streams '
-    ).tag(config=True)
-
     min_flatfield_adc = Float(
         default_value=3000.0,
         help=(
@@ -258,18 +253,31 @@ class LSTEventSource(EventSource):
         '''
         Create a new LSTEventSource.
 
+        If the input file follows LST naming schemes, the source will
+        look for related files in the same directory, depending on them
+        ``all_streams`` an ``all_subruns`` options.
+
+        if ``all_streams`` is True and the file has stream=1, then the
+        source will also look for all other available streams and iterate
+        events ordered by ``event_id``. 
+
+        if ``all_subruns`` is True and the file has subrun=0, then the
+        source will also look for all other available subruns and read all 
+        of them.
+
         Parameters
         ----------
         input_url: Path
-            Path to or url understood by ``ctapipe.core.traits.Path``.
-            If ``multi_streams`` is ``True``, the source will try to read all
-            streams matching the given ``input_url``
+            Path or url understood by ``ctapipe.core.traits.Path``.
         **kwargs:
             Any of the traitlets. See ``LSTEventSource.class_print_help``
         '''
         super().__init__(input_url=input_url, **kwargs)
 
-        self.multi_file = MultiFiles(self.input_url, parent=self)
+        self.multi_file = MultiFiles(
+            self.input_url,
+            parent=self,
+        )
         self.geometry_version = 4
 
         self.camera_config = self.multi_file.camera_config
@@ -312,9 +320,6 @@ class LSTEventSource(EventSource):
         if self.r0_r1_calibrator.calibration_path is not None:
             return (DataLevel.R0, DataLevel.R1)
         return (DataLevel.R0, )
-
-    def rewind(self):
-        self.multi_file.rewind()
 
     @staticmethod
     def create_subarray(geometry_version, tel_id=1):

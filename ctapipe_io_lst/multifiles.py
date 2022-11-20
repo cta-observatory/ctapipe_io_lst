@@ -84,16 +84,18 @@ class MultiFiles(Component):
             file_info = None
 
         if file_info is not None:
+            if file_info.stream != 1:
+                self.log.info("Input file has stream != 1, not loading more streams or subruns")
+                self.all_streams = False
+                self.all_subruns = False
+
             if file_info.subrun != 0:
                 self.all_subruns = False
                 self.current_subrun[file_info.stream] = file_info.subrun - 1
-
-            if file_info.stream != 1:
-                self.all_streams = False
         else:
+            self.log.warning("Input file does not match LST name pattern, not trying to load more streams or subruns")
             self.all_subruns = False
             self.all_streams = False
-            self.current_subrun = None
 
         self.file_info = file_info
         self._files = {}
@@ -118,6 +120,13 @@ class MultiFiles(Component):
         return len(self._files)
 
     def _load_next_subrun(self, stream):
+        """Open the next (or first) subrun.
+
+        Parameters
+        ----------
+        stream : int or None
+            If None, assume the single-file case and just open it.
+        """
         if self.file_info is None and stream is not None:
             raise ValueError("Input path does not allow automatic subrun loading")
 
@@ -141,6 +150,7 @@ class MultiFiles(Component):
 
         Provenance().add_input_file(str(path), "R0")
         self._files[stream] = File(str(path))
+        self.log.info("Opened file %s", path)
         self._events_tables[stream] = self._files[stream].Events
 
         # load first event from each stream
