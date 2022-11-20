@@ -269,37 +269,10 @@ class LSTEventSource(EventSource):
         '''
         super().__init__(input_url=input_url, **kwargs)
 
-        if self.multi_streams:
-            # test how many streams are there:
-            # file name must be [stream name]Run[all the rest]
-            # All the files with the same [all the rest] are opened
-
-            path, name = os.path.split(os.path.abspath(self.input_url))
-            if 'Run' in name:
-                _, run = name.split('Run', 1)
-            else:
-                run = name
-
-            ls = listdir(path)
-            self.file_list = []
-
-            for file_name in ls:
-                if run in file_name:
-                    full_name = os.path.join(path, file_name)
-                    self.file_list.append(full_name)
-
-        else:
-            self.file_list = [self.input_url]
-
-        self.multi_file = MultiFiles(self.file_list)
+        self.multi_file = MultiFiles(self.input_url, parent=self)
         self.geometry_version = 4
 
         self.camera_config = self.multi_file.camera_config
-        self.log.info(
-            "Read {} input files".format(
-                self.multi_file.num_inputs()
-            )
-        )
         self.tel_id = self.camera_config.telescope_id
         self._subarray = self.create_subarray(self.geometry_version, self.tel_id)
         self.r0_r1_calibrator = LSTR0Corrections(
@@ -820,11 +793,6 @@ class LSTEventSource(EventSource):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
-
-    def __len__(self):
-        if self.max_events is not None:
-            return min(self.max_events, len(self.multi_file))
-        return len(self.multi_file)
 
     def close(self):
         self.multi_file.close()
