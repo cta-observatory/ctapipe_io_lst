@@ -8,7 +8,7 @@ from typing import Any
 from queue import PriorityQueue, Empty
 
 from ctapipe.core import Component, Provenance
-from ctapipe.core.traits import Bool
+from ctapipe.core.traits import Bool, Integer
 from protozfits import File
 
 __all__ = ['MultiFiles']
@@ -59,6 +59,12 @@ class MultiFiles(Component):
             "If true, try to iterate over all subruns."
             " Only applies when file matches the expected naming pattern and subrun is 0"
         )
+    ).tag(config=True)
+
+    last_subrun = Integer(
+        default_value=None,
+        allow_none=True,
+        help="If not None, stop loading new subruns after ``last_subrun`` (inclusive)"
     ).tag(config=True)
 
     def __init__(self, path, *args, **kwargs):
@@ -132,6 +138,11 @@ class MultiFiles(Component):
             path = self.path
         else:
             self.current_subrun[stream] += 1
+
+            if self.last_subrun is not None and self.current_subrun[stream] > self.last_subrun:
+                self.log.info("Stopping loading of subruns because of last_subrun")
+                return
+
             path = self.directory / R0_PATTERN.format(
                 tel_id=self.file_info.tel_id,
                 run=self.file_info.run,
