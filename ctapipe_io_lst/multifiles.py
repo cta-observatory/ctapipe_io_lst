@@ -91,7 +91,7 @@ class MultiFiles(Component):
 
             if file_info.subrun != 0:
                 self.all_subruns = False
-                self.current_subrun[file_info.stream] = file_info.subrun - 1
+                self.current_subrun = defaultdict(lambda: self.file_info.subrun - 1)
         else:
             self.log.warning("Input file does not match LST name pattern, not trying to load more streams or subruns")
             self.all_subruns = False
