@@ -76,7 +76,7 @@ class MultiFiles(Component):
             raise IOError(f"input path {path} is not a file")
 
         self.directory = self.path.parent
-        self.current_subrun = defaultdict(lambda : -1)
+        self.current_subrun = None
 
         try:
             file_info = get_file_info(self.path)
@@ -89,9 +89,7 @@ class MultiFiles(Component):
                 self.all_streams = False
                 self.all_subruns = False
 
-            if file_info.subrun != 0:
-                self.all_subruns = False
-                self.current_subrun = defaultdict(lambda: self.file_info.subrun - 1)
+            self.current_subrun = defaultdict(lambda: self.file_info.subrun - 1)
         else:
             self.log.warning("Input file does not match LST name pattern, not trying to load more streams or subruns")
             self.all_subruns = False
