@@ -152,7 +152,7 @@ class MultiFiles(Component):
             )
 
         if not path.is_file():
-            raise IOError(f"File {path} does not exist")
+            raise FileNotFoundError(f"File {path} does not exist")
 
         if stream in self._files:
             self._files.pop(stream).close()
@@ -204,6 +204,9 @@ class MultiFiles(Component):
             self._events.put_nowait(NextEvent(new.event_id, new, stream))
         except StopIteration:
             if self.all_subruns:
-                self._load_next_subrun(stream)
+                try:
+                    self._load_next_subrun(stream)
+                except FileNotFoundError:
+                    pass
 
         return event
