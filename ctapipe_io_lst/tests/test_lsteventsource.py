@@ -65,8 +65,6 @@ def test_multifile():
         apply_drs4_corrections=False,
         pointing_information=False,
     ) as source:
-        assert len(set(source.file_list)) == 4
-        assert len(source) == 200
 
         for event in source:
             event_count += 1
@@ -227,25 +225,6 @@ def test_pointing_info():
             expected_az = 197.318 * u.deg
             assert u.isclose(e.pointing.tel[1].azimuth.to(u.deg), expected_az, rtol=1e-2)
 
-
-
-def test_len():
-    from ctapipe_io_lst import LSTEventSource
-
-    with LSTEventSource(
-        test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
-        apply_drs4_corrections=False,
-        pointing_information=False,
-    ) as source:
-        assert len(source) == 200
-
-    with LSTEventSource(
-        test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
-        pointing_information=False,
-        apply_drs4_corrections=False,
-        max_events=10,
-    ) as source:
-        assert len(source) == 10
 
 
 def test_pedestal_events(tmp_path):

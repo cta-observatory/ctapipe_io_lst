@@ -159,11 +159,6 @@ class LSTEventSource(EventSource):
     """
     EventSource for LST R0 data.
     """
-    multi_streams = Bool(
-        True,
-        help='Read in parallel all streams '
-    ).tag(config=True)
-
     min_flatfield_adc = Float(
         default_value=3000.0,
         help=(
@@ -258,48 +253,34 @@ class LSTEventSource(EventSource):
         '''
         Create a new LSTEventSource.
 
+        If the input file follows LST naming schemes, the source will
+        look for related files in the same directory, depending on them
+        ``all_streams`` an ``all_subruns`` options.
+
+        if ``all_streams`` is True and the file has stream=1, then the
+        source will also look for all other available streams and iterate
+        events ordered by ``event_id``. 
+
+        if ``all_subruns`` is True and the file has subrun=0, then the
+        source will also look for all other available subruns and read all 
+        of them.
+
         Parameters
         ----------
         input_url: Path
-            Path to or url understood by ``ctapipe.core.traits.Path``.
-            If ``multi_streams`` is ``True``, the source will try to read all
-            streams matching the given ``input_url``
+            Path or url understood by ``ctapipe.core.traits.Path``.
         **kwargs:
             Any of the traitlets. See ``LSTEventSource.class_print_help``
         '''
         super().__init__(input_url=input_url, **kwargs)
 
-        if self.multi_streams:
-            # test how many streams are there:
-            # file name must be [stream name]Run[all the rest]
-            # All the files with the same [all the rest] are opened
-
-            path, name = os.path.split(os.path.abspath(self.input_url))
-            if 'Run' in name:
-                _, run = name.split('Run', 1)
-            else:
-                run = name
-
-            ls = listdir(path)
-            self.file_list = []
-
-            for file_name in ls:
-                if run in file_name:
-                    full_name = os.path.join(path, file_name)
-                    self.file_list.append(full_name)
-
-        else:
-            self.file_list = [self.input_url]
-
-        self.multi_file = MultiFiles(self.file_list)
+        self.multi_file = MultiFiles(
+            self.input_url,
+            parent=self,
+        )
         self.geometry_version = 4
 
         self.camera_config = self.multi_file.camera_config
-        self.log.info(
-            "Read {} input files".format(
-                self.multi_file.num_inputs()
-            )
-        )
         self.tel_id = self.camera_config.telescope_id
         self._subarray = self.create_subarray(self.geometry_version, self.tel_id)
         self.r0_r1_calibrator = LSTR0Corrections(
@@ -339,9 +320,6 @@ class LSTEventSource(EventSource):
         if self.r0_r1_calibrator.calibration_path is not None:
             return (DataLevel.R0, DataLevel.R1)
         return (DataLevel.R0, )
-
-    def rewind(self):
-        self.multi_file.rewind()
 
     @staticmethod
     def create_subarray(geometry_version, tel_id=1):
@@ -820,11 +798,6 @@ class LSTEventSource(EventSource):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
-
-    def __len__(self):
-        if self.max_events is not None:
-            return min(self.max_events, len(self.multi_file))
-        return len(self.multi_file)
 
     def close(self):
         self.multi_file.close()
