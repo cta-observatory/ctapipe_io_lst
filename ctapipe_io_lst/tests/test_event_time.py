@@ -15,6 +15,7 @@ test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
 test_run_summary = test_data / 'real/monitoring/RunSummary/RunSummary_20200218.ecsv'
 
 
+
 def test_combine_counters():
     from ctapipe_io_lst.event_time import combine_counters
 
@@ -69,11 +70,26 @@ def test_time_unix_tai():
 
 
 def test_time_from_unix_tai_ns():
+    """Test that we keep ns precision when converting to astropy time"""
     from ctapipe_io_lst.event_time import time_from_unix_tai_ns
 
-    time = Time.now()
-    result = time_from_unix_tai_ns(int(time.unix_tai * 1e9))
-    assert np.isclose((result - time).to_value(u.us), 0, atol=0.5)
+    expected = '2020-01-01T00:00:00.123456789'
+    unix_tai_ns = np.uint64(1577836800123456789)
+
+    # make sure this is a case where going through float64 would destroy precision
+    assert np.uint64(np.float64(unix_tai_ns)) != unix_tai_ns
+
+    result = time_from_unix_tai_ns(unix_tai_ns)
+    # this only affects precision of the resulting string, not the storage itself
+    result.precision = 9
+    assert result.isot == expected
+
+    # test the same with a python int instead of np.uint64
+    unix_tai_ns = int(unix_tai_ns)
+    result = time_from_unix_tai_ns(unix_tai_ns)
+    # this only affects precision of the resulting string, not the storage itself
+    result.precision = 9
+    assert result.isot == expected
 
 
 def test_read_run_summary():
