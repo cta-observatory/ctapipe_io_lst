@@ -12,7 +12,7 @@ from ctapipe.core.traits import (
 )
 
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
-from ctapipe.containers import MonitoringContainer
+from ctapipe.containers import FlatFieldContainer, MonitoringCameraContainer, MonitoringContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
 from ctapipe.io import HDF5TableReader, read_table
 from .containers import LSTArrayEventContainer
 from traitlets import Enum
@@ -339,33 +339,25 @@ class LSTR0Corrections(TelescopeComponent):
         """
         Read the correction from hdf5 calibration file
         """
-        mon = MonitoringContainer()
 
         with tables.open_file(path) as f:
-            tel_ids = [
-                int(key[4:]) for key in f.root._v_children.keys()
+            tel_groups = [
+                key for key in f.root._v_children.keys()
                 if key.startswith('tel_')
             ]
 
-        for tel_id in tel_ids:
+        mon = MonitoringContainer()
+
+        for base in tel_groups:
             with HDF5TableReader(path) as h5_table:
-                base = f'/tel_{tel_id}'
                 # read the calibration data
-                table = base + '/calibration'
-                next(h5_table.read(table, mon.tel[tel_id].calibration))
-
-                # read pedestal data
-                table = base + '/pedestal'
-                next(h5_table.read(table, mon.tel[tel_id].pedestal))
-
-                # read flat-field data
-                table = base + '/flatfield'
-                next(h5_table.read(table, mon.tel[tel_id].flatfield))
-
-                # read the pixel_status container
-                table = base + '/pixel_status'
-                next(h5_table.read(table, mon.tel[tel_id].pixel_status))
-
+                tel_id = int(base[4:])
+                mon.tel[tel_id] = MonitoringCameraContainer(
+                    calibration=next(h5_table.read(f'/{base}/calibration', WaveformCalibrationContainer)),
+                    pedestal=next(h5_table.read(f'/{base}/pedestal', PedestalContainer)),
+                    flatfield=next(h5_table.read(f'/{base}/flatfield', FlatFieldContainer)),
+                    pixel_status=next(h5_table.read(f"/{base}/pixel_status", PixelStatusContainer)),
+                )
         return mon
 
     @staticmethod

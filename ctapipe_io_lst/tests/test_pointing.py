@@ -26,7 +26,7 @@ def test_interpolation():
     from ctapipe_io_lst.pointing import PointingSource
     from ctapipe_io_lst import LSTEventSource
 
-    subarray = LSTEventSource.create_subarray(geometry_version=4)
+    subarray = LSTEventSource.create_subarray()
     pointing_source = PointingSource(
         subarray=subarray,
         drive_report_path=test_drive_report,

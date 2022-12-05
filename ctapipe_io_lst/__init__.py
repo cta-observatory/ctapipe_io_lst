@@ -9,12 +9,14 @@ import os
 from os import listdir
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
+    ReflectorShape,
     TelescopeDescription,
     SubarrayDescription,
     CameraDescription,
     CameraReadout,
     CameraGeometry,
     OpticsDescription,
+    SizeType,
 )
 from enum import IntFlag, auto
 from astropy.time import Time
@@ -24,6 +26,7 @@ from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
     PixelStatusContainer, EventType, R0CameraContainer, R1CameraContainer,
+    SchedulingBlockContainer, ObservationBlockContainer,
 )
 from ctapipe.coordinates import CameraFrame
 
@@ -41,7 +44,7 @@ from .anyarray_dtypes import (
     TIB_DTYPE,
 )
 from .constants import (
-    HIGH_GAIN, N_GAINS, N_PIXELS, N_SAMPLES
+    HIGH_GAIN, N_GAINS, N_PIXELS, N_SAMPLES, LST1_LOCATION,
 )
 
 
@@ -88,11 +91,14 @@ class PixelStatus(IntFlag):
     BOTH_GAINS_STORED = HIGH_GAIN_STORED | LOW_GAIN_STORED
 
 OPTICS = OpticsDescription(
-    'LST',
+    name='LST',
+    size_type=SizeType.LST,
+    n_mirrors=1,
+    n_mirror_tiles=198,
+    reflector_shape=ReflectorShape.PARABOLIC,
     equivalent_focal_length=u.Quantity(28, u.m),
-    num_mirrors=1,
+    effective_focal_length=u.Quantity(29.30565, u.m),
     mirror_area=u.Quantity(386.73, u.m**2),
-    num_mirror_tiles=198,
 )
 
 
@@ -112,14 +118,14 @@ def get_channel_info(pixel_status):
     return (pixel_status & 0b1100) >> 2
 
 
-def load_camera_geometry(version=4):
+def load_camera_geometry():
     ''' Load camera geometry from bundled resources of this repo '''
     f = resource_filename(
-        'ctapipe_io_lst', f'resources/LSTCam-{version:03d}.camgeom.fits.gz'
+        'ctapipe_io_lst', f'resources/LSTCam.camgeom.fits.gz'
     )
     Provenance().add_input_file(f, role="CameraGeometry")
     cam = CameraGeometry.from_table(f)
-    cam.frame = CameraFrame(focal_length=OPTICS.equivalent_focal_length)
+    cam.frame = CameraFrame(focal_length=OPTICS.effective_focal_length)
     return cam
 
 
@@ -278,28 +284,43 @@ class LSTEventSource(EventSource):
             self.input_url,
             parent=self,
         )
-        self.geometry_version = 4
-
         self.camera_config = self.multi_file.camera_config
+        self.run_id = self.camera_config.configuration_id
         self.tel_id = self.camera_config.telescope_id
-        self._subarray = self.create_subarray(self.geometry_version, self.tel_id)
+        self.date_of_run = Time(self.camera_config.date, format='unix')
+
+        self._subarray = self.create_subarray(self.tel_id)
         self.r0_r1_calibrator = LSTR0Corrections(
             subarray=self._subarray, parent=self
         )
         self.time_calculator = EventTimeCalculator(
             subarray=self.subarray,
-            run_id=self.camera_config.configuration_id,
+            run_id=self.run_id,
             expected_modules_id=self.camera_config.lstcam.expected_modules_id,
             parent=self,
         )
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
         self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
+        
+        self._scheduling_blocks = {
+            self.run_id: SchedulingBlockContainer(
+                sb_id=np.uint64(self.run_id),
+                producer_id="LST-1",
+            )
+        }
+
+        self._observation_blocks = {
+            self.run_id: ObservationBlockContainer(
+                obs_id=np.uint64(self.run_id),
+                sb_id=np.uint64(self.run_id),
+                producer_id="LST-1",
+            )
+        }
 
         self.read_pedestal_ids()
 
         if self.use_flatfield_heuristic is None:
-            date_of_run = Time(self.camera_config.date, format='unix')
-            self.use_flatfield_heuristic = date_of_run < NO_FF_HEURISTIC_DATE
+            self.use_flatfield_heuristic = self.date_of_run < NO_FF_HEURISTIC_DATE
             self.log.info(f"Changed `use_flatfield_heuristic` to {self.use_flatfield_heuristic}")
 
     @property
@@ -313,7 +334,15 @@ class LSTEventSource(EventSource):
     @property
     def obs_ids(self):
         # currently no obs id is available from the input files
-        return [self.camera_config.configuration_id, ]
+        return list(self.observation_blocks)
+
+    @property
+    def observation_blocks(self):
+        return self._observation_blocks
+
+    @property
+    def scheduling_blocks(self):
+        return self._scheduling_blocks
 
     @property
     def datalevels(self):
@@ -322,7 +351,7 @@ class LSTEventSource(EventSource):
         return (DataLevel.R0, )
 
     @staticmethod
-    def create_subarray(geometry_version, tel_id=1):
+    def create_subarray(tel_id=1):
         """
         Obtain the subarray from the EventSource
         Returns
@@ -330,34 +359,39 @@ class LSTEventSource(EventSource):
         ctapipe.instrument.SubarrayDescription
         """
 
-        # camera info from LSTCam-[geometry_version].camgeom.fits.gz file
-        camera_geom = load_camera_geometry(version=geometry_version)
+        camera_geom = load_camera_geometry()
 
         # get info on the camera readout:
         daq_time_per_sample, pulse_shape_time_step, pulse_shapes = read_pulse_shapes()
 
         camera_readout = CameraReadout(
-            'LSTCam',
-            1 / daq_time_per_sample,
-            pulse_shapes,
-            pulse_shape_time_step,
+            name='LSTCam',
+            n_pixels=N_PIXELS,
+            n_channels=N_GAINS,
+            n_samples=N_SAMPLES,
+            sampling_rate=(1 / daq_time_per_sample).to(u.GHz),
+            reference_pulse_shape=pulse_shapes,
+            reference_pulse_sample_width=pulse_shape_time_step,
         )
 
-        camera = CameraDescription('LSTCam', camera_geom, camera_readout)
+        camera = CameraDescription(name='LSTCam', geometry=camera_geom, readout=camera_readout)
 
         lst_tel_descr = TelescopeDescription(
-            name='LST', tel_type='LST', optics=OPTICS, camera=camera
+            name='LST', optics=OPTICS, camera=camera
         )
 
         tel_descriptions = {tel_id: lst_tel_descr}
 
-        # LSTs telescope position taken from MC from the moment
-        tel_positions = {tel_id: [50., 50., 16] * u.m}
+        # put LST at 0, so that it is at the given position
+        # TODO: is that the right choice for LST + MAGIC Analysis?
+        # or should we use the same relative position and reference point as the MC?
+        tel_positions = {tel_id: [0, 0, 0] * u.m}
 
         subarray = SubarrayDescription(
             name=f"LST-{tel_id} subarray",
             tel_descriptions=tel_descriptions,
             tel_positions=tel_positions,
+            reference_location=LST1_LOCATION,
         )
 
         return subarray

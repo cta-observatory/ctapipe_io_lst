@@ -84,7 +84,7 @@ def test_init():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.calibration import LSTR0Corrections
 
-    subarray = LSTEventSource.create_subarray(geometry_version=4)
+    subarray = LSTEventSource.create_subarray()
     r0corr = LSTR0Corrections(subarray)
     assert r0corr.last_readout_time.keys() == {1, }
 

@@ -119,7 +119,7 @@ def test_ucts_jumps():
     lst.svc.module_ids = np.arange(N_MODULES)
     lst.evt.module_status = np.ones(N_MODULES)
 
-    subarray = LSTEventSource.create_subarray(geometry_version=4, tel_id=1)
+    subarray = LSTEventSource.create_subarray(tel_id=1)
 
     true_time_s = int(Time.now().unix)
 
@@ -213,7 +213,7 @@ def test_extract_reference_values(caplog):
     from ctapipe_io_lst.event_time import EventTimeCalculator, CENTRAL_MODULE
     from ctapipe_io_lst import LSTEventSource
 
-    subarray = LSTEventSource.create_subarray(geometry_version=4, tel_id=1)
+    subarray = LSTEventSource.create_subarray(tel_id=1)
 
     # no reference values given and extract_reference = False should raise
     with pytest.raises(ValueError):
@@ -269,7 +269,7 @@ def test_no_reference_values_no_ucts(caplog):
     from ctapipe_io_lst.event_time import EventTimeCalculator, CENTRAL_MODULE
     from ctapipe_io_lst import LSTEventSource
 
-    subarray = LSTEventSource.create_subarray(geometry_version=4, tel_id=1)
+    subarray = LSTEventSource.create_subarray(tel_id=1)
 
     # test ucts reference extaction works
     time_calculator = EventTimeCalculator(

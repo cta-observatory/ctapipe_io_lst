@@ -1,4 +1,6 @@
 import numpy as np
+import astropy.units as u
+from astropy.coordinates import EarthLocation
 
 N_GAINS = 2
 N_MODULES = 265
@@ -20,3 +22,6 @@ CHANNEL_ORDER_HIGH_GAIN = [0, 0, 1, 1, 2, 2, 3]
 CHANNEL_ORDER_LOW_GAIN = [4, 4, 5, 5, 6, 6, 7]
 
 PIXEL_INDEX = np.arange(N_PIXELS)
+
+#: location of lst-1 as `~astropy.coordinates.EarthLocation`
+LST1_LOCATION = EarthLocation(lon=-17.89139 * u.deg, lat=28.76139 * u.deg, height=2184 * u.m)
