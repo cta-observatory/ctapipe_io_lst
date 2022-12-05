@@ -62,12 +62,11 @@ def test_stage1(tmp_path):
     tool = ProcessorTool()
     output = tmp_path / "test_dl1.h5"
 
-    ret = run_tool(tool, argv=[
+    run_tool(tool, argv=[
         f'--input={test_r0_path}',
         f'--output={output}',
         f'--config={config_path}',
-    ])
-    assert ret == 0
+    ], raises=True)
 
     # test our custom default works
     assert tool.event_source.r0_r1_calibrator.gain_selector.threshold == 3500
@@ -137,12 +136,11 @@ def test_no_ff_tagging(tmp_path):
     tool = ProcessorTool()
     output = tmp_path / "test_dl1.h5"
 
-    ret = run_tool(tool, argv=[
+    run_tool(tool, argv=[
         f'--input={test_r0_path}',
         f'--output={output}',
         f'--config={config_path}',
-    ])
-    assert ret == 0
+    ], raises=True)
 
     # test our custom default works
     assert tool.event_source.r0_r1_calibrator.gain_selector.threshold == 3500
