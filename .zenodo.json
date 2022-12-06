@@ -1,7 +1,7 @@
 {
-    "description": "`ctapipe_io_lst`: ctapipe IO plugin for LST prototype data",
-    "license": "BSD-3-Clause",
-    "keywords": [
+      "description": "`ctapipe_io_lst`: ctapipe IO plugin for LST prototype data",
+      "license": "BSD-3-Clause",
+      "keywords": [
         "gamma-ray astronomy",
         "Imaging Atmospheric Cherenkov Telescope",
         "Large Sized Telescope",
@@ -9,14 +9,14 @@
         "LST",
         "CTA",
         "python"
-    ],
-    "upload_type": "software",
-    "access_right": "open",
-    "creators": [
+      ],
+      "upload_type": "software",
+      "access_right": "open",
+      "creators": [
         {
-            "name": "Maximilian Nöthe",
-            "orcid": "0000-0001-7993-8189",
-            "affiliation": "Department of Physics, TU Dortmund University, Otto-Hahn-Str. 4, 44221 Dortmund, Germany"
+          "name": "Maximilian Linhoff",
+          "orcid": "0000-0001-7993-8189",
+          "affiliation": "Astroparticle Physics, TU Dortmund University, Otto-Hahn-Str. 4a, 44221 Dortmund, Germany"
         },
         {
             "name": "Franca Cassol",
