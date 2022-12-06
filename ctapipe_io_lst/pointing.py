@@ -3,12 +3,14 @@ from pathlib import Path
 import numpy as np
 from scipy.interpolate import interp1d
 
-from astropy.table import Table
+from astropy.table import Table, Column
 from astropy import units as u
 
 from ctapipe.core import TelescopeComponent, Provenance
 from ctapipe.core import traits
 from ctapipe.containers import TelescopePointingContainer
+
+from astropy.time import Time
 
 
 __all__ = [
@@ -20,10 +22,40 @@ NAN_ANGLE = np.nan * u.deg
 
 
 class PointingSource(TelescopeComponent):
-    """Provides access to pointing information stored in LST drive reports."""
+    """Provides access to pointing information stored in LST drive reports.
+    """
     drive_report_path = traits.TelescopeParameter(
         trait=traits.Path(exists=True, directory_ok=False, allow_none=True),
-        help='Path to the LST drive report file',
+        help=(
+            'Path to the LST drive report file.'
+            ' This has to be the new format, where files are called'
+            ' DrivePosition_log_YYYYMMDD.txt'
+            ' If a corresponding file BendingModelCorrection_log_YYYYMMDD.txt'
+            ' is available next to the given path, it is read and used as well'
+        ),
+        default_value=None,
+    ).tag(config=True)
+
+    bending_model_corrections_path = traits.TelescopeParameter(
+        trait=traits.Path(exists=True, directory_ok=False, allow_none=True),
+        help=(
+            'Path to the LST bending model corrections file.'
+            ' This has to be the new format, where files are called'
+            ' BendingModelCorrections_log_YYYYMMDD.txt'
+            ' If this is None, but a drive position log is given, the PointingSource will look for '
+            ' the corresponding BendingModelCorrection_log in the same directory'
+        ),
+        default_value=None,
+    ).tag(config=True)
+
+    target_log_path = traits.TelescopeParameter(
+        trait=traits.Path(exists=True, directory_ok=False, allow_none=True),
+        help=(
+            'Path to the LST target log.'
+            ' This has to be the file usually called Target_log_YYYYMMDD.txt'
+            ' If this is None, but a drive position log is given, the PointingSource will look for '
+            ' the corresponding Target_log in the same directory'
+        ),
         default_value=None,
     ).tag(config=True)
 
@@ -31,49 +63,107 @@ class PointingSource(TelescopeComponent):
         '''Initialize PointingSource'''
 
         super().__init__(subarray, config=config, parent=parent, **kwargs)
-        self.drive_report = {}
+        self.drive_log = {}
+        self.target_log = {}
         self.interp_az = {}
         self.interp_alt = {}
-        self.interp_ra = {}
-        self.interp_dec = {}
 
     @staticmethod
-    def _read_drive_report(path):
+    def _read_target_log(path):
+        path = Path(path)
+
+        def parse_start(tokens):
+            return {
+                "start_unix": int(tokens[0]),
+                "ra": float(tokens[2]),
+                "dec": float(tokens[3]),
+                "name": tokens[4],
+            }
+
+        def parse_end(tokens):
+            return {"end_unix": int(tokens[0])}
+
+        # state machine for Tracking/not Tracking
+        Provenance().add_input_file(str(path), "target log")
+        tracking = False
+        targets = []
+        with path.open("r") as f:
+            for line in f:
+                line = line.strip()
+
+                if line == "":
+                    continue
+
+                tokens = line.strip().split(" ")
+                if tokens[1] == "TrackStart":
+                    if tracking:
+                        raise ValueError(f"Expected TrackingEnd, got {line}")
+                    tracking = True
+                    targets.append(parse_start(tokens))
+
+                elif tokens[1] == "TrackEnd":
+                    if not tracking:
+                        raise ValueError(f"Expected TrackingStart, got {line}")
+                    tracking = False
+                    targets[-1].update(parse_end(tokens))
+
+        if len(targets) > 0:
+            table = Table(targets, units={"ra": u.deg, "dec": u.deg})
+        else:
+            table = Table([
+                Column([], name="start_unix", dtype=int),
+                Column([], name="ra", dtype=float, unit=u.deg),
+                Column([], name="dec", dtype=float, unit=u.deg),
+                Column([], name="name", dtype=str),
+                Column([], name="end_unix", dtype=int),
+            ])
+
+        for col in ("start", "end"):
+            table[col] = Time(table[f"{col}_unix"], format="unix")
+            table[col].format = "isot"
+
+        return table
+
+    @staticmethod
+    def _read_drive_report(path, bending_model_corrections_path=None):
         """
         Read a drive report into an astropy table
 
-        Parameters:
-        -----------
-        str: drive report file
+        Parameters
+        ----------
+        path : str or Path
+            drive report file
 
-        Returns:
-        data:`~astropy.table.Table`
-             A table of drive reports
-
+        Returns
+        -------
+        data : `~astropy.table.Table`
+            A table of drive reports
         """
         path = Path(path)
         Provenance().add_input_file(str(path), 'drive positioning')
-        data = Table.read(
-            path, format='ascii', delimiter=' ',
-            header_start=None,
-            data_start=0,
-            # the Az, Zd, Ra, Dec columns are just dummies, the file
-            # always contains "Az", "Zd" (or "El" for older files), "Ra", "Dec"
-            names=[
-                'weekday', 'month', 'day', 'time', 'year', 'unix_time',
-                'Az', 'azimuth_avg', 'azimuth_min', 'azimuth_max', 'azimuth_std',
-                'Zd', 'zenith_avg', 'zenith_min', 'zenith_max', 'zenith_std',
-                'Ra', 'target_ra', 'Dec', 'target_dec',
-            ],
-            exclude_names=['weekday', 'month', 'day', 'time', 'year', 'Az', 'Zd', 'Ra', 'Dec'],
-        )
+
+        try:
+            data = Table.read(
+                path, format='ascii', delimiter=' ',
+                header_start=None,
+                data_start=0,
+                names=["unix_time", "azimuth", "zenith"],
+            )
+        except Exception as e:
+            raise IOError("Error reading drive report path") from e
 
         # check for bending model corrections
-        bending_path = path.with_name(path.name.replace('drive', 'bendingmodelcorrection'))
-        if not bending_path.exists():
-            return data
+        # if the filename is not mathcing the general scheme, we cannot look for the bending model
+        if bending_model_corrections_path is None:
+            if "DrivePosition" not in path.name:
+                return data
 
-        corrections = PointingSource._read_bending_model_corrections(bending_path)
+            bending_name = path.name.replace('DrivePosition', 'BendingModelCorrection')
+            bending_model_corrections_path = path.with_name(bending_name)
+            if not bending_model_corrections_path.exists():
+                return data
+
+        corrections = PointingSource._read_bending_model_corrections(bending_model_corrections_path)
 
         # according to an email by Armand Fiasson, the timestamps are guaranteed to be equal
         # but it might happen that one report has more rows than the other due to different
@@ -87,8 +177,7 @@ class PointingSource(TelescopeComponent):
             raise IOError('Drive report and corrections timestamps differ')
 
         for col in ['azimuth', 'zenith']:
-            for key in ['avg', 'min', 'max']:
-                data[f'{col}_{key}'] += corrections[f'{col}_correction']
+            data[col] += corrections[f'{col}_correction']
 
         return data
 
@@ -104,20 +193,7 @@ class PointingSource(TelescopeComponent):
             delimiter=" ",
             header_start=None,
             data_start=0,
-            names=[
-                "weekday",
-                "month",
-                "day",
-                "time",
-                "year",
-                "unix_time",
-                "Az", # dummy for the column always containing "Az"
-                "azimuth_correction",
-                # dummy for the column always containing "Zd" or "El" for older files
-                "Zd",
-                "zenith_correction",
-            ],
-            exclude_names=["weekday", "month", "day", "time", "year", "Az", "Zd"],
+            names=["unix_time", "azimuth_correction", "zenith_correction"],
         )
 
     def _read_drive_report_for_tel(self, tel_id):
@@ -125,25 +201,18 @@ class PointingSource(TelescopeComponent):
         if path is None:
             raise ValueError(f'No drive report given for telescope {tel_id}')
 
+        bending_model_corrections_path = self.bending_model_corrections_path.tel[tel_id]
+
         self.log.info(f'Loading drive report "{path}" for tel_id={tel_id}')
-        self.drive_report[tel_id] = self._read_drive_report(path)
+        self.drive_log[tel_id] = self._read_drive_report(path, bending_model_corrections_path)
 
         self.interp_az[tel_id] = interp1d(
-            self.drive_report[tel_id]['unix_time'],
-            self.drive_report[tel_id]['azimuth_avg'],
+            self.drive_log[tel_id]['unix_time'],
+            self.drive_log[tel_id]['azimuth'],
         )
         self.interp_alt[tel_id] = interp1d(
-            self.drive_report[tel_id]['unix_time'],
-            90 - self.drive_report[tel_id]['zenith_avg'],
-        )
-
-        self.interp_ra[tel_id] = interp1d(
-            self.drive_report[tel_id]['unix_time'],
-            self.drive_report[tel_id]['target_ra'],
-        )
-        self.interp_dec[tel_id] = interp1d(
-            self.drive_report[tel_id]['unix_time'],
-            self.drive_report[tel_id]['target_dec'],
+            self.drive_log[tel_id]['unix_time'],
+            90 - self.drive_log[tel_id]['zenith'],
         )
 
     def get_pointing_position_altaz(self, tel_id, time):
@@ -158,7 +227,7 @@ class PointingSource(TelescopeComponent):
         Drivereport: Container
             a container filled with drive information
         """
-        if tel_id not in self.drive_report:
+        if tel_id not in self.drive_log:
             self._read_drive_report_for_tel(tel_id)
 
         alt = u.Quantity(self.interp_alt[tel_id](time.unix), u.deg)
@@ -170,15 +239,64 @@ class PointingSource(TelescopeComponent):
         )
 
     def get_pointing_position_icrs(self, tel_id, time):
-        if tel_id not in self.drive_report:
-            self._read_drive_report_for_tel(tel_id)
+        """Return the target pointing position in ra/dec"""
+        target = self.get_target(tel_id, time)
+        if target is None:
+            return NAN_ANGLE, NAN_ANGLE
 
-        ra = u.Quantity(self.interp_ra[tel_id](time.unix), u.deg)
-        dec = u.Quantity(self.interp_dec[tel_id](time.unix), u.deg)
+        return target["ra"], target["dec"]
 
-        # drive reports contain 0 / 0 if not tracking ICRS coordinates
-        # TODO: hope we never really observe ra=0°, dec=0°
-        if ra != 0.0 and dec != 0.0:
-            return ra, dec
+    def _get_target_log_path(self, tel_id):
+        """Get the path for the Target_log_YYYYMMDD.txt file
 
-        return NAN_ANGLE, NAN_ANGLE
+        If the explicit traitlet is None, use the ``drive_report_path`` to
+        look for a Target log in the same directory.
+        """
+        path = self.target_log_path.tel[tel_id]
+
+        if path is not None:
+            return path
+
+        drive_path = self.drive_report_path.tel[tel_id]
+        if drive_path is None:
+            return None
+
+        if "DrivePosition" in drive_path.name:
+            target_name = drive_path.name.replace('DrivePosition', 'Target')
+            target_path = drive_path.with_name(target_name)
+            if target_path.exists():
+                return target_path
+
+        return None
+
+    def get_target(self, tel_id, time):
+        if tel_id not in self.target_log:
+            path = self._get_target_log_path(tel_id)
+            if path is None:
+                self.target_log[tel_id] = None
+            else:
+                self.target_log[tel_id] = self._read_target_log(path)
+
+        targets = self.target_log[tel_id]
+        if targets is None:
+            return
+
+        time_unix = time.unix
+
+        idx = np.searchsorted(targets["start_unix"], time_unix)
+
+        # completely outside the available trackings
+        if idx == 0 or idx > len(targets):
+            return None
+
+        row = targets[idx - 1]
+
+        # start_unix <= time_unix is guaranteed by searchsorted
+        if time_unix > row["end_unix"]:
+            return None
+
+        return {
+            "name": row["name"],
+            "ra": u.Quantity(row["ra"], targets["ra"].unit),
+            "dec": u.Quantity(row["dec"], targets["dec"].unit)
+        }
