@@ -101,7 +101,7 @@ def test_targets():
     capella = Time(1582069585, format="unix")
     after_last_tracking = Time(1582070175, format="unix")
 
-    subarray = LSTEventSource.create_subarray(geometry_version=4, tel_id=1)
+    subarray = LSTEventSource.create_subarray(tel_id=1)
 
     # test explicitly giving path and with using drive_report_path
     test_kwargs = [
