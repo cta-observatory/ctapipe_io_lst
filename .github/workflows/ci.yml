@@ -50,6 +50,12 @@ jobs:
           pip install pytest-cov "git+https://github.com/cta-observatory/ctapipe@$CTAPIPE_VERSION"
           git describe --tags
 
+      - name: Test Plugin
+        shell: bash -l {0}
+        run: |
+          # check the LSTEventSource is available for LST
+          python eventsource_subclasses.py | grep LSTEventSource
+
       - name: Download test data
         env:
           TEST_DATA_USER: ${{ secrets.test_data_user }}
