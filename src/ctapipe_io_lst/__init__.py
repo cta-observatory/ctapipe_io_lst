@@ -25,7 +25,7 @@ from ctapipe.io import EventSource, read_table
 from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
-    PixelStatusContainer, EventType, R0CameraContainer, R1CameraContainer,
+    CoordinateFrameType, ObservingMode, PixelStatusContainer, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
     SchedulingBlockContainer, ObservationBlockContainer,
 )
 from ctapipe.coordinates import CameraFrame
@@ -90,6 +90,7 @@ class PixelStatus(IntFlag):
 
     BOTH_GAINS_STORED = HIGH_GAIN_STORED | LOW_GAIN_STORED
 
+#: LST Optics Description
 OPTICS = OpticsDescription(
     name='LST',
     size_type=SizeType.LST,
@@ -287,7 +288,7 @@ class LSTEventSource(EventSource):
         self.camera_config = self.multi_file.camera_config
         self.run_id = self.camera_config.configuration_id
         self.tel_id = self.camera_config.telescope_id
-        self.date_of_run = Time(self.camera_config.date, format='unix')
+        self.run_start = Time(self.camera_config.date, format='unix')
 
         self._subarray = self.create_subarray(self.tel_id)
         self.r0_r1_calibrator = LSTR0Corrections(
@@ -302,10 +303,22 @@ class LSTEventSource(EventSource):
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
         self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
         
+
+        target_info = {}
+        pointing_mode = PointingMode.UNKNOWN
+        if self.pointing_information:
+            target = self.pointing_source.get_target(tel_id=self.tel_id, time=self.run_start)
+            if target is not None:
+                target_info["subarray_pointing_lon"] = target["ra"]
+                target_info["subarray_pointing_lat"] = target["dec"]
+                target_info["subarray_pointing_frame"] = CoordinateFrameType.ICRS
+                pointing_mode = PointingMode.TRACK
+
         self._scheduling_blocks = {
             self.run_id: SchedulingBlockContainer(
                 sb_id=np.uint64(self.run_id),
-                producer_id="LST-1",
+                producer_id=f"LST-{self.tel_id}",
+                pointing_mode=pointing_mode,
             )
         }
 
@@ -313,14 +326,18 @@ class LSTEventSource(EventSource):
             self.run_id: ObservationBlockContainer(
                 obs_id=np.uint64(self.run_id),
                 sb_id=np.uint64(self.run_id),
-                producer_id="LST-1",
+                producer_id=f"LST-{self.tel_id}",
+                actual_start_time=self.run_start,
+                **target_info
             )
         }
 
         self.read_pedestal_ids()
 
+
+
         if self.use_flatfield_heuristic is None:
-            self.use_flatfield_heuristic = self.date_of_run < NO_FF_HEURISTIC_DATE
+            self.use_flatfield_heuristic = self.run_start < NO_FF_HEURISTIC_DATE
             self.log.info(f"Changed `use_flatfield_heuristic` to {self.use_flatfield_heuristic}")
 
     @property

@@ -8,7 +8,7 @@ from traitlets.config import Config
 import pytest
 import tables
 
-from ctapipe.containers import EventType
+from ctapipe.containers import CoordinateFrameType, EventType, PointingMode
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
 from ctapipe_io_lst.constants import N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS
@@ -214,6 +214,19 @@ def test_pointing_info():
         test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz',
         config=Config(config),
     ) as source:
+
+        sb = source.scheduling_blocks[2008]
+        assert sb.sb_id == 2008
+        assert sb.pointing_mode is PointingMode.TRACK
+
+        obs = source.observation_blocks[2008]
+        assert u.isclose(obs.subarray_pointing_lon, 83.6296 * u.deg)
+        assert u.isclose(obs.subarray_pointing_lat, 22.0144 * u.deg)
+        assert obs.subarray_pointing_frame is CoordinateFrameType.ICRS
+        assert obs.producer_id == "LST-1"
+        assert obs.obs_id == 2008
+        assert obs.sb_id == 2008
+
         for e in source:
             assert u.isclose(e.pointing.array_ra, 83.6296 * u.deg)
             assert u.isclose(e.pointing.array_dec, 22.0144 * u.deg)
