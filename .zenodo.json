@@ -1,0 +1,56 @@
+{
+      "description": "`ctapipe_io_lst`: ctapipe IO plugin for LST prototype data",
+      "license": "BSD-3-Clause",
+      "keywords": [
+        "gamma-ray astronomy",
+        "Imaging Atmospheric Cherenkov Telescope",
+        "Large Sized Telescope",
+        "IACT",
+        "LST",
+        "CTA",
+        "python"
+      ],
+      "upload_type": "software",
+      "access_right": "open",
+      "creators": [
+        {
+          "name": "Maximilian Linhoff",
+          "orcid": "0000-0001-7993-8189",
+          "affiliation": "Astroparticle Physics, TU Dortmund University, Otto-Hahn-Str. 4a, 44221 Dortmund, Germany"
+        },
+        {
+            "name": "Franca Cassol",
+            "orcid": "0000-0002-0372-1992",
+            "affiliation": "Aix Marseille Univ, CNRS/IN2P3, CPPM, Marseille, France"
+        },
+        {
+            "name": "Thomas Vuillaume",
+            "orcid": "0000-0002-5686-2078",
+            "affiliation": "Laboratoire d’Annecy de Physique des Particules, Univ. Savoie Mont Blanc, CNRS, LAPP, 74000 Annecy, France"
+        },
+        {
+            "name": "Ruben Lopez Coto",
+            "orcid": "0000-0002-3882-9477"
+            "affiliation": "Instituto de Astrofísica de Andalucía - CSIC, Glorieta de la Astronomía s/n, 18008, Granada, Spain"
+        },
+        {
+            "name": "Abelardo Moralejo",
+            "affiliation": "Institut de Fisica d'Altes Energies (IFAE), The Barcelona Institute of Science and Technology, Campus UAB, 08193 Bellaterra (Barcelona), Spain",
+            "orcid": "0000-0002-1344-9080"
+        },
+        {
+            "name": "Daniel Morcuende",
+            "orcid": "0000-0001-9400-0922",
+            "affiliation": "Universidad Complutense de Madrid and Institute of Particle and Cosmos Physics (IPARCOS), Spain"
+        },
+        {
+            "name": "Jose Enrique Ruiz",
+            "orcid": "0000-0003-3274-4445",
+            "affiliation": "Instituto de Astrofísica de Andalucía - CSIC, Glorieta de la Astronomía s/n, 18008, Granada, Spain"
+        },
+        {
+            "name": "Seiya Nozaki",
+            "orcid": "0000-0002-6246-2767"
+        }
+    ]
+}
