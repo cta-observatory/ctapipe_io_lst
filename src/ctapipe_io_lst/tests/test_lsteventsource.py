@@ -103,6 +103,14 @@ def test_subarray():
     assert source.lst_service.telescope_id == 1
     assert source.lst_service.num_modules == 265
 
+    position = source.subarray.positions[1]
+    mc_position = [-6.336, 60.405, 12.5] * u.m
+
+    # mc uses slightly different reference location and z is off
+    # so only test x/y distance
+    distance = np.linalg.norm(mc_position[:2] - position[:2])
+    assert distance < 0.5 * u.m
+
     with tempfile.NamedTemporaryFile(suffix='.h5') as f:
         subarray.to_hdf(f.name)
 

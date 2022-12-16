@@ -2,11 +2,10 @@
 """
 EventSource for LSTCam protobuf-fits.fz-files.
 """
+from ctapipe.instrument.subarray import EarthLocation
 import numpy as np
 from astropy import units as u
 from pkg_resources import resource_filename
-import os
-from os import listdir
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
     ReflectorShape,
@@ -25,10 +24,12 @@ from ctapipe.io import EventSource, read_table
 from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
-    CoordinateFrameType, ObservingMode, PixelStatusContainer, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
+    CoordinateFrameType, PixelStatusContainer, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
     SchedulingBlockContainer, ObservationBlockContainer,
 )
 from ctapipe.coordinates import CameraFrame
+
+from ctapipe_io_lst.ground_frame import ground_frame_from_earth_location
 
 from .multifiles import MultiFiles
 from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer
@@ -44,7 +45,7 @@ from .anyarray_dtypes import (
     TIB_DTYPE,
 )
 from .constants import (
-    HIGH_GAIN, N_GAINS, N_PIXELS, N_SAMPLES, LST1_LOCATION,
+    HIGH_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, LST1_LOCATION, REFERENCE_LOCATION,
 )
 
 
@@ -254,6 +255,31 @@ class LSTEventSource(EventSource):
         )
     ).tag(config=True)
 
+    reference_position_lon = Float(
+        default_value=REFERENCE_LOCATION.lon.deg,
+        help=(
+            "Longitude of the reference location for telescope GroundFrame coordinates.",
+            " Default is the roughly area weighted average of LST-1, MAGIC-1 and MAGIC-2.",
+        )
+    ).tag(config=True)
+
+    reference_position_lat = Float(
+        default_value=REFERENCE_LOCATION.lat.deg,
+        help=(
+            "Latitude of the reference location for telescope GroundFrame coordinates.",
+            " Default is the roughly area weighted average of LST-1, MAGIC-1 and MAGIC-2.",
+        )
+    ).tag(config=True)
+
+    reference_position_height = Float(
+        default_value=REFERENCE_LOCATION.height.to_value(u.m),
+        help=(
+            "Height of the reference location for telescope GroundFrame coordinates.",
+            " Default is current MC obslevel.",
+        )
+    ).tag(config=True)
+
+
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
     def __init__(self, input_url=None, **kwargs):
@@ -290,7 +316,12 @@ class LSTEventSource(EventSource):
         self.tel_id = self.camera_config.telescope_id
         self.run_start = Time(self.camera_config.date, format='unix')
 
-        self._subarray = self.create_subarray(self.tel_id)
+        reference_location = EarthLocation(
+            lon=self.reference_position_lon * u.deg,
+            lat=self.reference_position_lat * u.deg,
+            height=self.reference_position_height * u.m,
+        )
+        self._subarray = self.create_subarray(self.tel_id, reference_location)
         self.r0_r1_calibrator = LSTR0Corrections(
             subarray=self._subarray, parent=self
         )
@@ -368,13 +399,15 @@ class LSTEventSource(EventSource):
         return (DataLevel.R0, )
 
     @staticmethod
-    def create_subarray(tel_id=1):
+    def create_subarray(tel_id=1, reference_location=None):
         """
         Obtain the subarray from the EventSource
         Returns
         -------
         ctapipe.instrument.SubarrayDescription
         """
+        if reference_location is None:
+            reference_location = REFERENCE_LOCATION
 
         camera_geom = load_camera_geometry()
 
@@ -399,10 +432,11 @@ class LSTEventSource(EventSource):
 
         tel_descriptions = {tel_id: lst_tel_descr}
 
-        # put LST at 0, so that it is at the given position
-        # TODO: is that the right choice for LST + MAGIC Analysis?
-        # or should we use the same relative position and reference point as the MC?
-        tel_positions = {tel_id: [0, 0, 0] * u.m}
+        xyz = ground_frame_from_earth_location(
+            LST_LOCATIONS[tel_id],
+            reference_location,
+        ).cartesian.xyz
+        tel_positions = {tel_id: xyz}
 
         subarray = SubarrayDescription(
             name=f"LST-{tel_id} subarray",
