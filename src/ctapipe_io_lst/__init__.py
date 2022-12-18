@@ -123,7 +123,7 @@ def get_channel_info(pixel_status):
 def load_camera_geometry():
     ''' Load camera geometry from bundled resources of this repo '''
     f = resource_filename(
-        'ctapipe_io_lst', f'resources/LSTCam.camgeom.fits.gz'
+        'ctapipe_io_lst', 'resources/LSTCam.camgeom.fits.gz'
     )
     Provenance().add_input_file(f, role="CameraGeometry")
     cam = CameraGeometry.from_table(f)
@@ -333,7 +333,6 @@ class LSTEventSource(EventSource):
         )
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
         self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
-        
 
         target_info = {}
         pointing_mode = PointingMode.UNKNOWN
