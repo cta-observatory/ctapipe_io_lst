@@ -258,24 +258,24 @@ class LSTEventSource(EventSource):
     reference_position_lon = Float(
         default_value=REFERENCE_LOCATION.lon.deg,
         help=(
-            "Longitude of the reference location for telescope GroundFrame coordinates.",
-            " Default is the roughly area weighted average of LST-1, MAGIC-1 and MAGIC-2.",
+            "Longitude of the reference location for telescope GroundFrame coordinates."
+            " Default is the roughly area weighted average of LST-1, MAGIC-1 and MAGIC-2."
         )
     ).tag(config=True)
 
     reference_position_lat = Float(
         default_value=REFERENCE_LOCATION.lat.deg,
         help=(
-            "Latitude of the reference location for telescope GroundFrame coordinates.",
-            " Default is the roughly area weighted average of LST-1, MAGIC-1 and MAGIC-2.",
+            "Latitude of the reference location for telescope GroundFrame coordinates."
+            " Default is the roughly area weighted average of LST-1, MAGIC-1 and MAGIC-2."
         )
     ).tag(config=True)
 
     reference_position_height = Float(
         default_value=REFERENCE_LOCATION.height.to_value(u.m),
         help=(
-            "Height of the reference location for telescope GroundFrame coordinates.",
-            " Default is current MC obslevel.",
+            "Height of the reference location for telescope GroundFrame coordinates."
+            " Default is current MC obslevel."
         )
     ).tag(config=True)
 
