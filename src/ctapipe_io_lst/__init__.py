@@ -507,28 +507,26 @@ class LSTEventSource(EventSource):
     @staticmethod
     def is_compatible(file_path):
         from astropy.io import fits
+
         try:
-            # The file contains two tables:
-            #  1: CameraConfig
-            #  2: Events
-            h = fits.open(file_path)[2].header
-            ttypes = [
-                h[x] for x in h.keys() if 'TTYPE' in x
-            ]
+            with fits.open(file_path) as hdul:
+                if "Events" not in hdul:
+                    return False
+
+                header = hdul["Events"].header
+                ttypes = {
+                    value for key, value in header.items()
+                    if 'TTYPE' in key
+                }
         except OSError:
-            # not even a fits file
             return False
 
-        except IndexError:
-            # A fits file of a different format
-            return False
 
         is_protobuf_zfits_file = (
-            (h['XTENSION'] == 'BINTABLE') and
-            (h['EXTNAME'] == 'Events') and
-            (h['ZTABLE'] is True) and
-            (h['ORIGIN'] == 'CTA') and
-            (h['PBFHEAD'] == 'R1.CameraEvent')
+            (header['XTENSION'] == 'BINTABLE')
+            and (header['ZTABLE'] is True)
+            and (header['ORIGIN'] == 'CTA')
+            and (header['PBFHEAD'] == 'R1.CameraEvent')
         )
 
         is_lst_file = 'lstcam_counters' in ttypes
