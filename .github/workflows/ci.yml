@@ -23,7 +23,7 @@ jobs:
 
     defaults:
       run:
-        shell: bash -exl {0}
+        shell: bash -leo pipefail {0}
 
     steps:
       - uses: actions/checkout@v3
@@ -37,12 +37,11 @@ jobs:
           sed -i -e "s/- python=.*/- python=$PYTHON_VERSION/g" environment.yml
 
       - name: Create and activate env
-        uses: conda-incubator/setup-miniconda@v2
+        uses: mamba-org/provision-with-micromamba@v14
         with:
-          mamba-version: "*"
-          use-mamba: true
-          activate-environment: lstio
+          environment-name: lstio
           environment-file: environment.yml
+          cache-downloads: true
 
       - name: Install
         env:
