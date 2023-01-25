@@ -14,6 +14,9 @@ jobs:
       matrix:
         python-version: ["3.7", "3.8"]
         ctapipe-version: ["v0.12.0", ]
+    defaults:
+      run:
+        shell: bash -leo pipefail {0}
 
     steps:
       - uses: actions/checkout@v2
@@ -27,12 +30,11 @@ jobs:
           sed -i -e "s/- python=.*/- python=$PYTHON_VERSION/g" environment.yml
 
       - name: Create and activate env
-        uses: conda-incubator/setup-miniconda@v2
+        uses: mamba-org/provision-with-micromamba@v14
         with:
-          mamba-version: "*"
-          use-mamba: true
-          activate-environment: lstio
+          environment-name: lstio
           environment-file: environment.yml
+          cache-downloads: true
 
       - name: Install
         shell: bash -l {0}
