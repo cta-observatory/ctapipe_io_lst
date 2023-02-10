@@ -10,7 +10,7 @@ from astropy.time import Time
 import astropy.units as u
 
 
-test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
+test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0000_first50.fits.fz'
 test_drive_report = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20200218.txt'
 test_run_summary = test_data / 'real/monitoring/RunSummary/RunSummary_20200218.ecsv'

@@ -5,7 +5,7 @@ from astropy.time import Time
 import astropy.units as u
 from ctapipe.core import Provenance
 
-test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
+test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_drive_report = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20200218.txt'
 test_bending_report = test_data / 'real/monitoring/DrivePositioning/BendingModelCorrection_log_20220220.txt'
 test_drive_report_with_bending = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20220220.txt'

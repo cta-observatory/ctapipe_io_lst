@@ -11,7 +11,7 @@ import astropy.units as u
 from ctapipe_io_lst.constants import N_MODULES
 from ctapipe_io_lst.containers import LSTArrayEventContainer
 
-test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
+test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_run_summary = test_data / 'real/monitoring/RunSummary/RunSummary_20200218.ecsv'
 
 
