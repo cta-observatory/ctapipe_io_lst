@@ -20,6 +20,21 @@ if astropy.version.major == 4 and astropy.version.minor <= 2 and astropy.version
 
 
 CENTRAL_MODULE = 132
+QNS_TO_S = 0.25e-9
+
+
+def cta_high_res_to_time(seconds, quarter_nanoseconds):
+    '''Convert cta high resolution timestamp to astropy Time'''
+    # unix_tai accepts two floats for maximum precision
+    # we can just pass integral and fractional part
+    fractional_seconds = quarter_nanoseconds * QNS_TO_S
+    return Time(
+        seconds,
+        fractional_seconds, 
+        format='unix_tai',
+        # this is only for displaying iso timestamp, not any actual precision
+        precision=9,
+    )
 
 
 # fix for https://github.com/ipython/traitlets/issues/637
