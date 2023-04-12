@@ -1,5 +1,4 @@
 import re
-import warnings
 from pathlib import Path
 from collections import namedtuple, defaultdict
 from itertools import count
@@ -158,16 +157,23 @@ class MultiFiles(Component):
             self._files.pop(stream).close()
 
         Provenance().add_input_file(str(path), "R0")
-        self._files[stream] = File(str(path))
+        file_ = File(str(path))
+        self._files[stream] = file_
         self.log.info("Opened file %s", path)
-        self._events_tables[stream] = self._files[stream].Events
+        self._events_tables[stream] = file_.Events
 
         # load first event from each stream
         event = next(self._events_tables[stream])
         self._events.put_nowait(NextEvent(event.event_id, event, stream))
 
         # make sure we have a camera config
-        config = next(self._files[stream].CameraConfig)
+        if hasattr(file_, "CameraConfig"):
+            config = next(file_.CameraConfig)
+            self.cta_r1 = False
+        else:
+            # new files use CameraConfiguration
+            self.cta_r1 = True
+            config = next(file_.CameraConfiguration)
         
         if self.camera_config is None:
             self.camera_config = config

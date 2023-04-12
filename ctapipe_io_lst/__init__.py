@@ -30,7 +30,7 @@ from .multifiles import MultiFiles
 from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer
 from .version import __version__
 from .calibration import LSTR0Corrections
-from .event_time import EventTimeCalculator
+from .event_time import EventTimeCalculator, cta_high_res_to_time
 from .pointing import PointingSource
 from .anyarray_dtypes import (
     CDTS_AFTER_37201_DTYPE,
@@ -283,25 +283,42 @@ class LSTEventSource(EventSource):
         self.geometry_version = 4
 
         self.camera_config = self.multi_file.camera_config
-        self.tel_id = self.camera_config.telescope_id
+
+        self.cta_r1 = self.multi_file.cta_r1
+        if self.cta_r1:
+            self.tel_id = self.camera_config.tel_id
+            self.local_run_id = self.camera_config.local_run_id
+            self.module_id_map = self.camera_config.module_id_map
+            self.pixel_id_map = self.camera_config.pixel_id_map
+            self.run_start = Time(self.camera_config.config_time_s, format="unix")
+            self.n_pixels = self.camera_config.num_pixels
+            self.n_samples = self.camera_config.num_samples_nominal
+        else:
+            self.tel_id = self.camera_config.telescope_id
+            self.local_run_id = self.camera_config.configuration_id
+            self.module_id_map = self.camera_config.lstcam.expected_modules_id
+            self.pixel_id_map = self.camera_config.expected_pixels_id
+            self.run_start = Time(self.camera_config.date, format="unix")
+            self.n_pixels = self.camera_config.num_pixels
+            self.n_samples = self.camera_config.num_samples
+            self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
+
         self._subarray = self.create_subarray(self.geometry_version, self.tel_id)
         self.r0_r1_calibrator = LSTR0Corrections(
             subarray=self._subarray, parent=self
         )
         self.time_calculator = EventTimeCalculator(
             subarray=self.subarray,
-            run_id=self.camera_config.configuration_id,
-            expected_modules_id=self.camera_config.lstcam.expected_modules_id,
+            run_id=self.local_run_id,
+            expected_modules_id=self.module_id_map,
             parent=self,
         )
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
-        self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
 
         self.read_pedestal_ids()
 
         if self.use_flatfield_heuristic is None:
-            date_of_run = Time(self.camera_config.date, format='unix')
-            self.use_flatfield_heuristic = date_of_run < NO_FF_HEURISTIC_DATE
+            self.use_flatfield_heuristic = self.run_start < NO_FF_HEURISTIC_DATE
             self.log.info(f"Changed `use_flatfield_heuristic` to {self.use_flatfield_heuristic}")
 
     @property
@@ -315,7 +332,7 @@ class LSTEventSource(EventSource):
     @property
     def obs_ids(self):
         # currently no obs id is available from the input files
-        return [self.camera_config.configuration_id, ]
+        return [self.local_run_id, ]
 
     @property
     def datalevels(self):
@@ -364,6 +381,18 @@ class LSTEventSource(EventSource):
 
         return subarray
 
+    def fill_from_cta_r1(self, array_event, zfits_event):
+        tel_id = self.tel_id
+        shape = (zfits_event.num_channels, zfits_event.num_pixels, zfits_event.num_samples)
+        waveform = zfits_event.waveform.reshape(shape)
+        array_event.r1.tel[self.tel_id] = R1CameraContainer(waveform=waveform)
+
+        trigger = array_event.trigger
+        trigger.time = cta_high_res_to_time(zfits_event.event_time_s, zfits_event.event_time_qns)
+        trigger.tels_with_trigger = [tel_id]
+        trigger.tel[tel_id].time = trigger.time
+        trigger.event_type = self._event_type_from_trigger_bits(zfits_event.event_type)
+
     def _generator(self):
 
         # container for LST data
@@ -373,7 +402,6 @@ class LSTEventSource(EventSource):
         array_event.meta['origin'] = 'LSTCAM'
 
         # also add service container to the event section
-        array_event.lst.tel[self.tel_id].svc = self.lst_service
 
         # initialize general monitoring container
         self.initialize_mon_container(array_event)
@@ -382,19 +410,24 @@ class LSTEventSource(EventSource):
         for count, zfits_event in enumerate(self.multi_file):
             array_event.count = count
             array_event.index.event_id = zfits_event.event_id
-            array_event.index.obs_id = self.obs_ids[0]
+            array_event.index.obs_id = self.local_run_id
 
             # Skip "empty" events that occur at the end of some runs
             if zfits_event.event_id == 0:
                 self.log.warning('Event with event_id=0 found, skipping')
                 continue
 
-            self.fill_r0r1_container(array_event, zfits_event)
-            self.fill_lst_event_container(array_event, zfits_event)
-            if self.trigger_information:
-                self.fill_trigger_info(array_event)
+            if self.cta_r1:
+                self.fill_from_cta_r1(array_event, zfits_event)
+            else:
+                array_event.lst.tel[self.tel_id].svc = self.lst_service
+                self.fill_r0r1_container(array_event, zfits_event)
+                self.fill_lst_event_container(array_event, zfits_event)
 
-            self.fill_mon_container(array_event, zfits_event)
+                if self.trigger_information:
+                    self.fill_trigger_info(array_event)
+
+                self.fill_mon_container(array_event, zfits_event)
 
             if self.pointing_information:
                 self.fill_pointing_info(array_event)
@@ -710,9 +743,9 @@ class LSTEventSource(EventSource):
 
         Missing or broken pixels are filled using maxval of the waveform dtype.
         """
-        n_pixels = self.camera_config.num_pixels
-        n_samples = self.camera_config.num_samples
-        expected_pixels = self.camera_config.expected_pixels_id
+        n_pixels = self.n_pixels
+        n_samples = self.n_samples
+        pixel_id_map = self.pixel_id_map
 
         has_low_gain = (zfits_event.pixel_status & PixelStatus.LOW_GAIN_STORED).astype(bool)
         has_high_gain = (zfits_event.pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
@@ -745,11 +778,11 @@ class LSTEventSource(EventSource):
                     " the run for which this happened."
                 )
 
-            reordered_waveform = np.full((N_PIXELS, N_SAMPLES), fill, dtype=dtype)
-            reordered_waveform[expected_pixels] = waveform
+            reordered_waveform = np.full((N_PIXELS, n_samples), fill, dtype=dtype)
+            reordered_waveform[pixel_id_map] = waveform
 
             reordered_selected_gain = np.full(N_PIXELS, -1, dtype=np.int8)
-            reordered_selected_gain[expected_pixels] = selected_gain
+            reordered_selected_gain[pixel_id_map] = selected_gain
 
             r0 = R0CameraContainer()
             r1 = R1CameraContainer(
@@ -761,7 +794,7 @@ class LSTEventSource(EventSource):
             # re-order the waveform following the expected_pixels_id values
             #  could also just do waveform = reshaped_waveform[np.argsort(expected_ids)]
             reordered_waveform = np.full((N_GAINS, N_PIXELS, N_SAMPLES), fill, dtype=dtype)
-            reordered_waveform[:, expected_pixels, :] = reshaped_waveform
+            reordered_waveform[:, pixel_id_map, :] = reshaped_waveform
             r0 = R0CameraContainer(waveform=reordered_waveform)
             r1 = R1CameraContainer()
 
