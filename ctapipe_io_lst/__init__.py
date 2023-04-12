@@ -2,11 +2,10 @@
 """
 EventSource for LSTCam protobuf-fits.fz-files.
 """
+import logging
 import numpy as np
 from astropy import units as u
 from pkg_resources import resource_filename
-import os
-from os import listdir
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
     TelescopeDescription,
@@ -43,6 +42,9 @@ from .anyarray_dtypes import (
 from .constants import (
     HIGH_GAIN, N_GAINS, N_PIXELS, N_SAMPLES
 )
+
+
+log = logging.getLogger(__name__)
 
 
 __all__ = ['LSTEventSource', '__version__']
@@ -427,6 +429,7 @@ class LSTEventSource(EventSource):
         try:
             with fits.open(file_path) as hdul:
                 if "Events" not in hdul:
+                    log.debug("FITS file does not contain an EVENTS HDU, returning False")
                     return False
 
                 header = hdul["Events"].header
@@ -434,19 +437,33 @@ class LSTEventSource(EventSource):
                     value for key, value in header.items()
                     if 'TTYPE' in key
                 }
-        except OSError:
+        except Exception as e:
+            log.debug(f"Error trying to open input file as fits: {e}")
             return False
 
+        if header["XTENSION"] != "BINTABLE":
+            log.debug(f"EVENTS HDU is not a bintable")
+            return False
 
-        is_protobuf_zfits_file = (
-            (header['XTENSION'] == 'BINTABLE')
-            and (header['ZTABLE'] is True)
-            and (header['ORIGIN'] == 'CTA')
-            and (header['PBFHEAD'] == 'R1.CameraEvent')
-        )
+        if not header.get("ZTABLE", False):
+            log.debug(f"ZTABLE is not in header or False")
+            return False
 
-        is_lst_file = 'lstcam_counters' in ttypes
-        return is_protobuf_zfits_file & is_lst_file
+        if header.get("ORIGIN", "") != "CTA":
+            log.debug("ORIGIN != CTA")
+            return False
+
+        proto_class = header.get("PBFHEAD")
+        if proto_class is None:
+            log.debug("Missing PBFHEAD key")
+            return False
+
+        if proto_class not in {"R1.CameraEvent", "CTAR1.Event"}:
+            log.debug(f"Unsupported PBDHEAD: {proto_class}")
+            return False
+
+        # TODO: how to differentiate nectarcam from lstcam?
+        return True
 
     @staticmethod
     def fill_lst_service_container(tel_id, camera_config):
