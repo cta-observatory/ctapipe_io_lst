@@ -4,6 +4,7 @@ import numpy as np
 from astropy.time import Time
 import astropy.units as u
 from ctapipe.core import Provenance
+from ctapipe_io_lst.pointing import PointingSource
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_drive_report = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20200218.txt'
@@ -124,3 +125,18 @@ def test_targets():
         }
         assert pointing.get_target(tel_id=1, time=between_obs) is None
         assert pointing.get_target(tel_id=1, time=after_last_tracking) is None
+
+
+
+def test_targets_missing_end(tmp_path):
+    target_log = test_target_log.read_text().splitlines()
+    # remove a TrackingEnd
+    target_log.pop(7)
+    path = tmp_path / "drive_log_missing_end.log"
+    with path.open("w") as f:
+        f.write("\n".join(target_log))
+
+    targets = PointingSource._read_target_log(path)
+    print()
+    print(targets)
+    assert targets[3]["end_unix"]  == targets[4]["start_unix"] 

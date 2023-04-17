@@ -2,9 +2,9 @@
 """
 EventSource for LSTCam protobuf-fits.fz-files.
 """
-from ctapipe.instrument.subarray import EarthLocation
 import numpy as np
 from astropy import units as u
+from astropy.coordinates import EarthLocation
 from pkg_resources import resource_filename
 from ctapipe.core import Provenance
 from ctapipe.instrument import (

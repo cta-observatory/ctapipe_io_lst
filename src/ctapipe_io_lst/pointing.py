@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +20,7 @@ __all__ = [
 
 
 NAN_ANGLE = np.nan * u.deg
+log = logging.getLogger(__name__)
 
 
 class PointingSource(TelescopeComponent):
@@ -69,7 +71,7 @@ class PointingSource(TelescopeComponent):
         self.interp_alt = {}
 
     @staticmethod
-    def _read_target_log(path):
+    def _read_target_log(path, log=log):
         path = Path(path)
 
         def parse_start(tokens):
@@ -96,14 +98,19 @@ class PointingSource(TelescopeComponent):
 
                 tokens = line.strip().split(" ")
                 if tokens[1] == "TrackStart":
+                    start = parse_start(tokens)
+
                     if tracking:
-                        raise ValueError(f"Expected TrackingEnd, got {line}")
+                        log.warning("Found TrackStart while already tracking, assuming previous tracking ended just now")
+                        # use start time of new tacking as end time of last if now TrackingEnd is there
+                        targets[-1].update({"end_unix": start["start_unix"]})
+
                     tracking = True
-                    targets.append(parse_start(tokens))
+                    targets.append(start)
 
                 elif tokens[1] == "TrackEnd":
                     if not tracking:
-                        raise ValueError(f"Expected TrackingStart, got {line}")
+                        raise ValueError(f"Expected TrackStart, got {line}")
                     tracking = False
                     targets[-1].update(parse_end(tokens))
 
@@ -275,7 +282,7 @@ class PointingSource(TelescopeComponent):
             if path is None:
                 self.target_log[tel_id] = None
             else:
-                self.target_log[tel_id] = self._read_target_log(path)
+                self.target_log[tel_id] = self._read_target_log(path, log=self.log)
 
         targets = self.target_log[tel_id]
         if targets is None:
