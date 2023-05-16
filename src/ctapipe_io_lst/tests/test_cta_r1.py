@@ -118,4 +118,4 @@ def test_no_calibration(dummy_cta_r1):
         n_events = 0
         for e in source:
             n_events += 1
-        assert n_events > 0
+        assert n_events == 800
