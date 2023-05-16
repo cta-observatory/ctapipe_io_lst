@@ -7,7 +7,7 @@ setup(
     install_requires=[
         'astropy~=4.2',
         'ctapipe~=0.12',
-        'protozfits~=2.0',
+        'protozfits~=2.2',
         'setuptools_scm',
         'numpy>=1.20,<1.23'
     ],

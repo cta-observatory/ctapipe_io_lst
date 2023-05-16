@@ -8,7 +8,6 @@ dependencies:
   - ctapipe=0.12
   - eventio
   - corsikaio
-  - protozfits=2.0
   - zeromq
   - ipython
   - numba
@@ -19,3 +18,5 @@ dependencies:
   - zlib
   - pip
   - h5py
+  - pip:
+    - protozfits==2.2
