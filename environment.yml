@@ -8,7 +8,7 @@ dependencies:
   - ctapipe=0.19
   - eventio
   - corsikaio
-  - protozfits=2
+  - protozfits=2.2
   - zeromq
   - ipython
   - numba
