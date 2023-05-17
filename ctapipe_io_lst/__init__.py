@@ -293,6 +293,7 @@ class LSTEventSource(EventSource):
             self.run_start = Time(self.camera_config.config_time_s, format="unix")
             self.n_pixels = self.camera_config.num_pixels
             self.n_samples = self.camera_config.num_samples_nominal
+            self.lst_service = self.fill_lst_service_container_ctar1(self.camera_config)
         else:
             self.tel_id = self.camera_config.telescope_id
             self.local_run_id = self.camera_config.configuration_id
@@ -383,9 +384,27 @@ class LSTEventSource(EventSource):
 
     def fill_from_cta_r1(self, array_event, zfits_event):
         tel_id = self.tel_id
-        shape = (zfits_event.num_channels, zfits_event.num_pixels, zfits_event.num_samples)
-        waveform = zfits_event.waveform.reshape(shape)
-        array_event.r1.tel[self.tel_id] = R1CameraContainer(waveform=waveform)
+
+        # TODO: decide from applied preprocessing options, not gains
+        if zfits_event.num_channels == 2:
+            shape = (zfits_event.num_channels, zfits_event.num_pixels, zfits_event.num_samples)
+            array_event.r0.tel[self.tel_id] = R0CameraContainer(
+                waveform=zfits_event.waveform.reshape(shape),
+            )
+            array_event.r1.tel[self.tel_id] = R1CameraContainer()
+        else:
+            has_high_gain = (zfits_event.pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
+            selected_gain_channel = np.where(has_high_gain, 0, 1)
+
+            shape = (zfits_event.num_pixels, zfits_event.num_samples)
+            array_event.r1.tel[self.tel_id] = R1CameraContainer(
+                waveform=zfits_event.waveform.reshape(shape),
+                selected_gain_channel=selected_gain_channel,
+            )
+            array_event.r0.tel[self.tel_id] = R0CameraContainer()
+
+        array_event.lst.tel[1].evt.first_capacitor_id = zfits_event.first_cell_id
+        array_event.lst.tel[1].evt.local_clock_counter = zfits_event.module_hires_local_clock_counter
 
         trigger = array_event.trigger
         trigger.time = cta_high_res_to_time(zfits_event.event_time_s, zfits_event.event_time_qns)
@@ -417,10 +436,11 @@ class LSTEventSource(EventSource):
                 self.log.warning('Event with event_id=0 found, skipping')
                 continue
 
+            array_event.lst.tel[self.tel_id].svc = self.lst_service
+
             if self.cta_r1:
                 self.fill_from_cta_r1(array_event, zfits_event)
             else:
-                array_event.lst.tel[self.tel_id].svc = self.lst_service
                 self.fill_r0r1_container(array_event, zfits_event)
                 self.fill_lst_event_container(array_event, zfits_event)
 
@@ -507,6 +527,7 @@ class LSTEventSource(EventSource):
         """
         return LSTServiceContainer(
             telescope_id=tel_id,
+            local_run_id=camera_config.configuration_id,
             cs_serial=camera_config.cs_serial,
             configuration_id=camera_config.configuration_id,
             date=camera_config.date,
@@ -520,6 +541,38 @@ class LSTEventSource(EventSource):
             cdhs_version=camera_config.lstcam.cdhs_version,
             algorithms=camera_config.lstcam.algorithms,
             pre_proc_algorithms=camera_config.lstcam.pre_proc_algorithms,
+        )
+
+    @staticmethod
+    def fill_lst_service_container_ctar1(camera_config):
+        """
+        Fill LSTServiceContainer with specific LST service data data
+        (from the CameraConfig table of zfit file)
+
+        """
+        return LSTServiceContainer(
+            telescope_id=camera_config.tel_id,
+            local_run_id=camera_config.local_run_id,
+            date=camera_config.config_time_s,
+            configuration_id=camera_config.camera_config_id,
+            pixel_ids=camera_config.pixel_id_map,
+            module_ids=camera_config.module_id_map,
+            num_modules=camera_config.num_modules,
+            num_pixels=camera_config.num_pixels,
+            num_channels=camera_config.num_channels,
+            num_samples=camera_config.num_samples_nominal,
+
+            data_model_version=camera_config.data_model_version,
+            calibration_service_id=camera_config.calibration_service_id,
+            calibration_algorithm_id=camera_config.calibration_algorithm_id,
+
+            # in debug in CTA R1 debug
+            cs_serial=camera_config.debug.cs_serial,
+            idaq_version=camera_config.debug.evb_version,
+            cdhs_version=camera_config.debug.cdhs_version,
+            tdp_type=camera_config.debug.tdp_type,
+            tdp_action=camera_config.debug.tdp_action,
+            ttype_pattern=camera_config.debug.ttype_pattern,
         )
 
     def fill_lst_event_container(self, array_event, zfits_event):
