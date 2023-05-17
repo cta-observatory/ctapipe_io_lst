@@ -500,7 +500,7 @@ class LSTEventSource(EventSource):
                 if self.trigger_information:
                     self.fill_trigger_info(array_event)
 
-                self.fill_mon_container(array_event, zfits_event)
+            self.fill_mon_container(array_event, zfits_event)
 
             if self.pointing_information:
                 self.fill_pointing_info(array_event)
@@ -968,10 +968,10 @@ class LSTEventSource(EventSource):
         status_container = array_event.mon.tel[self.tel_id].pixel_status
 
         # reorder the array
-        expected_pixels_id = self.camera_config.expected_pixels_id
+        pixel_id_map = self.pixel_id_map
 
         reordered_pixel_status = np.zeros(N_PIXELS, dtype=zfits_event.pixel_status.dtype)
-        reordered_pixel_status[expected_pixels_id] = zfits_event.pixel_status
+        reordered_pixel_status[pixel_id_map] = zfits_event.pixel_status
 
         channel_info = get_channel_info(reordered_pixel_status)
         status_container.hardware_failing_pixels[:] = channel_info == 0
