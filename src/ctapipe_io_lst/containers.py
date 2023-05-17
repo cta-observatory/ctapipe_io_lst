@@ -21,21 +21,34 @@ class LSTServiceContainer(Container):
     """
 
     # Data from the CameraConfig table
+    # present in CTA R1
     telescope_id = Field(-1, "telescope id")
-    cs_serial = Field(None, "serial number of the camera server")
-    configuration_id = Field(None, "id of the CameraConfiguration")
-    date = Field(None, "NTP start of run date")
-    num_pixels = Field(-1, "number of pixels")
-    num_samples = Field(-1, "num samples")
-    pixel_ids = Field([], "id of the pixels in the waveform array")
-    data_model_version = Field(None, "data model version")
+    local_run_id = Field(-1, "local run id")
+    date = Field(None, "config_time_s in data model")
+    configuration_id = Field(None, "camera_config_id in the date model")
+    pixel_ids = Field([], "pixel_id_map in the data model")
+    module_ids = Field([], "module_id_map in the data model")
 
-    idaq_version = Field(0, "idaq version")
+    num_modules = Field(-1, "number of modules")
+    num_pixels = Field(-1, "number of pixels")
+    num_channels = Field(-1, "number of channels")
+    num_samples = Field(-1, "num samples")
+
+    data_model_version = Field(None, "data model version")
+    calibration_service_id = Field(-1, "calibration service id")
+    calibration_algorithm_id = Field(-1, "calibration service id")
+
+    # in debug in CTA R1 debug
+    cs_serial = Field(None, "serial number of the camera server")
+    idaq_version = Field(0, "idaq/evb version")
     cdhs_version = Field(0, "cdhs version")
+    tdp_type = Field(None, "tdp type")
+    tdp_action = Field(None, "tdp action")
+    ttype_pattern = Field(None, "ttype_pattern")
+
+    # only in old R1
     algorithms = Field(None, "algorithms")
     pre_proc_algorithms = Field(None, "pre processing algorithms")
-    module_ids = Field([], "module ids")
-    num_modules = Field(-1, "number of modules")
 
 
 class LSTEventContainer(Container):

@@ -1,3 +1,5 @@
+import os
+from pathlib import Path
 from contextlib import ExitStack
 import pytest
 import numpy as np
@@ -9,8 +11,14 @@ import protozfits
 from protozfits.CTA_R1_pb2 import CameraConfiguration, Event
 from protozfits.Debug_R1_pb2 import DebugEvent, DebugCameraConfiguration
 from protozfits.CoreMessages_pb2 import AnyArray
+from traitlets.config import Config
+from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ
 
 from ctapipe_io_lst.event_time import time_to_cta_high
+
+
+test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
+test_drs4_pedestal_path = test_data / 'real/monitoring/PixelCalibration/LevelA/drs4_baseline/20200218/v0.8.2.post2.dev48+gb1343281/drs4_pedestal.Run02005.0000.h5'
 
 
 ANY_ARRAY_TYPE_TO_NUMPY_TYPE = {
@@ -29,6 +37,10 @@ ANY_ARRAY_TYPE_TO_NUMPY_TYPE = {
 DTYPE_TO_ANYARRAY_TYPE = {v: k for k, v in ANY_ARRAY_TYPE_TO_NUMPY_TYPE.items()}
 
 
+def to_anyarray(array):
+    type_ = DTYPE_TO_ANYARRAY_TYPE[array.dtype.type]
+    return AnyArray(type=type_, data=array.tobytes())
+
 
 @pytest.fixture(scope="session")
 def dummy_cta_r1_dir(tmp_path_factory):
@@ -40,7 +52,6 @@ def dummy_cta_r1(dummy_cta_r1_dir):
     # with protozfits.File("test_data/real/R0/20200218/LST-1.1.Run02006.0004.fits.fz") as f:
     # old_camera_config = f.CameraConfig[0]
 
-
     stream_paths = [
         dummy_cta_r1_dir / "LST-1.1.Run10000.0000.fits.fz",
         dummy_cta_r1_dir / "LST-1.2.Run10000.0000.fits.fz",
@@ -48,17 +59,23 @@ def dummy_cta_r1(dummy_cta_r1_dir):
         dummy_cta_r1_dir / "LST-1.4.Run10000.0000.fits.fz",
     ]
 
+    num_samples = 40
+    num_pixels = 1855
+    num_modules = 265
+
     run_start = Time("2023-05-16T16:06:31.123")
     camera_config = CameraConfiguration(
         tel_id=1,
         local_run_id=10000,
         config_time_s=run_start.unix,
         camera_config_id=1,
-        num_modules=265,
-        num_pixels=1855,
+        num_modules=num_modules,
+        num_pixels=num_pixels,
         num_channels=2,
         data_model_version="1.0",
-        num_samples_nominal=40,
+        num_samples_nominal=num_samples,
+        pixel_id_map=to_anyarray(np.arange(num_pixels).astype(np.uint16)),
+        module_id_map=to_anyarray(np.arange(num_modules).astype(np.uint16)),
         debug=DebugCameraConfiguration(
             cs_serial="???",
             evb_version="evb-dummy",
@@ -71,7 +88,7 @@ def dummy_cta_r1(dummy_cta_r1_dir):
     streams = []
     with ExitStack() as stack:
         for stream_path in stream_paths:
-            stream = stack.enter_context(protozfits.ProtobufZOFits())
+            stream = stack.enter_context(protozfits.ProtobufZOFits(compression_block_size_kb=64 * 1024))
             stream.open(str(stream_path))
             stream.move_to_new_table("CameraConfiguration")
             stream.write_message(camera_config)
@@ -81,6 +98,7 @@ def dummy_cta_r1(dummy_cta_r1_dir):
         event_time = run_start
         event_rate = 8000 / u.s
 
+        module_hires_local_clock_counter = np.zeros(num_modules, dtype=np.uint64)
         for event_count in range(800):
             if event_count % 100 == 98:
                 event_type = 0
@@ -89,8 +107,22 @@ def dummy_cta_r1(dummy_cta_r1_dir):
             else:
                 event_type = 32
 
-            event_time = event_time + rng.exponential(1 / event_rate.to_value(1 / u.s)) * u.s
+            delta = rng.exponential(1 / event_rate.to_value(1 / u.s)) * u.s
+            event_time = event_time + delta
             event_time_s, event_time_qns = time_to_cta_high(event_time)
+
+            if event_type == 32:
+                num_channels = 1
+                pixel_status = rng.choice([0b1000, 0b0100], p=[0.001, 0.999], size=num_pixels).astype(np.uint8)
+            else:
+                num_channels = 2
+                pixel_status = np.full(num_pixels, 0b1100, dtype=np.uint8)
+
+            waveform = np.full((num_channels, num_pixels, num_samples), 400, dtype=np.uint16)
+            first_cell_id = rng.choice(4096, size=2120).astype(np.uint8)
+
+            jitter = rng.choice([-2, 1, 0, 1, -2], size=num_modules)
+            module_hires_local_clock_counter[:] += np.uint64(CLOCK_FREQUENCY_KHZ * delta.to_value(u.ms) + jitter)
 
             event = Event(
                 event_id=event_count + 1,
@@ -99,22 +131,46 @@ def dummy_cta_r1(dummy_cta_r1_dir):
                 event_type=event_type,
                 event_time_s=int(event_time_s),
                 event_time_qns=int(event_time_qns),
+                num_channels=num_channels,
+                num_pixels=num_pixels,
+                num_samples=num_samples,
+                pixel_status=to_anyarray(pixel_status),
+                waveform=to_anyarray(waveform),
+                first_cell_id=to_anyarray(first_cell_id),
+                module_hires_local_clock_counter=to_anyarray(module_hires_local_clock_counter),
             )
+
 
             streams[event_count % len(streams)].write_message(event)
 
     return stream_paths[0]
 
 
-
-
-
 def test_is_compatible(dummy_cta_r1):
     from ctapipe_io_lst import LSTEventSource
     assert LSTEventSource.is_compatible(dummy_cta_r1)
 
+
 def test_no_calibration(dummy_cta_r1):
     with EventSource(dummy_cta_r1, apply_drs4_corrections=False, pointing_information=False) as source:
+        n_events = 0
+        for e in source:
+            n_events += 1
+        assert n_events == 800
+
+
+def test_drs4_calibration(dummy_cta_r1):
+    config = Config({
+        'LSTEventSource': {
+            'pointing_information': False,
+            'LSTR0Corrections': {
+                'drs4_pedestal_path': test_drs4_pedestal_path,
+            },
+        },
+    })
+
+    with EventSource(dummy_cta_r1, config=config) as source:
+
         n_events = 0
         for e in source:
             n_events += 1
