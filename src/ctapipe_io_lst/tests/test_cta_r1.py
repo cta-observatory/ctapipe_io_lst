@@ -12,7 +12,9 @@ from protozfits.CTA_R1_pb2 import CameraConfiguration, Event
 from protozfits.Debug_R1_pb2 import DebugEvent, DebugCameraConfiguration
 from protozfits.CoreMessages_pb2 import AnyArray
 from traitlets.config import Config
+from ctapipe_io_lst import LSTEventSource
 from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ
+from ctapipe.image.toymodel import WaveformModel, Gaussian
 
 from ctapipe_io_lst.event_time import time_to_cta_high
 
@@ -35,6 +37,62 @@ ANY_ARRAY_TYPE_TO_NUMPY_TYPE = {
 }
 
 DTYPE_TO_ANYARRAY_TYPE = {v: k for k, v in ANY_ARRAY_TYPE_TO_NUMPY_TYPE.items()}
+
+
+subarray = LSTEventSource.create_subarray(4)
+GEOMETRY = subarray.tel[1].camera.geometry
+waveform_model = WaveformModel(
+    reference_pulse=subarray.tel[1].camera.readout.reference_pulse_shape[0],
+    reference_pulse_sample_width=subarray.tel[1].camera.readout.reference_pulse_sample_width,
+    sample_width=1 * u.ns,
+)
+
+
+def weighted_average(a, b, weight_a, weight_b):
+    return (a * weight_a + b * weight_b) / (weight_a + weight_b)
+
+
+def create_shower(rng):
+    x = rng.uniform(-0.5, 0.5) * u.m
+    y = rng.uniform(-0.5, 0.5) * u.m
+    width = rng.uniform(0.01, 0.05) * u.m
+    length = rng.uniform(2 * width.to_value(u.m), 5 * width.to_value(u.m)) * u.m
+    psi = rng.uniform(0, 360) * u.deg
+
+
+    area = np.pi * (width.to_value(u.m) * length.to_value(u.m))
+    intensity = 5e4 * area + 2e6 * area**2
+
+    model = Gaussian(x, y, length, width, psi)
+    image, signal, noise = model.generate_image(GEOMETRY, intensity=intensity, nsb_level_pe=3)
+
+    long = (GEOMETRY.pix_x - x) * np.cos(psi) + (GEOMETRY.pix_y - y) * np.sin(psi)
+
+    peak_time = rng.uniform(0, 40, size=len(GEOMETRY))
+    signal_peak_time = np.clip(20 + 30 * (long / (3 * u.m)).to_value(u.one), 0, 40)
+
+    mask = signal > 0
+    peak_time[mask] = weighted_average(
+        peak_time[mask], signal_peak_time[mask], noise[mask], signal[mask]
+    )
+
+    return image, peak_time
+
+
+def create_waveform(image, peak_time, num_samples=40, gains=(86, 5), offset=400):
+    r1 = waveform_model.get_waveform(image, peak_time, num_samples)
+    return np.array([r1 * gain + offset for gain in gains]).astype(np.uint16)
+
+
+def create_flat_field(rng):
+    image = rng.uniform(65, 75, len(GEOMETRY))
+    peak_time = rng.uniform(18, 22, len(GEOMETRY))
+    return image, peak_time
+
+def create_pedestal(rng):
+    image = rng.uniform(-2, 2, len(GEOMETRY))
+    peak_time = rng.uniform(0, 40, len(GEOMETRY))
+    return image, peak_time
 
 
 def to_anyarray(array):
@@ -88,7 +146,7 @@ def dummy_cta_r1(dummy_cta_r1_dir):
     streams = []
     with ExitStack() as stack:
         for stream_path in stream_paths:
-            stream = stack.enter_context(protozfits.ProtobufZOFits(compression_block_size_kb=64 * 1024))
+            stream = stack.enter_context(protozfits.ProtobufZOFits(n_tiles=5, rows_per_tile=20, compression_block_size_kb=64 * 1024))
             stream.open(str(stream_path))
             stream.move_to_new_table("CameraConfiguration")
             stream.write_message(camera_config)
@@ -99,26 +157,38 @@ def dummy_cta_r1(dummy_cta_r1_dir):
         event_rate = 8000 / u.s
 
         module_hires_local_clock_counter = np.zeros(num_modules, dtype=np.uint64)
-        for event_count in range(800):
-            if event_count % 100 == 98:
+        for event_count in range(100):
+            if event_count % 20 == 18:
+                # flatfield
                 event_type = 0
-            elif event_count % 100 == 99:
+                image, peak_time = create_flat_field(rng)
+            elif event_count % 20 == 19:
+                # pedestal
                 event_type = 2
+                image, peak_time = create_pedestal(rng)
             else:
+                # air shower
                 event_type = 32
+                image, peak_time = create_shower(rng)
 
             delta = rng.exponential(1 / event_rate.to_value(1 / u.s)) * u.s
             event_time = event_time + delta
             event_time_s, event_time_qns = time_to_cta_high(event_time)
 
+            waveform = create_waveform(image, peak_time, num_samples)
+
             if event_type == 32:
                 num_channels = 1
                 pixel_status = rng.choice([0b1000, 0b0100], p=[0.001, 0.999], size=num_pixels).astype(np.uint8)
+
+                low_gain = pixel_status == 0b1000
+                gain_selected_waveform = waveform[0].copy()
+                gain_selected_waveform[low_gain] = waveform[1, low_gain]
+                waveform = gain_selected_waveform
             else:
                 num_channels = 2
                 pixel_status = np.full(num_pixels, 0b1100, dtype=np.uint8)
 
-            waveform = np.full((num_channels, num_pixels, num_samples), 400, dtype=np.uint16)
             first_cell_id = rng.choice(4096, size=2120).astype(np.uint8)
 
             jitter = rng.choice([-2, 1, 0, 1, -2], size=num_modules)
@@ -156,7 +226,7 @@ def test_no_calibration(dummy_cta_r1):
         n_events = 0
         for e in source:
             n_events += 1
-        assert n_events == 800
+        assert n_events == 100
 
 
 def test_drs4_calibration(dummy_cta_r1):
@@ -174,4 +244,4 @@ def test_drs4_calibration(dummy_cta_r1):
         n_events = 0
         for e in source:
             n_events += 1
-        assert n_events == 800
+        assert n_events == 100
