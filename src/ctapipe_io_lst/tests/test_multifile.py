@@ -13,6 +13,7 @@ def test_multifile_streams():
 
     with MultiFiles(path) as multi_files:
         assert multi_files.n_open_files == 4
+        assert multi_files.dvr_applied is False
 
         event_count = 0
         for event in multi_files:
