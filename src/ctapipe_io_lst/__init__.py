@@ -539,12 +539,13 @@ class LSTEventSource(EventSource):
         lst_evt.event_id = zfits_event.event_id
         lst_evt.tel_event_id = zfits_event.tel_event_id
 
-        lst_evt.pixel_status = np.zeros_like(zfits_event.pixel_status)
+        lst_evt.pixel_status = np.zeros(N_PIXELS, dtype=zfits_event.pixel_status.dtype)
         lst_evt.pixel_status[self.camera_config.expected_pixels_id] = zfits_event.pixel_status
 
         # set bits for dvr if not already set
         if not self.dvr_applied:
-            lst_evt.pixel_status |= PixelStatus.DVR_STATUS_0
+            not_broken = get_channel_info(lst_evt.pixel_status) != 0
+            lst_evt.pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
 
         lst_evt.ped_id = zfits_event.ped_id
         lst_evt.module_status = zfits_event.lstcam.module_status
