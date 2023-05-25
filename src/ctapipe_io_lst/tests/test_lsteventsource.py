@@ -204,7 +204,7 @@ def test_dvr():
         )
     ))
 
-    source = LSTEventSource(
+    dvr_source = LSTEventSource(
         test_r0_dvr_dir / 'LST-1.1.Run02008.0100_first50.fits.fz',
         config=config,
     )
@@ -213,27 +213,27 @@ def test_dvr():
         config=config,
     )
     gain_selector = ThresholdGainSelector(threshold=3500)
-    for event, original_event in zip(source, original_source):
-        if event.trigger.event_type in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}:
-            assert event.r0.tel[1].waveform is not None
-            assert event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
-            assert event.r1.tel[1].waveform is not None
-            assert event.r1.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES - 4)
+    for dvr_event, original_event in zip(dvr_source, original_source):
+        if dvr_event.trigger.event_type in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}:
+            assert dvr_event.r0.tel[1].waveform is not None
+            assert dvr_event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
+            assert dvr_event.r1.tel[1].waveform is not None
+            assert dvr_event.r1.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES - 4)
         else:
-            if event.r0.tel[1].waveform is not None:
-                assert event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
+            if dvr_event.r0.tel[1].waveform is not None:
+                assert dvr_event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
 
-            assert event.r1.tel[1].waveform.shape == (N_PIXELS, N_SAMPLES - 4)
+            assert dvr_event.r1.tel[1].waveform.shape == (N_PIXELS, N_SAMPLES - 4)
 
             # compare to original file
             selected_gain = gain_selector(original_event.r1.tel[1].waveform)
             pixel_idx = np.arange(N_PIXELS)
             waveform = original_event.r1.tel[1].waveform[selected_gain, pixel_idx]
 
-            readout_pixels = (event.lst.tel[1].evt.pixel_status & PixelStatus.DVR_STATUS) > 0
-            assert np.allclose(event.r1.tel[1].waveform[readout_pixels], waveform[readout_pixels])
+            readout_pixels = (dvr_event.lst.tel[1].evt.pixel_status & PixelStatus.DVR_STATUS) > 0
+            assert np.allclose(dvr_event.r1.tel[1].waveform[readout_pixels], waveform[readout_pixels])
 
-    assert event.count == 199
+    assert dvr_event.count == 199
 
 
 def test_pointing_info():

@@ -17,7 +17,6 @@ from ctapipe.instrument import (
     OpticsDescription,
     SizeType,
 )
-from enum import IntFlag, auto
 from astropy.time import Time
 
 from ctapipe.io import EventSource, read_table
@@ -46,6 +45,7 @@ from .anyarray_dtypes import (
 )
 from .constants import (
     HIGH_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, LST1_LOCATION, REFERENCE_LOCATION,
+    PixelStatus, TriggerBits,
 )
 
 
@@ -56,41 +56,6 @@ __all__ = ['LSTEventSource', '__version__']
 NO_FF_HEURISTIC_DATE = Time("2022-01-01T00:00:00")
 
 
-class TriggerBits(IntFlag):
-    '''
-    See TIB User manual
-    '''
-    UNKNOWN = 0
-    MONO = auto()
-    STEREO = auto()
-    CALIBRATION = auto()
-    SINGLE_PE = auto()
-    SOFTWARE = auto()
-    PEDESTAL = auto()
-    SLOW_CONTROL = auto()
-
-    PHYSICS = MONO | STEREO
-    OTHER = CALIBRATION | SINGLE_PE | SOFTWARE | PEDESTAL | SLOW_CONTROL
-
-
-class PixelStatus(IntFlag):
-    '''
-    Pixel status information
-
-    See Section A.5 of the CTA R1 Data Model:
-    https://forge.in2p3.fr/dmsf/files/8627
-    '''
-    DVR_STATUS_0 = auto()
-    DVR_STATUS_1 = auto()
-    HIGH_GAIN_STORED = auto()
-    LOW_GAIN_STORED = auto()
-    SATURATED = auto()
-    PIXEL_TRIGGER_1 = auto()
-    PIXEL_TRIGGER_2 = auto()
-    PIXEL_TRIGGER_3 = auto()
-
-    BOTH_GAINS_STORED = HIGH_GAIN_STORED | LOW_GAIN_STORED
-    DVR_STATUS = DVR_STATUS_0 | DVR_STATUS_1
 
 #: LST Optics Description
 OPTICS = OpticsDescription(
@@ -133,7 +98,6 @@ def load_camera_geometry():
 
 
 def read_pulse_shapes():
-
     '''
     Reads in the data on the pulse shapes and readout speed, from an external file
 
@@ -574,7 +538,14 @@ class LSTEventSource(EventSource):
         lst_evt.configuration_id = zfits_event.configuration_id
         lst_evt.event_id = zfits_event.event_id
         lst_evt.tel_event_id = zfits_event.tel_event_id
-        lst_evt.pixel_status = zfits_event.pixel_status
+
+        lst_evt.pixel_status = np.zeros_like(zfits_event.pixel_status)
+        lst_evt.pixel_status[self.camera_config.expected_pixels_id] = zfits_event.pixel_status
+
+        # set bits for dvr if not already set
+        if not self.dvr_applied:
+            lst_evt.pixel_status |= PixelStatus.DVR_STATUS_0
+
         lst_evt.ped_id = zfits_event.ped_id
         lst_evt.module_status = zfits_event.lstcam.module_status
         lst_evt.extdevices_presence = zfits_event.lstcam.extdevices_presence
