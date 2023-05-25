@@ -8,11 +8,11 @@ dependencies:
   - ctapipe=0.19
   - eventio
   - corsikaio
-  - protozfits=2.0
+  - protozfits=2
   - zeromq
   - ipython
   - numba
-  - numpy=1.22
+  - numpy>=1.22
   - numpydoc
   - pytest
   - pyyaml
