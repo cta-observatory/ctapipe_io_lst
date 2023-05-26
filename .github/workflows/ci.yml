@@ -62,7 +62,7 @@ jobs:
       - uses: actions/cache@v3
         with:
           path: test_data
-          key: lst-test-data # key does not change, we redownload if files are newer on the server
+          key: lst-test-data
 
       - name: Download test data
         env:
