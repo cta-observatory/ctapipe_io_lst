@@ -30,6 +30,7 @@ jobs:
         with:
           fetch-depth: 0
 
+
       - name: Set python version
         env:
           PYTHON_VERSION: ${{ matrix.python-version }}
@@ -56,6 +57,12 @@ jobs:
         run: |
           # check the LSTEventSource is available for LST
           python eventsource_subclasses.py | grep LSTEventSource
+
+      # cache for download data to speed things up a bit
+      - uses: actions/cache@v3
+        with:
+          path: test_data
+          key: lst-test-data # key does not change, we redownload if files are newer on the server
 
       - name: Download test data
         env:
