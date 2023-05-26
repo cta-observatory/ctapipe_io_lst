@@ -13,8 +13,10 @@ from protozfits.Debug_R1_pb2 import DebugEvent, DebugCameraConfiguration
 from protozfits.CoreMessages_pb2 import AnyArray
 from traitlets.config import Config
 from ctapipe_io_lst import LSTEventSource
+from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
 from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ
 from ctapipe.image.toymodel import WaveformModel, Gaussian
+import socket
 
 from ctapipe_io_lst.event_time import time_to_cta_high
 
@@ -120,6 +122,7 @@ def dummy_cta_r1(dummy_cta_r1_dir):
     num_samples = 40
     num_pixels = 1855
     num_modules = 265
+    ucts_address = np.frombuffer(socket.inet_pton(socket.AF_INET, "10.0.100.123"), dtype=np.uint32)[0]
 
     run_start = Time("2023-05-16T16:06:31.123")
     camera_config = CameraConfiguration(
@@ -161,14 +164,17 @@ def dummy_cta_r1(dummy_cta_r1_dir):
             if event_count % 20 == 18:
                 # flatfield
                 event_type = 0
+                trigger_type = 0b0000_0001
                 image, peak_time = create_flat_field(rng)
             elif event_count % 20 == 19:
                 # pedestal
                 event_type = 2
+                trigger_type = 0b0100_0000
                 image, peak_time = create_pedestal(rng)
             else:
                 # air shower
                 event_type = 32
+                trigger_type = 0b0000_0100
                 image, peak_time = create_shower(rng)
 
             delta = rng.exponential(1 / event_rate.to_value(1 / u.s)) * u.s
@@ -194,6 +200,32 @@ def dummy_cta_r1(dummy_cta_r1_dir):
             jitter = rng.choice([-2, 1, 0, 1, -2], size=num_modules)
             module_hires_local_clock_counter[:] += np.uint64(CLOCK_FREQUENCY_KHZ * delta.to_value(u.ms) + jitter)
 
+            # uint64 unix_tai, whole ns
+            timestamp = np.uint64(event_time_s) * np.uint64(1e9) + np.uint64(np.round(event_time_qns / 4.0))
+            cdts_data = (
+                timestamp,
+                ucts_address,
+                event_count + 1, # event_counter
+                0, # busy_counter
+                0, # pps_counter
+                0, # clock_counter
+                trigger_type, # trigger_type
+                0, # white_rabbit_status
+                0, # stereo_pattern
+                event_count % 10, # num_in_bunch
+                1234, # cdts_version
+            )
+            cdts_data = np.array([cdts_data], dtype=CDTS_AFTER_37201_DTYPE)
+
+            tib_data = (
+                event_count + 1,
+                0,  # pps_counter
+                0,  # tenMHz_counter
+                0,  # stereo pattern
+                trigger_type,
+            )
+            tib_data = np.array([tib_data], dtype=TIB_DTYPE)
+
             event = Event(
                 event_id=event_count + 1,
                 tel_id=1,
@@ -208,6 +240,12 @@ def dummy_cta_r1(dummy_cta_r1_dir):
                 waveform=to_anyarray(waveform),
                 first_cell_id=to_anyarray(first_cell_id),
                 module_hires_local_clock_counter=to_anyarray(module_hires_local_clock_counter),
+                debug=DebugEvent(
+                    module_status=to_anyarray(np.ones(num_modules, dtype=np.uint8)),
+                    extdevices_presence=0b011,
+                    cdts_data=to_anyarray(cdts_data.view(np.uint8)),
+                    tib_data=to_anyarray(tib_data.view(np.uint8)),
+                )
             )
 
 

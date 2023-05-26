@@ -3,6 +3,7 @@ Container structures for data that should be read or written to disk
 """
 from astropy import units as u
 from numpy import nan
+import numpy as np
 from ctapipe.core import Container, Field, Map
 from ctapipe.containers import ArrayEventContainer
 
@@ -56,20 +57,24 @@ class LSTEventContainer(Container):
     """
     Container for Fields that are specific to each LST event
     """
+    # present in CTA R1 but not in ctapipe R1CameraEvent
+    pixel_status = Field(None, "status of the pixels (n_pixels)", dtype=np.uint8)
+    first_capacitor_id = Field(None, "first capacitor id")
+    calibration_monitoring_id = Field(None, "calibration id of applied pre-calibration")
+    local_clock_counter = Field(None, "Dragon local 133 MHz counter (n_modules)")
 
-    # Data from the CameraEvent table
-    configuration_id = Field(None, "id of the CameraConfiguration")
-    event_id = Field(None, "local id of the event")
-    tel_event_id = Field(None, "global id of the event")
-    pixel_status = Field([], "status of the pixels (n_pixels)")
-    ped_id = Field(None, "tel_event_id of the event used for pedestal substraction")
-    module_status = Field([], "status of the modules (n_modules)")
+    # in debug event
+    module_status = Field(None, "status of the modules (n_modules)")
     extdevices_presence = Field(None, "presence of data for external devices")
+    chips_flags = Field(None, "chips flags")
+    charges_hg = Field(None, "charges of high gain channel")
+    charges_lg = Field(None, "charges of low gain channel")
+    tdp_action = Field(None, "tdp action")
 
-    tib_event_counter = Field(-1, "TIB event counter")
-    tib_pps_counter = Field(-1, "TIB pps counter")
-    tib_tenMHz_counter = Field(-1, "TIB 10 MHz counter")
-    tib_stereo_pattern = Field(0, "TIB stereo pattern")
+    tib_event_counter = Field(np.uint32(0), "TIB event counter", dtype=np.uint32)
+    tib_pps_counter = Field(np.uint16(0), "TIB pps counter", dtype=np.uint16)
+    tib_tenMHz_counter = Field(np.uint32(0), "TIB 10 MHz counter", dtype=np.uint32)
+    tib_stereo_pattern = Field(np.uint16(0), "TIB stereo pattern", dtype=np.uint16)
     tib_masked_trigger = Field(0, "TIB trigger mask")
 
     ucts_event_counter =  Field(-1, "UCTS event counter")
@@ -98,13 +103,17 @@ class LSTEventContainer(Container):
     tenMHz_counter = Field(None, "Dragon 10 MHz counter (n_modules)")
     event_counter = Field(None, "Dragon event counter (n_modules)")
     trigger_counter = Field(None, "Dragon trigger counter (n_modules)")
-    local_clock_counter = Field(None, "Dragon local 133 MHz counter (n_modules)")
 
-    chips_flags = Field(None, "chips flags")
-    first_capacitor_id = Field(None, "first capacitor id")
+    # Only in old R1
+    configuration_id = Field(None, "id of the CameraConfiguration")
+    event_id = Field(None, "global id of the event")
+    tel_event_id = Field(None, "local id of the event")
+    ped_id = Field(None, "tel_event_id of the event used for pedestal substraction")
+
     drs_tag_status = Field(None, "DRS tag status")
     drs_tag = Field(None, "DRS tag")
 
+    # custom here
     ucts_jump = Field(False, "A ucts jump happened in the current event")
 
 

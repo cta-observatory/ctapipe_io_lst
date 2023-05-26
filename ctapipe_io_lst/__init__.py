@@ -27,7 +27,7 @@ from ctapipe.containers import (
 from ctapipe.coordinates import CameraFrame
 
 from .multifiles import MultiFiles
-from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer
+from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer, LSTCameraContainer
 from .version import __version__
 from .calibration import LSTR0Corrections
 from .event_time import EventTimeCalculator, cta_high_res_to_time
@@ -403,14 +403,76 @@ class LSTEventSource(EventSource):
             )
             array_event.r0.tel[self.tel_id] = R0CameraContainer()
 
-        array_event.lst.tel[1].evt.first_capacitor_id = zfits_event.first_cell_id
-        array_event.lst.tel[1].evt.local_clock_counter = zfits_event.module_hires_local_clock_counter
+        array_event.lst.tel[self.tel_id] = self.fill_lst_from_ctar1(zfits_event)
 
         trigger = array_event.trigger
         trigger.time = cta_high_res_to_time(zfits_event.event_time_s, zfits_event.event_time_qns)
         trigger.tels_with_trigger = [tel_id]
         trigger.tel[tel_id].time = trigger.time
         trigger.event_type = self._event_type_from_trigger_bits(zfits_event.event_type)
+
+    def fill_lst_from_ctar1(self, zfits_event):
+        evt = LSTEventContainer(
+            pixel_status=zfits_event.pixel_status,
+            first_capacitor_id=zfits_event.first_cell_id,
+            calibration_monitoring_id=zfits_event.calibration_monitoring_id,
+            local_clock_counter=zfits_event.module_hires_local_clock_counter,
+        )
+
+        if zfits_event.debug is not None:
+            debug = zfits_event.debug
+            evt.module_status = debug.module_status
+            evt.extdevices_presence = debug.extdevices_presence
+            evt.chips_flags = debug.chips_flags
+            evt.charges_hg = debug.charges_gain1
+            evt.charges_lg = debug.charges_gain2
+
+            # unpack Dragon counters
+            counters = debug.counters.view(DRAGON_COUNTERS_DTYPE)
+            evt.pps_counter = counters['pps_counter']
+            evt.tenMHz_counter = counters['tenMHz_counter']
+            evt.event_counter = counters['event_counter']
+            evt.trigger_counter = counters['trigger_counter']
+            evt.local_clock_counter = counters['local_clock_counter']
+
+            # if TIB data are there
+            if evt.extdevices_presence & 1:
+                tib = debug.tib_data.view(TIB_DTYPE)[0]
+                evt.tib_event_counter = tib['event_counter']
+                evt.tib_pps_counter = tib['pps_counter']
+                evt.tib_tenMHz_counter = tib['tenMHz_counter']
+                evt.tib_stereo_pattern = tib['stereo_pattern']
+                evt.tib_masked_trigger = tib['masked_trigger']
+
+            # if UCTS data are there
+            if evt.extdevices_presence & 2:
+                cdts = debug.cdts_data.view(CDTS_AFTER_37201_DTYPE)[0]
+                evt.ucts_timestamp = cdts["timestamp"]
+                evt.ucts_address = cdts["address"]
+                evt.ucts_event_counter = cdts["event_counter"]
+                evt.ucts_busy_counter = cdts["busy_counter"]
+                evt.ucts_pps_counter = cdts["pps_counter"]
+                evt.ucts_clock_counter = cdts["clock_counter"]
+                evt.ucts_trigger_type = cdts["trigger_type"]
+                evt.ucts_white_rabbit_status = cdts["white_rabbit_status"]
+                evt.ucts_stereo_pattern = cdts["stereo_pattern"]
+                evt.ucts_num_in_bunch = cdts["num_in_bunch"]
+                evt.ucts_cdts_version = cdts["cdts_version"]
+
+            # if SWAT data are there
+            if evt.extdevices_presence & 4:
+                # unpack SWAT data
+                swat = debug.swat_data.view(SWAT_DTYPE)[0]
+                evt.swat_timestamp = swat["timestamp"]
+                evt.swat_counter1 = swat["counter1"]
+                evt.swat_counter2 = swat["counter2"]
+                evt.swat_event_type = swat["event_type"]
+                evt.swat_camera_flag = swat["camera_flag"]
+                evt.swat_camera_event_num = swat["camera_event_num"]
+                evt.swat_array_flag = swat["array_flag"]
+                evt.swat_array_event_num = swat["event_num"]
+
+        return LSTCameraContainer(evt=evt, svc=self.lst_service)
 
     def _generator(self):
 
