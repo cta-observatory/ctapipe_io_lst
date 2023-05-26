@@ -17,7 +17,6 @@ from ctapipe.instrument import (
     OpticsDescription,
     SizeType,
 )
-from enum import IntFlag, auto
 from astropy.time import Time
 
 from ctapipe.io import EventSource, read_table
@@ -46,6 +45,7 @@ from .anyarray_dtypes import (
 )
 from .constants import (
     HIGH_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, LST1_LOCATION, REFERENCE_LOCATION,
+    PixelStatus, TriggerBits,
 )
 
 
@@ -56,40 +56,6 @@ __all__ = ['LSTEventSource', '__version__']
 NO_FF_HEURISTIC_DATE = Time("2022-01-01T00:00:00")
 
 
-class TriggerBits(IntFlag):
-    '''
-    See TIB User manual
-    '''
-    UNKNOWN = 0
-    MONO = auto()
-    STEREO = auto()
-    CALIBRATION = auto()
-    SINGLE_PE = auto()
-    SOFTWARE = auto()
-    PEDESTAL = auto()
-    SLOW_CONTROL = auto()
-
-    PHYSICS = MONO | STEREO
-    OTHER = CALIBRATION | SINGLE_PE | SOFTWARE | PEDESTAL | SLOW_CONTROL
-
-
-class PixelStatus(IntFlag):
-    '''
-    Pixel status information
-
-    See Section A.5 of the CTA R1 Data Model:
-    https://forge.in2p3.fr/dmsf/files/8627
-    '''
-    RESERVED_0 = auto()
-    RESERVED_1 = auto()
-    HIGH_GAIN_STORED = auto()
-    LOW_GAIN_STORED = auto()
-    SATURATED = auto()
-    PIXEL_TRIGGER_1 = auto()
-    PIXEL_TRIGGER_2 = auto()
-    PIXEL_TRIGGER_3 = auto()
-
-    BOTH_GAINS_STORED = HIGH_GAIN_STORED | LOW_GAIN_STORED
 
 #: LST Optics Description
 OPTICS = OpticsDescription(
@@ -117,7 +83,7 @@ def get_channel_info(pixel_status):
         2: low-gain read out
         3: both gains read out
     '''
-    return (pixel_status & 0b1100) >> 2
+    return (pixel_status & PixelStatus.BOTH_GAINS_STORED) >> 2
 
 
 def load_camera_geometry():
@@ -132,7 +98,6 @@ def load_camera_geometry():
 
 
 def read_pulse_shapes():
-
     '''
     Reads in the data on the pulse shapes and readout speed, from an external file
 
@@ -315,6 +280,7 @@ class LSTEventSource(EventSource):
         self.run_id = self.camera_config.configuration_id
         self.tel_id = self.camera_config.telescope_id
         self.run_start = Time(self.camera_config.date, format='unix')
+        self.dvr_applied = self.multi_file.dvr_applied
 
         reference_location = EarthLocation(
             lon=self.reference_position_lon * u.deg,
@@ -572,7 +538,15 @@ class LSTEventSource(EventSource):
         lst_evt.configuration_id = zfits_event.configuration_id
         lst_evt.event_id = zfits_event.event_id
         lst_evt.tel_event_id = zfits_event.tel_event_id
-        lst_evt.pixel_status = zfits_event.pixel_status
+
+        lst_evt.pixel_status = np.zeros(N_PIXELS, dtype=zfits_event.pixel_status.dtype)
+        lst_evt.pixel_status[self.camera_config.expected_pixels_id] = zfits_event.pixel_status
+
+        # set bits for dvr if not already set
+        if not self.dvr_applied:
+            not_broken = get_channel_info(lst_evt.pixel_status) != 0
+            lst_evt.pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
+
         lst_evt.ped_id = zfits_event.ped_id
         lst_evt.module_status = zfits_event.lstcam.module_status
         lst_evt.extdevices_presence = zfits_event.lstcam.extdevices_presence
@@ -793,6 +767,11 @@ class LSTEventSource(EventSource):
         dtype = zfits_event.waveform.dtype
         fill = np.iinfo(dtype).max
 
+        if self.dvr_applied:
+            stored_pixels = (zfits_event.pixel_status & PixelStatus.DVR_STATUS) > 0
+        else:
+            stored_pixels = slice(None)  # all pixels stored
+
         # we assume that either all pixels are gain selected or none
         # only broken pixels are allowed to be missing completely
         if gain_selected:
@@ -813,7 +792,7 @@ class LSTEventSource(EventSource):
                 )
 
             reordered_waveform = np.full((N_PIXELS, N_SAMPLES), fill, dtype=dtype)
-            reordered_waveform[expected_pixels] = waveform
+            reordered_waveform[expected_pixels[stored_pixels]] = waveform
 
             reordered_selected_gain = np.full(N_PIXELS, -1, dtype=np.int8)
             reordered_selected_gain[expected_pixels] = selected_gain
@@ -824,11 +803,10 @@ class LSTEventSource(EventSource):
                 selected_gain_channel=reordered_selected_gain,
             )
         else:
-            reshaped_waveform = zfits_event.waveform.reshape(N_GAINS, n_pixels, n_samples)
+            reshaped_waveform = zfits_event.waveform.reshape(N_GAINS, -1, n_samples)
             # re-order the waveform following the expected_pixels_id values
-            #  could also just do waveform = reshaped_waveform[np.argsort(expected_ids)]
             reordered_waveform = np.full((N_GAINS, N_PIXELS, N_SAMPLES), fill, dtype=dtype)
-            reordered_waveform[:, expected_pixels, :] = reshaped_waveform
+            reordered_waveform[:, expected_pixels[stored_pixels], :] = reshaped_waveform
             r0 = R0CameraContainer(waveform=reordered_waveform)
             r1 = R1CameraContainer()
 

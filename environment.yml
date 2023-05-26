@@ -4,7 +4,7 @@ channels:
   - default
 dependencies:
   - astropy=5.2
-  - python=3.10 # nail the python version, so conda does not try upgrading / dowgrading
+  - python=3.11 # nail the python version, so conda does not try upgrading / dowgrading
   - ctapipe=0.19
   - eventio
   - corsikaio

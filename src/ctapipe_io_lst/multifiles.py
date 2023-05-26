@@ -105,7 +105,9 @@ class MultiFiles(Component):
         self._files = {}
         self._events = PriorityQueue()
         self._events_tables = {}
+        self._headers = {}
         self.camera_config = None
+        self.dvr_applied = None
 
         if self.all_streams and file_info is not None:
             for stream in count(1):
@@ -161,6 +163,12 @@ class MultiFiles(Component):
         self._files[stream] = File(str(path))
         self.log.info("Opened file %s", path)
         self._events_tables[stream] = self._files[stream].Events
+        self._headers[stream] = self._events_tables[stream].header
+        dvr_applied = self._headers[stream].get("LSTDVR", False)
+        if self.dvr_applied is None:
+            self.dvr_applied = dvr_applied
+        elif dvr_applied != self.dvr_applied:
+            raise IOError("Mixing subruns / streams with and without DVR applied is not supported")
 
         # load first event from each stream
         event = next(self._events_tables[stream])

@@ -14,8 +14,9 @@ from ctapipe.core.traits import (
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 from ctapipe.containers import FlatFieldContainer, MonitoringCameraContainer, MonitoringContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
 from ctapipe.io import HDF5TableReader, read_table
-from .containers import LSTArrayEventContainer
 from traitlets import Enum
+
+from .containers import LSTArrayEventContainer
 
 
 from .constants import (
@@ -23,7 +24,7 @@ from .constants import (
     N_PIXELS_MODULE, N_CAPACITORS_PIXEL, N_CAPACITORS_CHANNEL,
     CLOCK_FREQUENCY_KHZ,
     CHANNEL_ORDER_LOW_GAIN, CHANNEL_ORDER_HIGH_GAIN, N_CHANNELS_MODULE,
-    PIXEL_INDEX,
+    PIXEL_INDEX, PixelStatus
 )
 
 __all__ = [
@@ -255,12 +256,14 @@ class LSTR0Corrections(TelescopeComponent):
             if self.offset.tel[tel_id] != 0:
                 r1.waveform -= self.offset.tel[tel_id]
 
-            mon = event.mon.tel[tel_id]
+            broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
+            dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & PixelStatus.DVR_STATUS ) == 0
+            invalid_pixels = broken_pixels | dvred_pixels
+
             if r1.selected_gain_channel is None:
-                r1.waveform[mon.pixel_status.hardware_failing_pixels] = 0.0
+                r1.waveform[invalid_pixels] = 0.0
             else:
-                broken = mon.pixel_status.hardware_failing_pixels[r1.selected_gain_channel, PIXEL_INDEX]
-                r1.waveform[broken] = 0.0
+                r1.waveform[invalid_pixels[r1.selected_gain_channel, PIXEL_INDEX]] = 0.0
 
 
     def update_first_capacitors(self, event: LSTArrayEventContainer):
@@ -298,10 +301,13 @@ class LSTR0Corrections(TelescopeComponent):
                 )
 
             broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
+            dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & PixelStatus.DVR_STATUS ) == 0
+            invalid_pixels = broken_pixels | dvred_pixels
+
             if r1.selected_gain_channel is None:
-                r1.waveform[broken_pixels] = 0.0
+                r1.waveform[invalid_pixels] = 0.0
             else:
-                r1.waveform[broken_pixels[r1.selected_gain_channel, PIXEL_INDEX]] = 0.0
+                r1.waveform[invalid_pixels[r1.selected_gain_channel, PIXEL_INDEX]] = 0.0
 
             # store calibration data needed for dl1 calibration in ctapipe
             # first drs4 time shift (zeros if no calib file was given)

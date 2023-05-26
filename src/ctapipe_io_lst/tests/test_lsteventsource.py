@@ -12,10 +12,11 @@ from ctapipe.containers import CoordinateFrameType, EventType, PointingMode
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
 from ctapipe_io_lst.constants import N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS
-from ctapipe_io_lst import TriggerBits
+from ctapipe_io_lst import TriggerBits, PixelStatus
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_dir = test_data / 'real/R0/20200218'
+test_r0_dvr_dir = test_data / 'real/R0DVR'
 test_r0_path = test_r0_dir / 'LST-1.1.Run02006.0004.fits.fz'
 test_r0_path_all_streams = test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz'
 
@@ -182,6 +183,57 @@ def test_gain_selected():
             assert np.allclose(event.r1.tel[1].waveform, waveform)
 
     assert event.count == 199
+
+
+
+def test_dvr():
+    from ctapipe_io_lst import LSTEventSource
+
+    config = Config(dict(
+        LSTEventSource=dict(
+            default_trigger_type='tib',  # ucts unreliable in this run
+            apply_drs4_corrections=True,
+            pointing_information=False,
+            use_flatfield_heuristic=True,
+            LSTR0Corrections=dict(
+                apply_drs4_pedestal_correction=False,
+                apply_spike_correction=False,
+                apply_timelapse_correction=False,
+                offset=400,
+            )
+        )
+    ))
+
+    dvr_source = LSTEventSource(
+        test_r0_dvr_dir / 'LST-1.1.Run02008.0100_first50.fits.fz',
+        config=config,
+    )
+    original_source = LSTEventSource(
+        test_r0_dir / 'LST-1.1.Run02008.0100_first50.fits.fz',
+        config=config,
+    )
+    gain_selector = ThresholdGainSelector(threshold=3500)
+    for dvr_event, original_event in zip(dvr_source, original_source):
+        if dvr_event.trigger.event_type in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}:
+            assert dvr_event.r0.tel[1].waveform is not None
+            assert dvr_event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
+            assert dvr_event.r1.tel[1].waveform is not None
+            assert dvr_event.r1.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES - 4)
+        else:
+            if dvr_event.r0.tel[1].waveform is not None:
+                assert dvr_event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
+
+            assert dvr_event.r1.tel[1].waveform.shape == (N_PIXELS, N_SAMPLES - 4)
+
+            # compare to original file
+            selected_gain = gain_selector(original_event.r1.tel[1].waveform)
+            pixel_idx = np.arange(N_PIXELS)
+            waveform = original_event.r1.tel[1].waveform[selected_gain, pixel_idx]
+
+            readout_pixels = (dvr_event.lst.tel[1].evt.pixel_status & PixelStatus.DVR_STATUS) > 0
+            assert np.allclose(dvr_event.r1.tel[1].waveform[readout_pixels], waveform[readout_pixels])
+
+    assert dvr_event.count == 199
 
 
 def test_pointing_info():

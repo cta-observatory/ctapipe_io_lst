@@ -1,10 +1,9 @@
 """
 Container structures for data that should be read or written to disk
 """
-from astropy import units as u
-from numpy import nan
 from ctapipe.core import Container, Field, Map
 from ctapipe.containers import ArrayEventContainer
+from functools import partial
 
 
 __all__ = [
@@ -99,8 +98,8 @@ class LSTCameraContainer(Container):
     """
     Container for Fields that are specific to each LST camera
     """
-    evt = Field(LSTEventContainer(), "LST specific event Information")
-    svc = Field(LSTServiceContainer(), "LST specific camera_config Information")
+    evt = Field(default_factory=LSTEventContainer, description="LST specific event Information")
+    svc = Field(default_factory=LSTServiceContainer, description="LST specific camera_config Information")
 
 
 class LSTContainer(Container):
@@ -110,12 +109,13 @@ class LSTContainer(Container):
 
     # create the camera container
     tel = Field(
-        Map(LSTCameraContainer),
-        "map of tel_id to LSTTelContainer")
+        default_factory=partial(Map, LSTCameraContainer),
+        description="map of tel_id to LSTTelContainer"
+    )
 
 
 class LSTArrayEventContainer(ArrayEventContainer):
     """
     Data container including LST and monitoring information
     """
-    lst = Field(LSTContainer(), "LST specific Information")
+    lst = Field(default_factory=LSTContainer, description="LST specific Information")

@@ -1,6 +1,7 @@
 import numpy as np
 import astropy.units as u
 from astropy.coordinates import EarthLocation
+from enum import IntFlag, auto
 
 N_GAINS = 2
 N_MODULES = 265
@@ -43,3 +44,40 @@ REFERENCE_LOCATION = EarthLocation(
 LST_LOCATIONS = {
     1: LST1_LOCATION,
 }
+
+
+class TriggerBits(IntFlag):
+    '''
+    See TIB User manual
+    '''
+    UNKNOWN = 0
+    MONO = auto()
+    STEREO = auto()
+    CALIBRATION = auto()
+    SINGLE_PE = auto()
+    SOFTWARE = auto()
+    PEDESTAL = auto()
+    SLOW_CONTROL = auto()
+
+    PHYSICS = MONO | STEREO
+    OTHER = CALIBRATION | SINGLE_PE | SOFTWARE | PEDESTAL | SLOW_CONTROL
+
+
+class PixelStatus(IntFlag):
+    '''
+    Pixel status information
+
+    See Section A.5 of the CTA R1 Data Model:
+    https://forge.in2p3.fr/dmsf/files/8627
+    '''
+    DVR_STATUS_0 = auto()
+    DVR_STATUS_1 = auto()
+    HIGH_GAIN_STORED = auto()
+    LOW_GAIN_STORED = auto()
+    SATURATED = auto()
+    PIXEL_TRIGGER_1 = auto()
+    PIXEL_TRIGGER_2 = auto()
+    PIXEL_TRIGGER_3 = auto()
+
+    BOTH_GAINS_STORED = HIGH_GAIN_STORED | LOW_GAIN_STORED
+    DVR_STATUS = DVR_STATUS_0 | DVR_STATUS_1
