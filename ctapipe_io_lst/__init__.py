@@ -38,6 +38,7 @@ from .anyarray_dtypes import (
     SWAT_DTYPE,
     DRAGON_COUNTERS_DTYPE,
     TIB_DTYPE,
+    parse_tib_10MHz_counter,
 )
 from .constants import (
     HIGH_GAIN, N_GAINS, N_PIXELS, N_SAMPLES
@@ -440,7 +441,7 @@ class LSTEventSource(EventSource):
                 tib = debug.tib_data.view(TIB_DTYPE)[0]
                 evt.tib_event_counter = tib['event_counter']
                 evt.tib_pps_counter = tib['pps_counter']
-                evt.tib_tenMHz_counter = tib['tenMHz_counter']
+                evt.tib_tenMHz_counter = parse_tib_10MHz_counter(tib['tenMHz_counter'])
                 evt.tib_stereo_pattern = tib['stereo_pattern']
                 evt.tib_masked_trigger = tib['masked_trigger']
 
@@ -664,7 +665,7 @@ class LSTEventSource(EventSource):
             tib = zfits_event.lstcam.tib_data.view(TIB_DTYPE)[0]
             lst_evt.tib_event_counter = tib['event_counter']
             lst_evt.tib_pps_counter = tib['pps_counter']
-            lst_evt.tib_tenMHz_counter = tib['tenMHz_counter']
+            lst_evt.tib_tenMHz_counter = parse_tib_10MHz_counter(tib['tenMHz_counter'])
             lst_evt.tib_stereo_pattern = tib['stereo_pattern']
             lst_evt.tib_masked_trigger = tib['masked_trigger']
 
