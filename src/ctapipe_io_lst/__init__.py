@@ -493,7 +493,7 @@ class LSTEventSource(EventSource):
                 tib = debug.tib_data.view(TIB_DTYPE)[0]
                 evt.tib_event_counter = tib['event_counter']
                 evt.tib_pps_counter = tib['pps_counter']
-                evt.tib_tenMHz_counter = tib['tenMHz_counter']
+                evt.tib_tenMHz_counter = parse_tib_10MHz_counter(tib['tenMHz_counter'])
                 evt.tib_stereo_pattern = tib['stereo_pattern']
                 evt.tib_masked_trigger = tib['masked_trigger']
 
