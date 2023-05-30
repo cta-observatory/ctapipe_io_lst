@@ -1,3 +1,10 @@
+'''
+Numpy dtypes for the structured arrays send as anyarray of
+opaque bytes by EVB in LST R1 and CTA R1v1 debug events.
+
+These data structures are defined in the EVB ICD:
+https://edms.cern.ch/ui/file/2411710/2.6/LSTMST-ICD-20191206.pdf
+'''
 import numpy as np
 
 
@@ -13,8 +20,8 @@ DRAGON_COUNTERS_DTYPE = np.dtype([
 TIB_DTYPE = np.dtype([
     ('event_counter', np.uint32),
     ('pps_counter', np.uint16),
-    ('tenMHz_counter', np.uint32),
-    ('stereo_pattern', np.uint8),
+    ('tenMHz_counter', (np.uint8, 3)),
+    ('stereo_pattern', np.uint16),
     ('masked_trigger', np.uint8),
 ]).newbyteorder('<')
 
@@ -53,3 +60,7 @@ SWAT_DTYPE = np.dtype([
     ('array_flag', np.uint8),
     ('event_num', np.uint32),
 ]).newbyteorder('<')
+
+
+def parse_tib_10MHz_counter(counter):
+    return counter[0] + (counter[1] << 8) + (counter[2] << 16)
