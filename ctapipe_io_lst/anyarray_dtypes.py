@@ -63,4 +63,9 @@ SWAT_DTYPE = np.dtype([
 
 
 def parse_tib_10MHz_counter(counter):
+    """
+    Convert the tib 10MHz counter to uint32
+
+    The counter is stored using 3 uint8 values forming a 24-bit unsigned integer
+    """
     return counter[0] + (counter[1] << 8) + (counter[2] << 16)
