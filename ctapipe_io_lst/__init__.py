@@ -460,17 +460,18 @@ class LSTEventSource(EventSource):
                 evt.ucts_cdts_version = cdts["cdts_version"]
 
             # if SWAT data are there
-            if evt.extdevices_presence & 4:
-                # unpack SWAT data
-                swat = debug.swat_data.view(SWAT_DTYPE)[0]
-                evt.swat_timestamp = swat["timestamp"]
-                evt.swat_counter1 = swat["counter1"]
-                evt.swat_counter2 = swat["counter2"]
-                evt.swat_event_type = swat["event_type"]
-                evt.swat_camera_flag = swat["camera_flag"]
-                evt.swat_camera_event_num = swat["camera_event_num"]
-                evt.swat_array_flag = swat["array_flag"]
-                evt.swat_array_event_num = swat["event_num"]
+            # commented out since it seems that currently the data type is not correct
+            # if evt.extdevices_presence & 4:
+            #     # unpack SWAT data
+            #     swat = debug.swat_data.view(SWAT_DTYPE)[0]
+            #     evt.swat_timestamp = swat["timestamp"]
+            #     evt.swat_counter1 = swat["counter1"]
+            #     evt.swat_counter2 = swat["counter2"]
+            #     evt.swat_event_type = swat["event_type"]
+            #     evt.swat_camera_flag = swat["camera_flag"]
+            #     evt.swat_camera_event_num = swat["camera_event_num"]
+            #     evt.swat_array_flag = swat["array_flag"]
+            #     evt.swat_array_event_num = swat["event_num"]
 
         return LSTCameraContainer(evt=evt, svc=self.lst_service)
 
