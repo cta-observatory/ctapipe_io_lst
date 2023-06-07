@@ -50,16 +50,18 @@ CDTS_BEFORE_37201_DTYPE = np.dtype([
     ('unknown', np.uint8),  # called arbitraryInformation in C-Struct
 ]).newbyteorder('<')
 
+
 SWAT_DTYPE = np.dtype([
-    ('timestamp', np.uint64),
-    ('counter1', np.uint32),
-    ('counter2', np.uint32),
-    ('event_type', np.uint8),
-    ('camera_flag', np.uint8),
-    ('camera_event_num', np.uint32),
-    ('array_flag', np.uint8),
-    ('event_num', np.uint32),
-]).newbyteorder('<')
+    ("assigned_event_id", np.uint32),
+    ("trigger_id", np.uint64),
+    ("trigger_type", np.uint8),
+    ("trigger_time_s", np.uint32),
+    ("trigger_time_qns", np.uint32),
+    ("readout_requested", np.bool_),
+    ("data_available", np.bool_),
+    ("hardware_stereo_trigger_mask", np.uint16),
+    ("negative_flag", np.uint8),
+], align=True).newbyteorder('<')
 
 
 def parse_tib_10MHz_counter(counter):
