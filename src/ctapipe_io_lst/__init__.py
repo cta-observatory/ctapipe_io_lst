@@ -40,7 +40,7 @@ from .pointing import PointingSource
 from .anyarray_dtypes import (
     CDTS_AFTER_37201_DTYPE,
     CDTS_BEFORE_37201_DTYPE,
-    SWAT_DTYPE,
+    SWAT_DTYPE, SWAT_DTYPE_OLD,
     DRAGON_COUNTERS_DTYPE,
     TIB_DTYPE,
     parse_tib_10MHz_counter,
@@ -513,18 +513,18 @@ class LSTEventSource(EventSource):
                 evt.ucts_cdts_version = cdts["cdts_version"]
 
             # if SWAT data are there
-            # commented out since it seems that currently the data type is not correct
-            # if evt.extdevices_presence & 4:
-            #     # unpack SWAT data
-            #     swat = debug.swat_data.view(SWAT_DTYPE)[0]
-            #     evt.swat_timestamp = swat["timestamp"]
-            #     evt.swat_counter1 = swat["counter1"]
-            #     evt.swat_counter2 = swat["counter2"]
-            #     evt.swat_event_type = swat["event_type"]
-            #     evt.swat_camera_flag = swat["camera_flag"]
-            #     evt.swat_camera_event_num = swat["camera_event_num"]
-            #     evt.swat_array_flag = swat["array_flag"]
-            #     evt.swat_array_event_num = swat["event_num"]
+            if evt.extdevices_presence & 4:
+                # unpack SWAT data
+                swat = debug.swat_data.view(SWAT_DTYPE)[0]
+                evt.swat_assigned_event_id = swat["assigned_event_id"]
+                evt.swat_trigger_id = swat["trigger_id"]
+                evt.swat_trigger_type = swat["trigger_type"]
+                evt.swat_trigger_time_s = swat["trigger_time_s"]
+                evt.swat_trigger_time_qns = swat["trigger_time_qns"]
+                evt.swat_readout_requested = swat["readout_requested"]
+                evt.swat_data_available = swat["data_available"]
+                evt.swat_hardware_stereo_trigger_mask = swat["hardware_stereo_trigger_mask"]
+                evt.swat_negative_flag = swat["negative_flag"]
 
         return LSTCameraContainer(evt=evt, svc=self.lst_service)
 
@@ -755,19 +755,6 @@ class LSTEventSource(EventSource):
                 lst_evt.ucts_camera_timestamp = cdts[4]
                 lst_evt.ucts_trigger_type = cdts[5]
                 lst_evt.ucts_white_rabbit_status = cdts[6]
-
-        # if SWAT data are there
-        if lst_evt.extdevices_presence & 4:
-            # unpack SWAT data
-            unpacked_swat = zfits_event.lstcam.swat_data.view(SWAT_DTYPE)[0]
-            lst_evt.swat_timestamp = unpacked_swat[0]
-            lst_evt.swat_counter1 = unpacked_swat[1]
-            lst_evt.swat_counter2 = unpacked_swat[2]
-            lst_evt.swat_event_type = unpacked_swat[3]
-            lst_evt.swat_camera_flag = unpacked_swat[4]
-            lst_evt.swat_camera_event_num = unpacked_swat[5]
-            lst_evt.swat_array_flag = unpacked_swat[6]
-            lst_evt.swat_array_event_num = unpacked_swat[7]
 
         # unpack Dragon counters
         counters = zfits_event.lstcam.counters.view(DRAGON_COUNTERS_DTYPE)
