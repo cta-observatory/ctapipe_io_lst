@@ -713,7 +713,7 @@ class LSTEventSource(EventSource):
         if waveform.ndim == 3:
             image = waveform[HIGH_GAIN].sum(axis=1)
         else:
-            return;
+            return
 
         in_range = (image >= self.min_flatfield_adc) & (image <= self.max_flatfield_adc)
         n_in_range = np.count_nonzero(in_range)
