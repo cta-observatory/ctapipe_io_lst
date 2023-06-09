@@ -686,6 +686,12 @@ class LSTEventSource(EventSource):
             )
 
         trigger.event_type = self._event_type_from_trigger_bits(trigger_bits)
+        
+        if trigger.event_type == EventType.FLATFIELD:
+            waveform = array_event.r1.tel[tel_id].waveform
+            if waveform.ndim == 2:
+                self.log.warning(f'Event {array_event.index.event_id} tagged as FLATFIELD, but has only one gain!')
+        
         if trigger.event_type == EventType.UNKNOWN:
             self.log.warning(f'Event {array_event.index.event_id} has unknown event type, trigger: {trigger_bits:08b}')
 
@@ -703,11 +709,11 @@ class LSTEventSource(EventSource):
         tel_id = self.tel_id
         waveform = array_event.r1.tel[tel_id].waveform
 
-        # needs to work for gain already selected or not
+        # Tag only events with 2-gains waveforms: both gains are needed for calibration
         if waveform.ndim == 3:
             image = waveform[HIGH_GAIN].sum(axis=1)
         else:
-            image = waveform.sum(axis=1)
+            return;
 
         in_range = (image >= self.min_flatfield_adc) & (image <= self.max_flatfield_adc)
         n_in_range = np.count_nonzero(in_range)
