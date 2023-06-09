@@ -686,14 +686,12 @@ class LSTEventSource(EventSource):
             )
 
         trigger.event_type = self._event_type_from_trigger_bits(trigger_bits)
-        
+
         if trigger.event_type == EventType.FLATFIELD:
-            waveform = array_event.r0.tel[tel_id].waveform
-            if waveform is None:
-                waveform = array_event.r1.tel[tel_id].waveform
-            if waveform.ndim == 2:
+            waveform = array_event.r1.tel[tel_id].waveform
+            if waveform is not None and waveform.ndim == 2:
                 self.log.warning(f'Event {array_event.index.event_id} tagged as FLATFIELD, but has only one gain!')
-        
+
         if trigger.event_type == EventType.UNKNOWN:
             self.log.warning(f'Event {array_event.index.event_id} has unknown event type, trigger: {trigger_bits:08b}')
 
