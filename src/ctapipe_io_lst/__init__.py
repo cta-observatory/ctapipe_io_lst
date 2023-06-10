@@ -730,13 +730,13 @@ class LSTEventSource(EventSource):
             else:
                 array_event.trigger.event_type = EventType.UNKNOWN
                 self.log.warning(
-                'Found FF-looking event that has just one gain: %d',
-                array_event.index.event_id, 'Setting event type to UNKNOWN'
+                'Found FF-looking event that has just one gain:',
+                f'{array_event.index.event_id}. Setting event type to UNKNOWN'
                 )
         elif array_event.trigger.event_type == EventType.FLATFIELD:
             self.log.warning(
-                'Found FF event that does not fulfill FF criteria: %d',
-                array_event.index.event_id, 'Setting event type to UNKNOWN' 
+                'Found FF event that does not fulfill FF criteria:',
+                f'{array_event.index.event_id}. Setting event type to UNKNOWN' 
             )
             array_event.trigger.event_type = EventType.UNKNOWN
 
