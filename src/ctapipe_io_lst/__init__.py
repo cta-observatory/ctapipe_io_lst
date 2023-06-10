@@ -708,27 +708,35 @@ class LSTEventSource(EventSource):
         '''
         tel_id = self.tel_id
         waveform = array_event.r1.tel[tel_id].waveform
-
-        # Tag only events with 2-gains waveforms: both gains are needed for calibration
+        
         if waveform.ndim == 3:
             image = waveform[HIGH_GAIN].sum(axis=1)
         else:
-            return
+            image = waveform.sum(axis=1)
 
         in_range = (image >= self.min_flatfield_adc) & (image <= self.max_flatfield_adc)
         n_in_range = np.count_nonzero(in_range)
 
         looks_like_ff = n_in_range >= self.min_flatfield_pixel_fraction * image.size
+        
         if looks_like_ff:
-            array_event.trigger.event_type = EventType.FLATFIELD
-            self.log.debug(
-                'Setting event type of event'
-                f' {array_event.index.event_id} to FLATFIELD'
-            )
+            # Tag as FF only events with 2-gains waveforms: both gains are needed for calibration
+            if waveform.ndim == 3:
+                array_event.trigger.event_type = EventType.FLATFIELD
+                self.log.debug(
+                    'Setting event type of event'
+                    f' {array_event.index.event_id} to FLATFIELD'
+                )
+            else:
+                array_event.trigger.event_type = EventType.UNKNOWN
+                self.log.warning(
+                'Found FF-looking event that has just one gain: %d',
+                array_event.index.event_id, 'Setting event type to UNKNOWN'
+                )
         elif array_event.trigger.event_type == EventType.FLATFIELD:
             self.log.warning(
                 'Found FF event that does not fulfill FF criteria: %d',
-                array_event.index.event_id,
+                array_event.index.event_id, 'Setting event type to UNKNOWN' 
             )
             array_event.trigger.event_type = EventType.UNKNOWN
 
