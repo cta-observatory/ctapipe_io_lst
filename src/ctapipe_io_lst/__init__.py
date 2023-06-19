@@ -333,17 +333,17 @@ class LSTEventSource(EventSource):
                 pointing_mode = PointingMode.TRACK
 
         self._scheduling_blocks = {
-            self.run_id: SchedulingBlockContainer(
-                sb_id=np.uint64(self.run_id),
+            self.local_run_id: SchedulingBlockContainer(
+                sb_id=np.uint64(self.local_run_id),
                 producer_id=f"LST-{self.tel_id}",
                 pointing_mode=pointing_mode,
             )
         }
 
         self._observation_blocks = {
-            self.run_id: ObservationBlockContainer(
-                obs_id=np.uint64(self.run_id),
-                sb_id=np.uint64(self.run_id),
+            self.local_run_id: ObservationBlockContainer(
+                obs_id=np.uint64(self.local_run_id),
+                sb_id=np.uint64(self.local_run_id),
                 producer_id=f"LST-{self.tel_id}",
                 actual_start_time=self.run_start,
                 **target_info
