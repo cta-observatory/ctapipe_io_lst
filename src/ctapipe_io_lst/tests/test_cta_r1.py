@@ -41,7 +41,7 @@ ANY_ARRAY_TYPE_TO_NUMPY_TYPE = {
 DTYPE_TO_ANYARRAY_TYPE = {v: k for k, v in ANY_ARRAY_TYPE_TO_NUMPY_TYPE.items()}
 
 
-subarray = LSTEventSource.create_subarray(4)
+subarray = LSTEventSource.create_subarray(tel_id=1)
 GEOMETRY = subarray.tel[1].camera.geometry
 waveform_model = WaveformModel(
     reference_pulse=subarray.tel[1].camera.readout.reference_pulse_shape[0],
