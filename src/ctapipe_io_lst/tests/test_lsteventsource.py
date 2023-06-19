@@ -11,7 +11,7 @@ import tables
 from ctapipe.containers import CoordinateFrameType, EventType, PointingMode
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
-from ctapipe_io_lst.constants import N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS
+from ctapipe_io_lst.constants import LST1_LOCATION, N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS
 from ctapipe_io_lst import TriggerBits, PixelStatus
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
@@ -340,3 +340,18 @@ def test_trigger_bits_to_event_type(trigger_bits, expected_type):
 
     event_type = LSTEventSource._event_type_from_trigger_bits(trigger_bits)
     assert event_type == expected_type
+
+
+
+def test_reference_position():
+    from ctapipe_io_lst import LSTEventSource
+    from ctapipe.coordinates import GroundFrame
+
+    subarray = LSTEventSource.create_subarray()
+
+    ground = GroundFrame(*subarray.positions[1], reference_location=subarray.reference_location)
+    position = ground.to_earth_location()
+
+    assert u.isclose(position.lat, LST1_LOCATION.lat)
+    assert u.isclose(position.lon, LST1_LOCATION.lon)
+    assert u.isclose(position.height, LST1_LOCATION.height)
