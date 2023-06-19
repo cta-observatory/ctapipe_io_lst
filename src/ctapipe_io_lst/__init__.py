@@ -45,7 +45,7 @@ from .anyarray_dtypes import (
     parse_tib_10MHz_counter,
 )
 from .constants import (
-    HIGH_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, LST1_LOCATION, REFERENCE_LOCATION,
+    HIGH_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, REFERENCE_LOCATION,
     PixelStatus, TriggerBits,
 )
 
@@ -367,7 +367,8 @@ class LSTEventSource(EventSource):
     @staticmethod
     def create_subarray(tel_id=1, reference_location=None):
         """
-        Obtain the subarray from the EventSource
+        Obtain a single-lst subarray description
+
         Returns
         -------
         ctapipe.instrument.SubarrayDescription
@@ -408,7 +409,7 @@ class LSTEventSource(EventSource):
             name=f"LST-{tel_id} subarray",
             tel_descriptions=tel_descriptions,
             tel_positions=tel_positions,
-            reference_location=LST1_LOCATION,
+            reference_location=reference_location,
         )
 
         return subarray
