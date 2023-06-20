@@ -292,7 +292,7 @@ class LSTEventSource(EventSource):
 
         self.cta_r1 = self.multi_file.cta_r1
         if self.cta_r1:
-            self.tel_id = self.camera_config.tel_id
+            self.tel_id = 1 # ignore tel_id in file for now
             self.local_run_id = self.camera_config.local_run_id
             self.module_id_map = self.camera_config.module_id_map
             self.pixel_id_map = self.camera_config.pixel_id_map
