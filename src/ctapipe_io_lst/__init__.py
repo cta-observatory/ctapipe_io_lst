@@ -40,7 +40,7 @@ from .pointing import PointingSource
 from .anyarray_dtypes import (
     CDTS_AFTER_37201_DTYPE,
     CDTS_BEFORE_37201_DTYPE,
-    SWAT_DTYPE, SWAT_DTYPE_OLD,
+    SWAT_DTYPE,
     DRAGON_COUNTERS_DTYPE,
     TIB_DTYPE,
     parse_tib_10MHz_counter,
