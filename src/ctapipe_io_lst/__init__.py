@@ -494,7 +494,7 @@ class LSTEventSource(EventSource):
             (header['XTENSION'] == 'BINTABLE')
             and (header['ZTABLE'] is True)
             and (header['ORIGIN'] == 'CTA')
-            and (header['PBFHEAD'] == 'R1.CameraEvent')
+            and (header['PBFHEAD'] in ('R1.CameraEvent', 'ProtoR1.CameraEvent'))
         )
 
         is_lst_file = 'lstcam_counters' in ttypes
