@@ -433,10 +433,6 @@ class LSTEventSource(EventSource):
                     return False
 
                 header = hdul["Events"].header
-                ttypes = {
-                    value for key, value in header.items()
-                    if 'TTYPE' in key
-                }
         except Exception as e:
             log.debug(f"Error trying to open input file as fits: {e}")
             return False
@@ -458,7 +454,7 @@ class LSTEventSource(EventSource):
             log.debug("Missing PBFHEAD key")
             return False
 
-        if proto_class not in {"R1.CameraEvent", "CTAR1.Event"}:
+        if proto_class not in {"R1.CameraEvent", "ProtoR1.CameraEvent"}:
             log.debug(f"Unsupported PBDHEAD: {proto_class}")
             return False
 
