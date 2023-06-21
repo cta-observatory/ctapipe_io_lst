@@ -627,7 +627,13 @@ class LSTEventSource(EventSource):
             log.debug("Missing PBFHEAD key")
             return False
 
-        if proto_class not in {"R1.CameraEvent", "CTAR1.Event", "R1v1.Event"}:
+        supported_protos = {
+            "R1.CameraEvent",
+            "ProtoR1.CameraEvent",
+            "CTAR1.Event",
+            "R1v1.Event",
+        }
+        if proto_class not in supported_protos:
             log.debug(f"Unsupported PBDHEAD: {proto_class}")
             return False
 
