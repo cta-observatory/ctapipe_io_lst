@@ -9,7 +9,6 @@ dependencies:
   - protozfits=2.2
   - eventio
   - corsikaio
-  - protozfits=2.2
   - zeromq
   - ipython
   - numba
