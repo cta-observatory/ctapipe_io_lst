@@ -6,9 +6,9 @@ dependencies:
   - astropy=5.2
   - python=3.11 # nail the python version, so conda does not try upgrading / dowgrading
   - ctapipe=0.19
+  - protozfits=2.2
   - eventio
   - corsikaio
-  - protozfits=2
   - zeromq
   - ipython
   - numba

@@ -3,6 +3,7 @@
 EventSource for LSTCam protobuf-fits.fz-files.
 """
 from ctapipe.instrument.subarray import EarthLocation
+import logging
 import numpy as np
 from astropy import units as u
 from pkg_resources import resource_filename
@@ -31,10 +32,10 @@ from ctapipe.coordinates import CameraFrame
 from ctapipe_io_lst.ground_frame import ground_frame_from_earth_location
 
 from .multifiles import MultiFiles
-from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer
+from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer, LSTCameraContainer
 from .version import __version__
 from .calibration import LSTR0Corrections
-from .event_time import EventTimeCalculator
+from .event_time import EventTimeCalculator, cta_high_res_to_time
 from .pointing import PointingSource
 from .anyarray_dtypes import (
     CDTS_AFTER_37201_DTYPE,
@@ -48,6 +49,9 @@ from .constants import (
     HIGH_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, REFERENCE_LOCATION,
     PixelStatus, TriggerBits,
 )
+
+
+log = logging.getLogger(__name__)
 
 
 __all__ = ['LSTEventSource', '__version__']
@@ -278,9 +282,6 @@ class LSTEventSource(EventSource):
             parent=self,
         )
         self.camera_config = self.multi_file.camera_config
-        self.run_id = self.camera_config.configuration_id
-        self.tel_id = self.camera_config.telescope_id
-        self.run_start = Time(self.camera_config.date, format='unix')
         self.dvr_applied = self.multi_file.dvr_applied
 
         reference_location = EarthLocation(
@@ -288,18 +289,38 @@ class LSTEventSource(EventSource):
             lat=self.reference_position_lat * u.deg,
             height=self.reference_position_height * u.m,
         )
+
+        self.cta_r1 = self.multi_file.cta_r1
+        if self.cta_r1:
+            self.tel_id = self.camera_config.tel_id
+            self.local_run_id = self.camera_config.local_run_id
+            self.module_id_map = self.camera_config.module_id_map
+            self.pixel_id_map = self.camera_config.pixel_id_map
+            self.run_start = Time(self.camera_config.config_time_s, format="unix")
+            self.n_pixels = self.camera_config.num_pixels
+            self.n_samples = self.camera_config.num_samples_nominal
+            self.lst_service = self.fill_lst_service_container_ctar1(self.camera_config)
+        else:
+            self.tel_id = self.camera_config.telescope_id
+            self.local_run_id = self.camera_config.configuration_id
+            self.module_id_map = self.camera_config.lstcam.expected_modules_id
+            self.pixel_id_map = self.camera_config.expected_pixels_id
+            self.run_start = Time(self.camera_config.date, format="unix")
+            self.n_pixels = self.camera_config.num_pixels
+            self.n_samples = self.camera_config.num_samples
+            self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
+
         self._subarray = self.create_subarray(self.tel_id, reference_location)
         self.r0_r1_calibrator = LSTR0Corrections(
             subarray=self._subarray, parent=self
         )
         self.time_calculator = EventTimeCalculator(
             subarray=self.subarray,
-            run_id=self.run_id,
-            expected_modules_id=self.camera_config.lstcam.expected_modules_id,
+            run_id=self.local_run_id,
+            expected_modules_id=self.module_id_map,
             parent=self,
         )
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
-        self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
 
         target_info = {}
         pointing_mode = PointingMode.UNKNOWN
@@ -312,17 +333,17 @@ class LSTEventSource(EventSource):
                 pointing_mode = PointingMode.TRACK
 
         self._scheduling_blocks = {
-            self.run_id: SchedulingBlockContainer(
-                sb_id=np.uint64(self.run_id),
+            self.local_run_id: SchedulingBlockContainer(
+                sb_id=np.uint64(self.local_run_id),
                 producer_id=f"LST-{self.tel_id}",
                 pointing_mode=pointing_mode,
             )
         }
 
         self._observation_blocks = {
-            self.run_id: ObservationBlockContainer(
-                obs_id=np.uint64(self.run_id),
-                sb_id=np.uint64(self.run_id),
+            self.local_run_id: ObservationBlockContainer(
+                obs_id=np.uint64(self.local_run_id),
+                sb_id=np.uint64(self.local_run_id),
                 producer_id=f"LST-{self.tel_id}",
                 actual_start_time=self.run_start,
                 **target_info
@@ -414,6 +435,99 @@ class LSTEventSource(EventSource):
 
         return subarray
 
+    def fill_from_cta_r1(self, array_event, zfits_event):
+        tel_id = self.tel_id
+
+        # TODO: decide from applied preprocessing options, not gains
+        if zfits_event.num_channels == 2:
+            shape = (zfits_event.num_channels, zfits_event.num_pixels, zfits_event.num_samples)
+            array_event.r0.tel[self.tel_id] = R0CameraContainer(
+                waveform=zfits_event.waveform.reshape(shape),
+            )
+            array_event.r1.tel[self.tel_id] = R1CameraContainer()
+        else:
+            has_high_gain = (zfits_event.pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
+            selected_gain_channel = np.where(has_high_gain, 0, 1)
+
+            shape = (zfits_event.num_pixels, zfits_event.num_samples)
+            array_event.r1.tel[self.tel_id] = R1CameraContainer(
+                waveform=zfits_event.waveform.reshape(shape),
+                selected_gain_channel=selected_gain_channel,
+            )
+            array_event.r0.tel[self.tel_id] = R0CameraContainer()
+
+        array_event.lst.tel[self.tel_id] = self.fill_lst_from_ctar1(zfits_event)
+
+        trigger = array_event.trigger
+        trigger.time = cta_high_res_to_time(zfits_event.event_time_s, zfits_event.event_time_qns)
+        trigger.tels_with_trigger = [tel_id]
+        trigger.tel[tel_id].time = trigger.time
+        trigger.event_type = self._event_type_from_trigger_bits(zfits_event.event_type)
+
+    def fill_lst_from_ctar1(self, zfits_event):
+        evt = LSTEventContainer(
+            pixel_status=zfits_event.pixel_status,
+            first_capacitor_id=zfits_event.first_cell_id,
+            calibration_monitoring_id=zfits_event.calibration_monitoring_id,
+            local_clock_counter=zfits_event.module_hires_local_clock_counter,
+        )
+
+        if zfits_event.debug is not None:
+            debug = zfits_event.debug
+            evt.module_status = debug.module_status
+            evt.extdevices_presence = debug.extdevices_presence
+            evt.chips_flags = debug.chips_flags
+            evt.charges_hg = debug.charges_gain1
+            evt.charges_lg = debug.charges_gain2
+
+            # unpack Dragon counters
+            counters = debug.counters.view(DRAGON_COUNTERS_DTYPE)
+            evt.pps_counter = counters['pps_counter']
+            evt.tenMHz_counter = counters['tenMHz_counter']
+            evt.event_counter = counters['event_counter']
+            evt.trigger_counter = counters['trigger_counter']
+            evt.local_clock_counter = counters['local_clock_counter']
+
+            # if TIB data are there
+            if evt.extdevices_presence & 1:
+                tib = debug.tib_data.view(TIB_DTYPE)[0]
+                evt.tib_event_counter = tib['event_counter']
+                evt.tib_pps_counter = tib['pps_counter']
+                evt.tib_tenMHz_counter = parse_tib_10MHz_counter(tib['tenMHz_counter'])
+                evt.tib_stereo_pattern = tib['stereo_pattern']
+                evt.tib_masked_trigger = tib['masked_trigger']
+
+            # if UCTS data are there
+            if evt.extdevices_presence & 2:
+                cdts = debug.cdts_data.view(CDTS_AFTER_37201_DTYPE)[0]
+                evt.ucts_timestamp = cdts["timestamp"]
+                evt.ucts_address = cdts["address"]
+                evt.ucts_event_counter = cdts["event_counter"]
+                evt.ucts_busy_counter = cdts["busy_counter"]
+                evt.ucts_pps_counter = cdts["pps_counter"]
+                evt.ucts_clock_counter = cdts["clock_counter"]
+                evt.ucts_trigger_type = cdts["trigger_type"]
+                evt.ucts_white_rabbit_status = cdts["white_rabbit_status"]
+                evt.ucts_stereo_pattern = cdts["stereo_pattern"]
+                evt.ucts_num_in_bunch = cdts["num_in_bunch"]
+                evt.ucts_cdts_version = cdts["cdts_version"]
+
+            # if SWAT data are there
+            if evt.extdevices_presence & 4:
+                # unpack SWAT data
+                swat = debug.swat_data.view(SWAT_DTYPE)[0]
+                evt.swat_assigned_event_id = swat["assigned_event_id"]
+                evt.swat_trigger_id = swat["trigger_id"]
+                evt.swat_trigger_type = swat["trigger_type"]
+                evt.swat_trigger_time_s = swat["trigger_time_s"]
+                evt.swat_trigger_time_qns = swat["trigger_time_qns"]
+                evt.swat_readout_requested = swat["readout_requested"]
+                evt.swat_data_available = swat["data_available"]
+                evt.swat_hardware_stereo_trigger_mask = swat["hardware_stereo_trigger_mask"]
+                evt.swat_negative_flag = swat["negative_flag"]
+
+        return LSTCameraContainer(evt=evt, svc=self.lst_service)
+
     def _generator(self):
 
         # container for LST data
@@ -423,7 +537,6 @@ class LSTEventSource(EventSource):
         array_event.meta['origin'] = 'LSTCAM'
 
         # also add service container to the event section
-        array_event.lst.tel[self.tel_id].svc = self.lst_service
 
         # initialize general monitoring container
         self.initialize_mon_container(array_event)
@@ -432,17 +545,23 @@ class LSTEventSource(EventSource):
         for count, zfits_event in enumerate(self.multi_file):
             array_event.count = count
             array_event.index.event_id = zfits_event.event_id
-            array_event.index.obs_id = self.obs_ids[0]
+            array_event.index.obs_id = self.local_run_id
 
             # Skip "empty" events that occur at the end of some runs
             if zfits_event.event_id == 0:
                 self.log.warning('Event with event_id=0 found, skipping')
                 continue
 
-            self.fill_r0r1_container(array_event, zfits_event)
-            self.fill_lst_event_container(array_event, zfits_event)
-            if self.trigger_information:
-                self.fill_trigger_info(array_event)
+            array_event.lst.tel[self.tel_id].svc = self.lst_service
+
+            if self.cta_r1:
+                self.fill_from_cta_r1(array_event, zfits_event)
+            else:
+                self.fill_r0r1_container(array_event, zfits_event)
+                self.fill_lst_event_container(array_event, zfits_event)
+
+                if self.trigger_information:
+                    self.fill_trigger_info(array_event)
 
             self.fill_mon_container(array_event, zfits_event)
 
@@ -479,6 +598,7 @@ class LSTEventSource(EventSource):
         try:
             with fits.open(file_path) as hdul:
                 if "Events" not in hdul:
+                    log.debug("FITS file does not contain an EVENTS HDU, returning False")
                     return False
 
                 header = hdul["Events"].header
@@ -486,19 +606,39 @@ class LSTEventSource(EventSource):
                     value for key, value in header.items()
                     if 'TTYPE' in key
                 }
-        except OSError:
+        except Exception as e:
+            log.debug(f"Error trying to open input file as fits: {e}")
             return False
 
+        if header["XTENSION"] != "BINTABLE":
+            log.debug(f"EVENTS HDU is not a bintable")
+            return False
 
-        is_protobuf_zfits_file = (
-            (header['XTENSION'] == 'BINTABLE')
-            and (header['ZTABLE'] is True)
-            and (header['ORIGIN'] == 'CTA')
-            and (header['PBFHEAD'] in ('R1.CameraEvent', 'ProtoR1.CameraEvent'))
-        )
+        if not header.get("ZTABLE", False):
+            log.debug(f"ZTABLE is not in header or False")
+            return False
 
-        is_lst_file = 'lstcam_counters' in ttypes
-        return is_protobuf_zfits_file & is_lst_file
+        if header.get("ORIGIN", "") != "CTA":
+            log.debug("ORIGIN != CTA")
+            return False
+
+        proto_class = header.get("PBFHEAD")
+        if proto_class is None:
+            log.debug("Missing PBFHEAD key")
+            return False
+
+        supported_protos = {
+            "R1.CameraEvent",
+            "ProtoR1.CameraEvent",
+            "CTAR1.Event",
+            "R1v1.Event",
+        }
+        if proto_class not in supported_protos:
+            log.debug(f"Unsupported PBDHEAD: {proto_class}")
+            return False
+
+        # TODO: how to differentiate nectarcam from lstcam?
+        return True
 
     @staticmethod
     def fill_lst_service_container(tel_id, camera_config):
@@ -509,6 +649,7 @@ class LSTEventSource(EventSource):
         """
         return LSTServiceContainer(
             telescope_id=tel_id,
+            local_run_id=camera_config.configuration_id,
             cs_serial=camera_config.cs_serial,
             configuration_id=camera_config.configuration_id,
             date=camera_config.date,
@@ -522,6 +663,38 @@ class LSTEventSource(EventSource):
             cdhs_version=camera_config.lstcam.cdhs_version,
             algorithms=camera_config.lstcam.algorithms,
             pre_proc_algorithms=camera_config.lstcam.pre_proc_algorithms,
+        )
+
+    @staticmethod
+    def fill_lst_service_container_ctar1(camera_config):
+        """
+        Fill LSTServiceContainer with specific LST service data data
+        (from the CameraConfig table of zfit file)
+
+        """
+        return LSTServiceContainer(
+            telescope_id=camera_config.tel_id,
+            local_run_id=camera_config.local_run_id,
+            date=camera_config.config_time_s,
+            configuration_id=camera_config.camera_config_id,
+            pixel_ids=camera_config.pixel_id_map,
+            module_ids=camera_config.module_id_map,
+            num_modules=camera_config.num_modules,
+            num_pixels=camera_config.num_pixels,
+            num_channels=camera_config.num_channels,
+            num_samples=camera_config.num_samples_nominal,
+
+            data_model_version=camera_config.data_model_version,
+            calibration_service_id=camera_config.calibration_service_id,
+            calibration_algorithm_id=camera_config.calibration_algorithm_id,
+
+            # in debug in CTA R1 debug
+            cs_serial=camera_config.debug.cs_serial,
+            idaq_version=camera_config.debug.evb_version,
+            cdhs_version=camera_config.debug.cdhs_version,
+            tdp_type=camera_config.debug.tdp_type,
+            tdp_action=camera_config.debug.tdp_action,
+            ttype_pattern=camera_config.debug.ttype_pattern,
         )
 
     def fill_lst_event_container(self, array_event, zfits_event):
@@ -588,19 +761,6 @@ class LSTEventSource(EventSource):
                 lst_evt.ucts_camera_timestamp = cdts[4]
                 lst_evt.ucts_trigger_type = cdts[5]
                 lst_evt.ucts_white_rabbit_status = cdts[6]
-
-        # if SWAT data are there
-        if lst_evt.extdevices_presence & 4:
-            # unpack SWAT data
-            unpacked_swat = zfits_event.lstcam.swat_data.view(SWAT_DTYPE)[0]
-            lst_evt.swat_timestamp = unpacked_swat[0]
-            lst_evt.swat_counter1 = unpacked_swat[1]
-            lst_evt.swat_counter2 = unpacked_swat[2]
-            lst_evt.swat_event_type = unpacked_swat[3]
-            lst_evt.swat_camera_flag = unpacked_swat[4]
-            lst_evt.swat_camera_event_num = unpacked_swat[5]
-            lst_evt.swat_array_flag = unpacked_swat[6]
-            lst_evt.swat_array_event_num = unpacked_swat[7]
 
         # unpack Dragon counters
         counters = zfits_event.lstcam.counters.view(DRAGON_COUNTERS_DTYPE)
@@ -767,9 +927,9 @@ class LSTEventSource(EventSource):
 
         Missing or broken pixels are filled using maxval of the waveform dtype.
         """
-        n_pixels = self.camera_config.num_pixels
-        n_samples = self.camera_config.num_samples
-        expected_pixels = self.camera_config.expected_pixels_id
+        n_pixels = self.n_pixels
+        n_samples = self.n_samples
+        pixel_id_map = self.pixel_id_map
 
         has_low_gain = (zfits_event.pixel_status & PixelStatus.LOW_GAIN_STORED).astype(bool)
         has_high_gain = (zfits_event.pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
@@ -807,11 +967,11 @@ class LSTEventSource(EventSource):
                     " the run for which this happened."
                 )
 
-            reordered_waveform = np.full((N_PIXELS, N_SAMPLES), fill, dtype=dtype)
-            reordered_waveform[expected_pixels[stored_pixels]] = waveform
+            reordered_waveform = np.full((N_PIXELS, n_samples), fill, dtype=dtype)
+            reordered_waveform[pixel_id_map[stored_pixels]] = waveform
 
             reordered_selected_gain = np.full(N_PIXELS, -1, dtype=np.int8)
-            reordered_selected_gain[expected_pixels] = selected_gain
+            reordered_selected_gain[pixel_id_map] = selected_gain
 
             r0 = R0CameraContainer()
             r1 = R1CameraContainer(
@@ -822,7 +982,7 @@ class LSTEventSource(EventSource):
             reshaped_waveform = zfits_event.waveform.reshape(N_GAINS, -1, n_samples)
             # re-order the waveform following the expected_pixels_id values
             reordered_waveform = np.full((N_GAINS, N_PIXELS, N_SAMPLES), fill, dtype=dtype)
-            reordered_waveform[:, expected_pixels[stored_pixels], :] = reshaped_waveform
+            reordered_waveform[:, pixel_id_map[stored_pixels], :] = reshaped_waveform
             r0 = R0CameraContainer(waveform=reordered_waveform)
             r1 = R1CameraContainer()
 
@@ -864,10 +1024,10 @@ class LSTEventSource(EventSource):
         status_container = array_event.mon.tel[self.tel_id].pixel_status
 
         # reorder the array
-        expected_pixels_id = self.camera_config.expected_pixels_id
+        pixel_id_map = self.pixel_id_map
 
         reordered_pixel_status = np.zeros(N_PIXELS, dtype=zfits_event.pixel_status.dtype)
-        reordered_pixel_status[expected_pixels_id] = zfits_event.pixel_status
+        reordered_pixel_status[pixel_id_map] = zfits_event.pixel_status
 
         channel_info = get_channel_info(reordered_pixel_status)
         status_container.hardware_failing_pixels[:] = channel_info == 0
