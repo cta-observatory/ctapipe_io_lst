@@ -89,6 +89,23 @@ def test_read_target_log(tmp_path):
     assert targets["ra"].unit == u.deg
     assert targets["dec"].unit == u.deg
 
+    # test with removing names
+    log_lines = test_target_log.read_text().splitlines()
+    log_no_names = tmp_path / "target_log_no_names.txt"
+    with log_no_names.open("w") as f:
+        for line in log_lines:
+            tokens = line.split()
+            if tokens[1] == "TrackStart":
+                tokens = tokens[:-1]
+            f.write(" ".join(tokens) + "\n")
+
+    targets = PointingSource._read_target_log(log_no_names)
+    assert len(targets) == 7
+    assert targets.colnames == ["start_unix", "ra", "dec", "name", "end_unix", "start", "end"]
+
+    np.testing.assert_array_equal(targets["name"], ["unknown"] * 7)
+    np.testing.assert_array_equal(targets["ra"], [83.6296, 86.6333] * 3 + [79.1725])
+
 
 def test_targets():
     from ctapipe_io_lst import PointingSource, LSTEventSource

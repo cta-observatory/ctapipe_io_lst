@@ -73,11 +73,18 @@ class PointingSource(TelescopeComponent):
         path = Path(path)
 
         def parse_start(tokens):
+            # missing name, happens with manual drive operation
+            # and shifters not entering a name
+            if len(tokens) == 4:
+                name = "unknown"
+            else:
+                name = tokens[4]
+
             return {
                 "start_unix": int(tokens[0]),
                 "ra": float(tokens[2]),
                 "dec": float(tokens[3]),
-                "name": tokens[4],
+                "name": name,
             }
 
         def parse_end(tokens):
