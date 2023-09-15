@@ -466,11 +466,15 @@ class LSTEventSource(EventSource):
 
     def fill_lst_from_ctar1(self, zfits_event):
         evt = LSTEventContainer(
-            pixel_status=zfits_event.pixel_status,
+            pixel_status=zfits_event.pixel_status.copy(),
             first_capacitor_id=zfits_event.first_cell_id,
             calibration_monitoring_id=zfits_event.calibration_monitoring_id,
             local_clock_counter=zfits_event.module_hires_local_clock_counter,
         )
+        # set bits for dvr if not already set
+        if not self.dvr_applied:
+            not_broken = get_channel_info(evt.pixel_status) != 0
+            evt.pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
 
         if zfits_event.debug is not None:
             debug = zfits_event.debug
