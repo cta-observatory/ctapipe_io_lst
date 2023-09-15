@@ -310,6 +310,8 @@ class LSTEventSource(EventSource):
             self.n_samples = self.camera_config.num_samples
             self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
 
+        self.reverse_pixel_id_map = np.argsort(self.pixel_id_map)
+
         self._subarray = self.create_subarray(self.tel_id, reference_location)
         self.r0_r1_calibrator = LSTR0Corrections(
             subarray=self._subarray, parent=self
@@ -438,20 +440,24 @@ class LSTEventSource(EventSource):
     def fill_from_cta_r1(self, array_event, zfits_event):
         tel_id = self.tel_id
 
+        # FIXME: missing modules / pixels
+        # FIXME: DVR? should not happen in r1 but dl0, but our own converter uses the old R1
+
         # TODO: decide from applied preprocessing options, not gains
         if zfits_event.num_channels == 2:
             shape = (zfits_event.num_channels, zfits_event.num_pixels, zfits_event.num_samples)
             array_event.r0.tel[self.tel_id] = R0CameraContainer(
-                waveform=zfits_event.waveform.reshape(shape),
+                waveform=zfits_event.waveform.reshape(shape)[:, self.reverse_pixel_id_map],
             )
             array_event.r1.tel[self.tel_id] = R1CameraContainer()
+
         else:
             has_high_gain = (zfits_event.pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
             selected_gain_channel = np.where(has_high_gain, 0, 1)
 
             shape = (zfits_event.num_pixels, zfits_event.num_samples)
             array_event.r1.tel[self.tel_id] = R1CameraContainer(
-                waveform=zfits_event.waveform.reshape(shape),
+                waveform=zfits_event.waveform.reshape(shape)[self.reverse_pixel_id_map],
                 selected_gain_channel=selected_gain_channel,
             )
             array_event.r0.tel[self.tel_id] = R0CameraContainer()
