@@ -25,7 +25,8 @@ from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
     CoordinateFrameType, PixelStatusContainer, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
-    SchedulingBlockContainer, ObservationBlockContainer,
+    SchedulingBlockContainer, ObservationBlockContainer, MonitoringContainer, MonitoringCameraContainer,
+    EventIndexContainer,
 )
 from ctapipe.coordinates import CameraFrame
 
@@ -443,7 +444,6 @@ class LSTEventSource(EventSource):
         # FIXME: missing modules / pixels
         # FIXME: DVR? should not happen in r1 but dl0, but our own converter uses the old R1
 
-        # TODO: decide from applied preprocessing options, not gains
         if zfits_event.num_channels == 2:
             shape = (zfits_event.num_channels, zfits_event.num_pixels, zfits_event.num_samples)
             array_event.r0.tel[self.tel_id] = R0CameraContainer(
@@ -540,27 +540,30 @@ class LSTEventSource(EventSource):
 
     def _generator(self):
 
-        # container for LST data
-        array_event = LSTArrayEventContainer()
-        array_event.meta['input_url'] = self.input_url
-        array_event.meta['max_events'] = self.max_events
-        array_event.meta['origin'] = 'LSTCAM'
-
         # also add service container to the event section
 
         # initialize general monitoring container
-        self.initialize_mon_container(array_event)
+        mon = self.initialize_mon_container()
 
         # loop on events
         for count, zfits_event in enumerate(self.multi_file):
-            array_event.count = count
-            array_event.index.event_id = zfits_event.event_id
-            array_event.index.obs_id = self.local_run_id
-
             # Skip "empty" events that occur at the end of some runs
             if zfits_event.event_id == 0:
                 self.log.warning('Event with event_id=0 found, skipping')
                 continue
+
+            # container for LST data
+            array_event = LSTArrayEventContainer(
+                count=count,
+                index=EventIndexContainer(
+                    obs_id=self.local_run_id,
+                    event_id=zfits_event.event_id,
+                ),
+                mon=mon,
+            )
+            array_event.meta['input_url'] = self.input_url
+            array_event.meta['max_events'] = self.max_events
+            array_event.meta['origin'] = 'LSTCAM'
 
             array_event.lst.tel[self.tel_id].svc = self.lst_service
 
@@ -1007,15 +1010,12 @@ class LSTEventSource(EventSource):
         array_event.r0.tel[self.tel_id] = r0
         array_event.r1.tel[self.tel_id] = r1
 
-    def initialize_mon_container(self, array_event):
+    def initialize_mon_container(self):
         """
         Fill with MonitoringContainer.
         For the moment, initialize only the PixelStatusContainer
 
         """
-        container = array_event.mon
-        mon_camera_container = container.tel[self.tel_id]
-
         shape = (N_GAINS, N_PIXELS)
         # all pixels broken by default
         status_container = PixelStatusContainer(
@@ -1023,7 +1023,13 @@ class LSTEventSource(EventSource):
             pedestal_failing_pixels=np.zeros(shape, dtype=bool),
             flatfield_failing_pixels=np.zeros(shape, dtype=bool),
         )
-        mon_camera_container.pixel_status = status_container
+
+        camera_container = MonitoringCameraContainer(
+            pixel_status = status_container,
+        )
+        container = MonitoringContainer()
+        container.tel[self.tel_id] = camera_container
+        return container
 
     def fill_mon_container(self, array_event, zfits_event):
         """

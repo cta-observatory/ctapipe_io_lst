@@ -8,7 +8,7 @@ from astropy.time import Time
 import astropy.units as u
 
 import protozfits
-from protozfits.CTA_R1_pb2 import CameraConfiguration, Event
+from protozfits.CTA_R1_pb2 import CameraConfiguration, Event, TelescopeDataStream
 from protozfits.Debug_R1_pb2 import DebugEvent, DebugCameraConfiguration
 from protozfits.CoreMessages_pb2 import AnyArray
 from traitlets.config import Config
@@ -144,6 +144,9 @@ def dummy_cta_r1(dummy_cta_r1_dir):
         )
     )
 
+    # assume evb did no pe calibration
+    data_stream = TelescopeDataStream(sb_id=10000, obs_id=10000, waveform_offset=400, waveform_scale=1)
+
     rng = np.random.default_rng()
 
     streams = []
@@ -151,6 +154,8 @@ def dummy_cta_r1(dummy_cta_r1_dir):
         for stream_path in stream_paths:
             stream = stack.enter_context(protozfits.ProtobufZOFits(n_tiles=5, rows_per_tile=20, compression_block_size_kb=64 * 1024))
             stream.open(str(stream_path))
+            stream.move_to_new_table("DataStream")
+            stream.write_message(data_stream)
             stream.move_to_new_table("CameraConfiguration")
             stream.write_message(camera_config)
             stream.move_to_new_table("Events")
