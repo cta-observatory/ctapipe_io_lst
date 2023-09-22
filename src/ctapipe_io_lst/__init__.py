@@ -6,7 +6,7 @@ from ctapipe.instrument.subarray import EarthLocation
 import logging
 import numpy as np
 from astropy import units as u
-from pkg_resources import resource_filename
+from importlib import resources
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
     ReflectorShape,
@@ -93,9 +93,7 @@ def get_channel_info(pixel_status):
 
 def load_camera_geometry():
     ''' Load camera geometry from bundled resources of this repo '''
-    f = resource_filename(
-        'ctapipe_io_lst', 'resources/LSTCam.camgeom.fits.gz'
-    )
+    f = resources.files('ctapipe_io_lst').joinpath('resources/LSTCam.camgeom.fits.gz')
     Provenance().add_input_file(f, role="CameraGeometry")
     cam = CameraGeometry.from_table(f)
     cam.frame = CameraFrame(focal_length=OPTICS.effective_focal_length)
@@ -118,8 +116,7 @@ def read_pulse_shapes():
     # temporary replace the reference pulse shape
     # ("oversampled_pulse_LST_8dynode_pix6_20200204.dat")
     # with a dummy one in order to disable the charge corrections in the charge extractor
-    infilename = resource_filename(
-        'ctapipe_io_lst',
+    infilename = resources.files('ctapipe_io_lst').joinpath(
         'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat'
     )
 
