@@ -2,54 +2,76 @@
 """
 EventSource for LSTCam protobuf-fits.fz-files.
 """
-from ctapipe.instrument.subarray import EarthLocation
 import logging
+import sys
+
 import numpy as np
 from astropy import units as u
-from importlib import resources
-from ctapipe.core import Provenance
-from ctapipe.instrument import (
-    ReflectorShape,
-    TelescopeDescription,
-    SubarrayDescription,
-    CameraDescription,
-    CameraReadout,
-    CameraGeometry,
-    OpticsDescription,
-    SizeType,
-)
-from astropy.time import Time
 
-from ctapipe.io import EventSource, read_table
-from ctapipe.io.datalevels import DataLevel
-from ctapipe.core.traits import Bool, Float, Enum, Path
+if sys.version_info[:2] < (3, 9):
+    from importlib_resources import files
+else:
+    from importlib.resources import files
+
+from astropy.time import Time
 from ctapipe.containers import (
-    CoordinateFrameType, PixelStatusContainer, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
-    SchedulingBlockContainer, ObservationBlockContainer,
+    CoordinateFrameType,
+    EventType,
+    ObservationBlockContainer,
+    PixelStatusContainer,
+    PointingMode,
+    R0CameraContainer,
+    R1CameraContainer,
+    SchedulingBlockContainer
 )
 from ctapipe.coordinates import CameraFrame
+from ctapipe.core import Provenance
+from ctapipe.core.traits import Bool, Enum, Float, Path
+from ctapipe.instrument import (
+    CameraDescription,
+    CameraGeometry,
+    CameraReadout,
+    OpticsDescription,
+    ReflectorShape,
+    SizeType,
+    SubarrayDescription,
+    TelescopeDescription
+)
+from ctapipe.instrument.subarray import EarthLocation
+from ctapipe.io import EventSource, read_table
+from ctapipe.io.datalevels import DataLevel
 
 from ctapipe_io_lst.ground_frame import ground_frame_from_earth_location
 
-from .multifiles import MultiFiles
-from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer, LSTCameraContainer
-from .version import __version__
-from .calibration import LSTR0Corrections
-from .event_time import EventTimeCalculator, cta_high_res_to_time
-from .pointing import PointingSource
 from .anyarray_dtypes import (
     CDTS_AFTER_37201_DTYPE,
     CDTS_BEFORE_37201_DTYPE,
-    SWAT_DTYPE,
     DRAGON_COUNTERS_DTYPE,
+    SWAT_DTYPE,
     TIB_DTYPE,
-    parse_tib_10MHz_counter,
+    parse_tib_10MHz_counter
 )
+from .calibration import LSTR0Corrections
 from .constants import (
-    HIGH_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, REFERENCE_LOCATION,
-    PixelStatus, TriggerBits,
+    HIGH_GAIN,
+    LST_LOCATIONS,
+    N_GAINS,
+    N_PIXELS,
+    N_SAMPLES,
+    REFERENCE_LOCATION,
+    PixelStatus,
+    TriggerBits
 )
-
+from .containers import (
+    LSTArrayEventContainer,
+    LSTCameraContainer,
+    LSTEventContainer,
+    LSTServiceContainer
+)
+from .event_time import EventTimeCalculator, cta_high_res_to_time
+from .multifiles import MultiFiles
+from .pointing import PointingSource
+from .version import __version__
 
 log = logging.getLogger(__name__)
 
@@ -93,7 +115,7 @@ def get_channel_info(pixel_status):
 
 def load_camera_geometry():
     ''' Load camera geometry from bundled resources of this repo '''
-    f = resources.files('ctapipe_io_lst').joinpath('resources/LSTCam.camgeom.fits.gz')
+    f = files('ctapipe_io_lst') / 'resources/LSTCam.camgeom.fits.gz'
     Provenance().add_input_file(f, role="CameraGeometry")
     cam = CameraGeometry.from_table(f)
     cam.frame = CameraFrame(focal_length=OPTICS.effective_focal_length)
@@ -116,9 +138,7 @@ def read_pulse_shapes():
     # temporary replace the reference pulse shape
     # ("oversampled_pulse_LST_8dynode_pix6_20200204.dat")
     # with a dummy one in order to disable the charge corrections in the charge extractor
-    infilename = resources.files('ctapipe_io_lst').joinpath(
-        'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat'
-    )
+    infilename = files('ctapipe_io_lst') / 'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat'
 
     data = np.genfromtxt(infilename, dtype='float', comments='#')
     Provenance().add_input_file(infilename, role="PulseShapes")
@@ -783,7 +803,7 @@ class LSTEventSource(EventSource):
             return EventType.SUBARRAY
 
         # We only want to tag events as flatfield that *only* have the CALIBRATION bit
-        # or both CALIBRATION and MONO bits, since flatfield events might 
+        # or both CALIBRATION and MONO bits, since flatfield events might
         # trigger the physics trigger
         if trigger_bits == TriggerBits.CALIBRATION:
             return EventType.FLATFIELD
@@ -866,7 +886,7 @@ class LSTEventSource(EventSource):
         '''
         tel_id = self.tel_id
         waveform = array_event.r1.tel[tel_id].waveform
-        
+
         if waveform.ndim == 3:
             image = waveform[HIGH_GAIN].sum(axis=1)
         else:
@@ -876,7 +896,7 @@ class LSTEventSource(EventSource):
         n_in_range = np.count_nonzero(in_range)
 
         looks_like_ff = n_in_range >= self.min_flatfield_pixel_fraction * image.size
-        
+
         if looks_like_ff:
             # Tag as FF only events with 2-gains waveforms: both gains are needed for calibration
             if waveform.ndim == 3:
@@ -1061,4 +1081,3 @@ class LSTEventSource(EventSource):
                 "Event %d is tagged as pedestal but not a known pedestal event",
                 event_id,
             )
-

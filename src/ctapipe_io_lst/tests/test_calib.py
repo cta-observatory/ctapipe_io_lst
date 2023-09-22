@@ -1,13 +1,21 @@
-import pickle
-from ctapipe_io_lst.constants import HIGH_GAIN
+import sys
+
+if sys.version_info[:2] < (3, 9):
+    from importlib_resources import files
+else:
+    from importlib.resources import files
+
 import os
+import pickle
 from pathlib import Path
-from traitlets.config import Config
+
 import numpy as np
 import tables
-from importlib import resources
+from traitlets.config import Config
 
-resource_dir = resources.files('ctapipe_io_lst') / 'tests/resources'
+from ctapipe_io_lst.constants import HIGH_GAIN
+
+resource_dir = files('ctapipe_io_lst') / 'tests/resources'
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0000_first50.fits.fz'
@@ -25,8 +33,10 @@ test_time_calib_path = calib_path / f'drs4_time_sampling_from_FF/20191124/{calib
 def test_get_first_capacitor():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.calibration import (
-        get_first_capacitors_for_pixels,
-        N_GAINS, N_PIXELS_MODULE, N_MODULES,
+        N_GAINS,
+        N_MODULES,
+        N_PIXELS_MODULE,
+        get_first_capacitors_for_pixels
     )
 
     tel_id = 1
@@ -60,7 +70,11 @@ def test_read_calib_file():
 
 
 def test_read_drs4_pedestal_file():
-    from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS_PIXEL, N_SAMPLES
+    from ctapipe_io_lst.calibration import (
+        N_CAPACITORS_PIXEL,
+        N_SAMPLES,
+        LSTR0Corrections
+    )
 
     pedestal = LSTR0Corrections._get_drs4_pedestal_data(test_drs4_pedestal_path, tel_id=1)
 
@@ -70,7 +84,7 @@ def test_read_drs4_pedestal_file():
 
 
 def test_read_drs_time_calibration_file():
-    from ctapipe_io_lst.calibration import LSTR0Corrections, N_GAINS, N_PIXELS
+    from ctapipe_io_lst.calibration import N_GAINS, N_PIXELS, LSTR0Corrections
 
     fan, fbn = LSTR0Corrections.load_drs4_time_calibration_file(test_time_calib_path)
 
@@ -201,7 +215,7 @@ def test_missing_module():
 
 def test_no_gain_selection():
     from ctapipe_io_lst import LSTEventSource
-    from ctapipe_io_lst.constants import N_PIXELS, N_GAINS, N_SAMPLES
+    from ctapipe_io_lst.constants import N_GAINS, N_PIXELS, N_SAMPLES
 
     config = Config({
         'LSTEventSource': {
@@ -230,7 +244,7 @@ def test_no_gain_selection():
 
 def test_no_gain_selection_no_drs4time_calib():
     from ctapipe_io_lst import LSTEventSource
-    from ctapipe_io_lst.constants import N_PIXELS, N_GAINS, N_SAMPLES
+    from ctapipe_io_lst.constants import N_GAINS, N_PIXELS, N_SAMPLES
 
     config = Config({
         'LSTEventSource': {
