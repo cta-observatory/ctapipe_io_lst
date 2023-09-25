@@ -8,10 +8,7 @@ import sys
 import numpy as np
 from astropy import units as u
 
-if sys.version_info[:2] < (3, 9):
-    from importlib_resources import files
-else:
-    from importlib.resources import files
+from importlib.resources import files
 
 from astropy.time import Time
 from ctapipe.containers import (
