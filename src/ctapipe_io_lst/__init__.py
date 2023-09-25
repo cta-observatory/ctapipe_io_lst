@@ -3,7 +3,6 @@
 EventSource for LSTCam protobuf-fits.fz-files.
 """
 import logging
-import sys
 
 import numpy as np
 from astropy import units as u
