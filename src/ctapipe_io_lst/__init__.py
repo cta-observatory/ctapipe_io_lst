@@ -468,7 +468,7 @@ class LSTEventSource(EventSource):
         trigger.time = cta_high_res_to_time(zfits_event.event_time_s, zfits_event.event_time_qns)
         trigger.tels_with_trigger = [tel_id]
         trigger.tel[tel_id].time = trigger.time
-        trigger.event_type = self._event_type_from_trigger_bits(zfits_event.event_type)
+        trigger.event_type = EventType(zfits_event.event_type)
 
     def fill_lst_from_ctar1(self, zfits_event):
         evt = LSTEventContainer(
