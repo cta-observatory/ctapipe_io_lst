@@ -257,7 +257,7 @@ class LSTR0Corrections(TelescopeComponent):
                 r1.waveform -= self.offset.tel[tel_id]
 
             broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
-            dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & PixelStatus.DVR_STATUS ) == 0
+            dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & PixelStatus.DVR_STATUS) == 0
             invalid_pixels = broken_pixels | dvred_pixels
 
             if r1.selected_gain_channel is None:

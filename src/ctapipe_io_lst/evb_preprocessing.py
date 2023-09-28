@@ -38,7 +38,7 @@ def get_processings_for_trigger_bits(camera_configuration):
         # all-zero trigger bits can be ignored
         if trigger_bits == 0:
             continue
-        
+
         actions[TriggerBits(int(trigger_bits))] = {
             step for step in EVBPreprocessing
             if tdp_action[step] & (1 << i)

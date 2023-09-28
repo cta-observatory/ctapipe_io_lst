@@ -51,6 +51,8 @@ from .constants import (
     PixelStatus, TriggerBits,
 )
 
+from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessing
+
 
 log = logging.getLogger(__name__)
 
@@ -301,6 +303,8 @@ class LSTEventSource(EventSource):
             self.n_pixels = self.camera_config.num_pixels
             self.n_samples = self.camera_config.num_samples_nominal
             self.lst_service = self.fill_lst_service_container_ctar1(self.camera_config)
+            self.evb_preprocessing = get_processings_for_trigger_bits(self.camera_config)
+            self.data_stream = self.multi_file.data_stream
         else:
             self.tel_id = self.camera_config.telescope_id
             self.local_run_id = self.camera_config.configuration_id
@@ -310,6 +314,8 @@ class LSTEventSource(EventSource):
             self.n_pixels = self.camera_config.num_pixels
             self.n_samples = self.camera_config.num_samples
             self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
+            self.evb_preprocessing = None
+            self.data_stream = None
 
         self.reverse_pixel_id_map = np.argsort(self.pixel_id_map)
 
@@ -384,6 +390,12 @@ class LSTEventSource(EventSource):
 
     @property
     def datalevels(self):
+        if self.cta_r1:
+            if EVBPreprocessing.CALIBRATION in self.evb_preprocessing[TriggerBits.MONO]:
+                return (DataLevel.R1, )
+            else:
+                return (DataLevel.R0, )
+
         if self.r0_r1_calibrator.calibration_path is not None:
             return (DataLevel.R0, DataLevel.R1)
         return (DataLevel.R0, )
@@ -440,27 +452,40 @@ class LSTEventSource(EventSource):
 
     def fill_from_cta_r1(self, array_event, zfits_event):
         tel_id = self.tel_id
+        scale = self.data_stream.waveform_scale
+        offset = self.data_stream.waveform_offset
+        pixel_id_map = self.camera_config.pixel_id_map
 
         # FIXME: missing modules / pixels
         # FIXME: DVR? should not happen in r1 but dl0, but our own converter uses the old R1
 
+        # reorder to nominal pixel order
+        pixel_status = np.zeros(N_PIXELS, dtype=zfits_event.pixel_status.dtype)
+        pixel_status[pixel_id_map] = zfits_event.pixel_status
+
+        # set dvr bits, so that calibration code doesn't reset them...
+        not_broken = get_channel_info(pixel_status) != 0
+        pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
+
+        n_channels = zfits_event.num_channels
+        n_pixels = zfits_event.num_pixels
+        n_samples = zfits_event.num_samples
+
+        readout_shape = (n_channels, n_pixels, n_samples)
+        waveform = zfits_event.waveform.reshape(readout_shape)
+        waveform = (waveform.astype(np.float32) - offset) / scale
+
+        reordered_waveform = np.full((n_channels, N_PIXELS, n_samples), 0.0, dtype=np.float32)
+        reordered_waveform[:, pixel_id_map] = waveform
+
+        # FIXME, check using evb_preprocessing and make ctapipe support 2 gains
         if zfits_event.num_channels == 2:
-            shape = (zfits_event.num_channels, zfits_event.num_pixels, zfits_event.num_samples)
-            array_event.r0.tel[self.tel_id] = R0CameraContainer(
-                waveform=zfits_event.waveform.reshape(shape)[:, self.reverse_pixel_id_map],
-            )
-            array_event.r1.tel[self.tel_id] = R1CameraContainer()
-
+            selected_gain_channel = None
         else:
-            has_high_gain = (zfits_event.pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
+            has_high_gain = (pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
             selected_gain_channel = np.where(has_high_gain, 0, 1)
+            waveform = waveform[0]
 
-            shape = (zfits_event.num_pixels, zfits_event.num_samples)
-            array_event.r1.tel[self.tel_id] = R1CameraContainer(
-                waveform=zfits_event.waveform.reshape(shape)[self.reverse_pixel_id_map],
-                selected_gain_channel=selected_gain_channel,
-            )
-            array_event.r0.tel[self.tel_id] = R0CameraContainer()
 
         array_event.lst.tel[self.tel_id] = self.fill_lst_from_ctar1(zfits_event)
 
@@ -469,6 +494,14 @@ class LSTEventSource(EventSource):
         trigger.tels_with_trigger = [tel_id]
         trigger.tel[tel_id].time = trigger.time
         trigger.event_type = EventType(zfits_event.event_type)
+
+        array_event.r1.tel[self.tel_id] = R1CameraContainer(
+            waveform=waveform,
+            selected_gain_channel=selected_gain_channel,
+            pixel_status=pixel_status,
+            event_type=EventType(zfits_event.event_type),
+            event_time=trigger.time,
+        )
 
     def fill_lst_from_ctar1(self, zfits_event):
         evt = LSTEventContainer(
