@@ -473,7 +473,7 @@ class LSTEventSource(EventSource):
 
         readout_shape = (n_channels, n_pixels, n_samples)
         waveform = zfits_event.waveform.reshape(readout_shape)
-        waveform = (waveform.astype(np.float32) - offset) / scale
+        waveform = waveform.astype(np.float32) / scale - offset
 
         reordered_waveform = np.full((n_channels, N_PIXELS, n_samples), 0.0, dtype=np.float32)
         reordered_waveform[:, pixel_id_map] = waveform
