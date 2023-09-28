@@ -477,6 +477,7 @@ class LSTEventSource(EventSource):
 
         reordered_waveform = np.full((n_channels, N_PIXELS, n_samples), 0.0, dtype=np.float32)
         reordered_waveform[:, pixel_id_map] = waveform
+        waveform = reordered_waveform
 
         # FIXME, check using evb_preprocessing and make ctapipe support 2 gains
         if zfits_event.num_channels == 2:
@@ -485,7 +486,6 @@ class LSTEventSource(EventSource):
             has_high_gain = (pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
             selected_gain_channel = np.where(has_high_gain, 0, 1)
             waveform = waveform[0]
-
 
         array_event.lst.tel[self.tel_id] = self.fill_lst_from_ctar1(zfits_event)
 

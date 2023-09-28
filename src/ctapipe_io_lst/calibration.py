@@ -224,11 +224,11 @@ class LSTR0Corrections(TelescopeComponent):
     def apply_drs4_corrections(self, event: LSTArrayEventContainer):
         self.update_first_capacitors(event)
 
-        for tel_id, r0 in event.r0.tel.items():
+        for tel_id in event.trigger.tels_with_trigger:
             r1 = event.r1.tel[tel_id]
             # If r1 was not yet filled, copy of r0 converted
             if r1.waveform is None:
-                r1.waveform = r0.waveform
+                r1.waveform = event.r0.tel[tel_id].waveform
 
             # float32 can represent all values of uint16 exactly,
             # so this does not loose precision.
