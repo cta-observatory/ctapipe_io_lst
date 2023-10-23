@@ -240,6 +240,8 @@ class LSTR0Corrections(TelescopeComponent):
 
             if self.apply_timelapse_correction:
                 self.time_lapse_corr(event, tel_id)
+            else:
+                self.update_last_readout_times(event, tel_id)
 
             if self.apply_spike_correction:
                 if self.spike_correction_method == 'subtraction':
