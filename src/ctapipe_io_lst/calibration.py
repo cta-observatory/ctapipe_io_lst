@@ -480,6 +480,14 @@ class LSTR0Corrections(TelescopeComponent):
                 event.r1.tel[tel_id].selected_gain_channel,
             )
 
+    def update_last_readout_times(self, event, tel_id):
+        lst = event.lst.tel[tel_id]
+        update_last_readout_times(
+            local_clock_counter=lst.evt.local_clock_counter,
+            first_capacitors=self.first_cap[tel_id],
+            last_readout_time=self.last_readout_time[tel_id],
+            expected_pixels_id=lst.svc.pixel_ids,
+        )
 
     def time_lapse_corr(self, event, tel_id):
         """
@@ -991,6 +999,32 @@ def apply_timelapse_correction(
                     time_now=time_now,
                     last_readout_time=last_readout_time[gain, pixel_id],
                 )
+
+                update_last_readout_time(
+                    pixel_in_module=pixel_in_module,
+                    first_capacitor=first_capacitors[gain, pixel_id],
+                    time_now=time_now,
+                    last_readout_time=last_readout_time[gain, pixel_id],
+                )
+
+
+@njit(cache=True)
+def update_last_readout_times(
+    local_clock_counter,
+    first_capacitors,
+    last_readout_time,
+    expected_pixels_id,
+):
+    """
+    Update the last readout time for all pixels / capcacitors
+    """
+    n_modules = len(expected_pixels_id) // N_PIXELS_MODULE
+    for gain in range(N_GAINS):
+        for module in range(n_modules):
+            time_now = local_clock_counter[module]
+            for pixel_in_module in range(N_PIXELS_MODULE):
+                pixel_index = module * N_PIXELS_MODULE + pixel_in_module
+                pixel_id = expected_pixels_id[pixel_index]
 
                 update_last_readout_time(
                     pixel_in_module=pixel_in_module,
