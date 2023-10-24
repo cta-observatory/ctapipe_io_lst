@@ -141,6 +141,8 @@ def dummy_cta_r1(dummy_cta_r1_dir):
             cs_serial="???",
             evb_version="evb-dummy",
             cdhs_version="evb-dummy",
+            tdp_type=to_anyarray(np.zeros(15, dtype=np.uint16)),
+            tdp_action=to_anyarray(np.zeros(16, dtype=np.uint16)),
         )
     )
 

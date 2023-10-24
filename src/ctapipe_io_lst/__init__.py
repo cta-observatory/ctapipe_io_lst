@@ -7,6 +7,7 @@ import logging
 import numpy as np
 from astropy import units as u
 from pkg_resources import resource_filename
+from ctapipe import __version__ as ctapipe_version
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
     ReflectorShape,
@@ -53,11 +54,17 @@ from .constants import (
 
 from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessing
 
+__all__ = [
+    'LSTEventSource',
+    '__version__',
+]
+
+
+CTAPIPE_VERSION = tuple(int(v) for v in ctapipe_version.split(".")[:3])
+CTAPIPE_0_20 = CTAPIPE_VERSION >= (0, 20)
+
 
 log = logging.getLogger(__name__)
-
-
-__all__ = ['LSTEventSource', '__version__']
 
 
 # Date from which the flatfield heuristic will be switch off by default
@@ -495,13 +502,17 @@ class LSTEventSource(EventSource):
         trigger.tel[tel_id].time = trigger.time
         trigger.event_type = EventType(zfits_event.event_type)
 
-        array_event.r1.tel[self.tel_id] = R1CameraContainer(
+        r1 = R1CameraContainer(
             waveform=waveform,
             selected_gain_channel=selected_gain_channel,
-            pixel_status=pixel_status,
-            event_type=EventType(zfits_event.event_type),
-            event_time=trigger.time,
         )
+
+        if CTAPIPE_0_20:
+            r1.pixel_status = pixel_status
+            r1.event_type = EventType(zfits_event.event_type)
+            r1.event_time = trigger.time
+
+        array_event.r1.tel[self.tel_id] = r1
 
     def fill_lst_from_ctar1(self, zfits_event):
         evt = LSTEventContainer(
