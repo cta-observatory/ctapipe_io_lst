@@ -141,6 +141,18 @@ def read_pulse_shapes():
     return daq_time_per_sample, pulse_shape_time_step, data[1:].T
 
 
+def _reorder_pixel_status(pixel_status, pixel_id_map, set_dvr_bits=True):
+    reordered_pixel_status = np.zeros(N_PIXELS, dtype=pixel_status.dtype)
+    reordered_pixel_status[pixel_id_map] = pixel_status
+
+    # set dvr bits, so that calibration code doesn't reset them...
+    if set_dvr_bits:
+        not_broken = get_channel_info(pixel_status) != 0
+        reordered_pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
+
+    return reordered_pixel_status
+
+
 class LSTEventSource(EventSource):
     """
     EventSource for LST R0 data.
@@ -465,12 +477,9 @@ class LSTEventSource(EventSource):
         # FIXME: DVR? should not happen in r1 but dl0, but our own converter uses the old R1
 
         # reorder to nominal pixel order
-        pixel_status = np.zeros(N_PIXELS, dtype=zfits_event.pixel_status.dtype)
-        pixel_status[pixel_id_map] = zfits_event.pixel_status
-
-        # set dvr bits, so that calibration code doesn't reset them...
-        not_broken = get_channel_info(pixel_status) != 0
-        pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
+        pixel_status = _reorder_pixel_status(
+            zfits_event.pixel_status, pixel_id_map, set_dvr_bits=True
+        )
 
         n_channels = zfits_event.num_channels
         n_pixels = zfits_event.num_pixels
@@ -1043,13 +1052,9 @@ class LSTEventSource(EventSource):
 
         if CTAPIPE_0_20:
             # reorder to nominal pixel order
-            pixel_status = np.zeros(N_PIXELS, dtype=zfits_event.pixel_status.dtype)
-            pixel_status[pixel_id_map] = zfits_event.pixel_status
-
-            # set dvr bits, so that calibration code doesn't reset them...
-            not_broken = get_channel_info(pixel_status) != 0
-            pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
-
+            pixel_status = _reorder_pixel_status(
+                zfits_event.pixel_status, pixel_id_map, set_dvr_bits=True
+            )
             r1.pixel_status = pixel_status
             r1.event_time = cta_high_res_to_time(
                 zfits_event.trigger_time_s, zfits_event.trigger_time_qns,
