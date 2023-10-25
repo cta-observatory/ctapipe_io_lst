@@ -142,14 +142,12 @@ def read_pulse_shapes():
 
 
 def _reorder_pixel_status(pixel_status, pixel_id_map, set_dvr_bits=True):
-    reordered_pixel_status = np.zeros(N_PIXELS, dtype=pixel_status.dtype)
-    reordered_pixel_status[pixel_id_map] = pixel_status
-
-    # set dvr bits, so that calibration code doesn't reset them...
     if set_dvr_bits:
         not_broken = get_channel_info(pixel_status) != 0
-        reordered_pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
+        pixel_status = pixel_status[not_broken] | PixelStatus.DVR_STATUS_0
 
+    reordered_pixel_status = np.zeros(N_PIXELS, dtype=pixel_status.dtype)
+    reordered_pixel_status[pixel_id_map] = pixel_status
     return reordered_pixel_status
 
 
