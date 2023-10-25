@@ -16,6 +16,7 @@ from ctapipe_io_lst import LSTEventSource
 from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
 from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ
 from ctapipe.image.toymodel import WaveformModel, Gaussian
+from ctapipe.containers import EventType
 import socket
 
 from ctapipe_io_lst.event_time import time_to_cta_high
@@ -285,8 +286,21 @@ def test_drs4_calibration(dummy_cta_r1):
     })
 
     with EventSource(dummy_cta_r1, config=config) as source:
-
         n_events = 0
         for e in source:
+            if e.trigger.event_type is EventType.SUBARRAY:
+                n_channels = 1
+            else:
+                n_channels = 2
+
+            assert e.r0.tel[1].waveform.dtype == np.uint16
+            assert e.r0.tel[1].waveform.shape == (n_channels, 1855, 40)
+
+            assert e.r1.tel[1].waveform.dtype == np.float32
+            if e.trigger.event_type is EventType.SUBARRAY:
+                assert e.r1.tel[1].waveform.shape == (1855, 36)
+            else:
+                assert e.r1.tel[1].waveform.shape == (2, 1855, 36)
+
             n_events += 1
         assert n_events == 100

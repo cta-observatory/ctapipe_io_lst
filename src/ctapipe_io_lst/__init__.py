@@ -484,8 +484,8 @@ class LSTEventSource(EventSource):
         n_samples = zfits_event.num_samples
 
         readout_shape = (n_channels, n_pixels, n_samples)
-        waveform = zfits_event.waveform.reshape(readout_shape)
-        waveform = waveform.astype(np.float32) / scale - offset
+        raw_waveform = zfits_event.waveform.reshape(readout_shape)
+        waveform = raw_waveform.astype(np.float32) / scale - offset
 
         reordered_waveform = np.full((n_channels, N_PIXELS, n_samples), 0.0, dtype=np.float32)
         reordered_waveform[:, pixel_id_map] = waveform
@@ -518,6 +518,13 @@ class LSTEventSource(EventSource):
             r1.event_time = trigger.time
 
         array_event.r1.tel[self.tel_id] = r1
+
+        if DataLevel.R0 in self.datalevels:
+            reordered_raw_waveform = np.full((n_channels, N_PIXELS, n_samples), 0, dtype=np.uint16)
+            reordered_raw_waveform[:, pixel_id_map] = raw_waveform
+            array_event.r0.tel[self.tel_id] = R0CameraContainer(
+                waveform=reordered_raw_waveform,
+            )
 
     def fill_lst_from_ctar1(self, zfits_event):
         evt = LSTEventContainer(
