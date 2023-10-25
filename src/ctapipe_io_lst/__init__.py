@@ -1041,6 +1041,20 @@ class LSTEventSource(EventSource):
             r0 = R0CameraContainer(waveform=reordered_waveform)
             r1 = R1CameraContainer()
 
+        if CTAPIPE_0_20:
+            # reorder to nominal pixel order
+            pixel_status = np.zeros(N_PIXELS, dtype=zfits_event.pixel_status.dtype)
+            pixel_status[pixel_id_map] = zfits_event.pixel_status
+
+            # set dvr bits, so that calibration code doesn't reset them...
+            not_broken = get_channel_info(pixel_status) != 0
+            pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
+
+            r1.pixel_status = pixel_status
+            r1.event_time = cta_high_res_to_time(
+                zfits_event.trigger_time_s, zfits_event.trigger_time_qns,
+            )
+
         return r0, r1
 
     def fill_r0r1_container(self, array_event, zfits_event):
