@@ -2,11 +2,11 @@
 """
 EventSource for LSTCam protobuf-fits.fz-files.
 """
+from importlib.resources import files, as_file
 from ctapipe.instrument.subarray import EarthLocation
 import logging
 import numpy as np
 from astropy import units as u
-from pkg_resources import resource_filename
 from ctapipe import __version__ as ctapipe_version
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
@@ -53,6 +53,7 @@ from .constants import (
 )
 
 from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessing
+
 
 __all__ = [
     'LSTEventSource',
@@ -103,11 +104,9 @@ def get_channel_info(pixel_status):
 
 def load_camera_geometry():
     ''' Load camera geometry from bundled resources of this repo '''
-    f = resource_filename(
-        'ctapipe_io_lst', 'resources/LSTCam.camgeom.fits.gz'
-    )
-    Provenance().add_input_file(f, role="CameraGeometry")
-    cam = CameraGeometry.from_table(f)
+    with as_file(files("ctapipe_io_lst") / "resources/LSTCam.camgeom.fits.gz") as path:
+        Provenance().add_input_file(path, role="CameraGeometry")
+        cam = CameraGeometry.from_table(path)
     cam.frame = CameraFrame(focal_length=OPTICS.effective_focal_length)
     return cam
 
@@ -128,13 +127,12 @@ def read_pulse_shapes():
     # temporary replace the reference pulse shape
     # ("oversampled_pulse_LST_8dynode_pix6_20200204.dat")
     # with a dummy one in order to disable the charge corrections in the charge extractor
-    infilename = resource_filename(
-        'ctapipe_io_lst',
-        'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat'
-    )
 
-    data = np.genfromtxt(infilename, dtype='float', comments='#')
-    Provenance().add_input_file(infilename, role="PulseShapes")
+    pulse_shape_path = 'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat'
+    with as_file(files("ctapipe_io_lst") / pulse_shape_path) as path:
+        data = np.genfromtxt(path, dtype='float', comments='#')
+        Provenance().add_input_file(path, role="PulseShapes")
+
     daq_time_per_sample = data[0, 0] * u.ns
     pulse_shape_time_step = data[0, 1] * u.ns
 
