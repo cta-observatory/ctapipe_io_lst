@@ -8,7 +8,7 @@ from astropy.time import Time
 import astropy.units as u
 
 import protozfits
-from protozfits.CTA_R1_pb2 import CameraConfiguration, Event
+from protozfits.CTA_R1_pb2 import CameraConfiguration, Event, TelescopeDataStream
 from protozfits.Debug_R1_pb2 import DebugEvent, DebugCameraConfiguration
 from protozfits.CoreMessages_pb2 import AnyArray
 from traitlets.config import Config
@@ -16,6 +16,7 @@ from ctapipe_io_lst import LSTEventSource
 from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
 from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ
 from ctapipe.image.toymodel import WaveformModel, Gaussian
+from ctapipe.containers import EventType
 import socket
 
 from ctapipe_io_lst.event_time import time_to_cta_high
@@ -141,8 +142,13 @@ def dummy_cta_r1(dummy_cta_r1_dir):
             cs_serial="???",
             evb_version="evb-dummy",
             cdhs_version="evb-dummy",
+            tdp_type=to_anyarray(np.zeros(15, dtype=np.uint16)),
+            tdp_action=to_anyarray(np.zeros(16, dtype=np.uint16)),
         )
     )
+
+    # assume evb did no pe calibration
+    data_stream = TelescopeDataStream(sb_id=10000, obs_id=10000, waveform_offset=400, waveform_scale=1)
 
     rng = np.random.default_rng()
 
@@ -151,6 +157,8 @@ def dummy_cta_r1(dummy_cta_r1_dir):
         for stream_path in stream_paths:
             stream = stack.enter_context(protozfits.ProtobufZOFits(n_tiles=5, rows_per_tile=20, compression_block_size_kb=64 * 1024))
             stream.open(str(stream_path))
+            stream.move_to_new_table("DataStream")
+            stream.write_message(data_stream)
             stream.move_to_new_table("CameraConfiguration")
             stream.write_message(camera_config)
             stream.move_to_new_table("Events")
@@ -278,8 +286,21 @@ def test_drs4_calibration(dummy_cta_r1):
     })
 
     with EventSource(dummy_cta_r1, config=config) as source:
-
         n_events = 0
         for e in source:
+            if e.trigger.event_type is EventType.SUBARRAY:
+                n_channels = 1
+            else:
+                n_channels = 2
+
+            assert e.r0.tel[1].waveform.dtype == np.uint16
+            assert e.r0.tel[1].waveform.shape == (n_channels, 1855, 40)
+
+            assert e.r1.tel[1].waveform.dtype == np.float32
+            if e.trigger.event_type is EventType.SUBARRAY:
+                assert e.r1.tel[1].waveform.shape == (1855, 36)
+            else:
+                assert e.r1.tel[1].waveform.shape == (2, 1855, 36)
+
             n_events += 1
         assert n_events == 100

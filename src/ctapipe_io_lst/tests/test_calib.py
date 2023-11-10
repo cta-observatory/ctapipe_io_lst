@@ -5,12 +5,10 @@ from pathlib import Path
 from traitlets.config import Config
 import numpy as np
 import tables
-import pkg_resources
+from importlib_resources import files, as_file
 
-resource_dir = Path(pkg_resources.resource_filename(
-    'ctapipe_io_lst', 'tests/resources'
-))
 
+resource_dir = files('ctapipe_io_lst') / 'tests/resources'
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0000_first50.fits.fz'
 test_r0_calib_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz'
@@ -41,8 +39,9 @@ def test_get_first_capacitor():
 
     first_capacitor_id = event.lst.tel[tel_id].evt.first_capacitor_id
 
-    with tables.open_file(resource_dir / 'first_caps.hdf5', 'r') as f:
-        expected = f.root.first_capacitor_for_modules[:]
+    with as_file(resource_dir / 'first_caps.hdf5') as path:
+        with tables.open_file(path, 'r') as f:
+            expected = f.root.first_capacitor_for_modules[:]
 
     first_caps = get_first_capacitors_for_pixels(first_capacitor_id)
 

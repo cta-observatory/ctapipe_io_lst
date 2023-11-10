@@ -106,6 +106,7 @@ class MultiFiles(Component):
         self._events_tables = {}
         self._headers = {}
         self.camera_config = None
+        self.data_stream = None
         self.dvr_applied = None
 
         if self.all_streams and file_info is not None:
@@ -182,7 +183,10 @@ class MultiFiles(Component):
             # new files use CameraConfiguration
             self.cta_r1 = True
             config = next(file_.CameraConfiguration)
-        
+
+            if self.data_stream is None:
+                self.data_stream = next(file_.DataStream)
+
         if self.camera_config is None:
             self.camera_config = config
 

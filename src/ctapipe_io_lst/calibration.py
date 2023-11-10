@@ -224,11 +224,11 @@ class LSTR0Corrections(TelescopeComponent):
     def apply_drs4_corrections(self, event: LSTArrayEventContainer):
         self.update_first_capacitors(event)
 
-        for tel_id, r0 in event.r0.tel.items():
+        for tel_id in event.trigger.tels_with_trigger:
             r1 = event.r1.tel[tel_id]
             # If r1 was not yet filled, copy of r0 converted
             if r1.waveform is None:
-                r1.waveform = r0.waveform
+                r1.waveform = event.r0.tel[tel_id].waveform
 
             # float32 can represent all values of uint16 exactly,
             # so this does not loose precision.
@@ -240,6 +240,8 @@ class LSTR0Corrections(TelescopeComponent):
 
             if self.apply_timelapse_correction:
                 self.time_lapse_corr(event, tel_id)
+            else:
+                self.update_last_readout_times(event, tel_id)
 
             if self.apply_spike_correction:
                 if self.spike_correction_method == 'subtraction':
@@ -257,7 +259,7 @@ class LSTR0Corrections(TelescopeComponent):
                 r1.waveform -= self.offset.tel[tel_id]
 
             broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
-            dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & PixelStatus.DVR_STATUS ) == 0
+            dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & PixelStatus.DVR_STATUS) == 0
             invalid_pixels = broken_pixels | dvred_pixels
 
             if r1.selected_gain_channel is None:
@@ -480,6 +482,14 @@ class LSTR0Corrections(TelescopeComponent):
                 event.r1.tel[tel_id].selected_gain_channel,
             )
 
+    def update_last_readout_times(self, event, tel_id):
+        lst = event.lst.tel[tel_id]
+        update_last_readout_times(
+            local_clock_counter=lst.evt.local_clock_counter,
+            first_capacitors=self.first_cap[tel_id],
+            last_readout_time=self.last_readout_time[tel_id],
+            expected_pixels_id=lst.svc.pixel_ids,
+        )
 
     def time_lapse_corr(self, event, tel_id):
         """
@@ -991,6 +1001,32 @@ def apply_timelapse_correction(
                     time_now=time_now,
                     last_readout_time=last_readout_time[gain, pixel_id],
                 )
+
+                update_last_readout_time(
+                    pixel_in_module=pixel_in_module,
+                    first_capacitor=first_capacitors[gain, pixel_id],
+                    time_now=time_now,
+                    last_readout_time=last_readout_time[gain, pixel_id],
+                )
+
+
+@njit(cache=True)
+def update_last_readout_times(
+    local_clock_counter,
+    first_capacitors,
+    last_readout_time,
+    expected_pixels_id,
+):
+    """
+    Update the last readout time for all pixels / capcacitors
+    """
+    n_modules = len(expected_pixels_id) // N_PIXELS_MODULE
+    for gain in range(N_GAINS):
+        for module in range(n_modules):
+            time_now = local_clock_counter[module]
+            for pixel_in_module in range(N_PIXELS_MODULE):
+                pixel_index = module * N_PIXELS_MODULE + pixel_in_module
+                pixel_id = expected_pixels_id[pixel_index]
 
                 update_last_readout_time(
                     pixel_in_module=pixel_in_module,

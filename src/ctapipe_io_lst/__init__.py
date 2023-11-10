@@ -2,11 +2,12 @@
 """
 EventSource for LSTCam protobuf-fits.fz-files.
 """
+from importlib.resources import files, as_file
 from ctapipe.instrument.subarray import EarthLocation
 import logging
 import numpy as np
 from astropy import units as u
-from pkg_resources import resource_filename
+from ctapipe import __version__ as ctapipe_version
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
     ReflectorShape,
@@ -25,7 +26,8 @@ from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
     CoordinateFrameType, PixelStatusContainer, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
-    SchedulingBlockContainer, ObservationBlockContainer,
+    SchedulingBlockContainer, ObservationBlockContainer, MonitoringContainer, MonitoringCameraContainer,
+    EventIndexContainer,
 )
 from ctapipe.coordinates import CameraFrame
 
@@ -50,11 +52,20 @@ from .constants import (
     PixelStatus, TriggerBits,
 )
 
+from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessing
+
+
+__all__ = [
+    'LSTEventSource',
+    '__version__',
+]
+
+
+CTAPIPE_VERSION = tuple(int(v) for v in ctapipe_version.split(".")[:3])
+CTAPIPE_0_20 = CTAPIPE_VERSION >= (0, 20)
+
 
 log = logging.getLogger(__name__)
-
-
-__all__ = ['LSTEventSource', '__version__']
 
 
 # Date from which the flatfield heuristic will be switch off by default
@@ -93,11 +104,9 @@ def get_channel_info(pixel_status):
 
 def load_camera_geometry():
     ''' Load camera geometry from bundled resources of this repo '''
-    f = resource_filename(
-        'ctapipe_io_lst', 'resources/LSTCam.camgeom.fits.gz'
-    )
-    Provenance().add_input_file(f, role="CameraGeometry")
-    cam = CameraGeometry.from_table(f)
+    with as_file(files("ctapipe_io_lst") / "resources/LSTCam.camgeom.fits.gz") as path:
+        Provenance().add_input_file(path, role="CameraGeometry")
+        cam = CameraGeometry.from_table(path)
     cam.frame = CameraFrame(focal_length=OPTICS.effective_focal_length)
     return cam
 
@@ -118,19 +127,28 @@ def read_pulse_shapes():
     # temporary replace the reference pulse shape
     # ("oversampled_pulse_LST_8dynode_pix6_20200204.dat")
     # with a dummy one in order to disable the charge corrections in the charge extractor
-    infilename = resource_filename(
-        'ctapipe_io_lst',
-        'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat'
-    )
 
-    data = np.genfromtxt(infilename, dtype='float', comments='#')
-    Provenance().add_input_file(infilename, role="PulseShapes")
+    pulse_shape_path = 'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat'
+    with as_file(files("ctapipe_io_lst") / pulse_shape_path) as path:
+        data = np.genfromtxt(path, dtype='float', comments='#')
+        Provenance().add_input_file(path, role="PulseShapes")
+
     daq_time_per_sample = data[0, 0] * u.ns
     pulse_shape_time_step = data[0, 1] * u.ns
 
     # Note we have to transpose the pulse shapes array to provide what ctapipe
     # expects:
     return daq_time_per_sample, pulse_shape_time_step, data[1:].T
+
+
+def _reorder_pixel_status(pixel_status, pixel_id_map, set_dvr_bits=True):
+    if set_dvr_bits:
+        not_broken = get_channel_info(pixel_status) != 0
+        pixel_status = pixel_status[not_broken] | PixelStatus.DVR_STATUS_0
+
+    reordered_pixel_status = np.zeros(N_PIXELS, dtype=pixel_status.dtype)
+    reordered_pixel_status[pixel_id_map] = pixel_status
+    return reordered_pixel_status
 
 
 class LSTEventSource(EventSource):
@@ -300,6 +318,8 @@ class LSTEventSource(EventSource):
             self.n_pixels = self.camera_config.num_pixels
             self.n_samples = self.camera_config.num_samples_nominal
             self.lst_service = self.fill_lst_service_container_ctar1(self.camera_config)
+            self.evb_preprocessing = get_processings_for_trigger_bits(self.camera_config)
+            self.data_stream = self.multi_file.data_stream
         else:
             self.tel_id = self.camera_config.telescope_id
             self.local_run_id = self.camera_config.configuration_id
@@ -309,6 +329,10 @@ class LSTEventSource(EventSource):
             self.n_pixels = self.camera_config.num_pixels
             self.n_samples = self.camera_config.num_samples
             self.lst_service = self.fill_lst_service_container(self.tel_id, self.camera_config)
+            self.evb_preprocessing = None
+            self.data_stream = None
+
+        self.reverse_pixel_id_map = np.argsort(self.pixel_id_map)
 
         self._subarray = self.create_subarray(self.tel_id, reference_location)
         self.r0_r1_calibrator = LSTR0Corrections(
@@ -381,6 +405,12 @@ class LSTEventSource(EventSource):
 
     @property
     def datalevels(self):
+        if self.cta_r1:
+            if EVBPreprocessing.CALIBRATION in self.evb_preprocessing[TriggerBits.MONO]:
+                return (DataLevel.R1, )
+            else:
+                return (DataLevel.R0, )
+
         if self.r0_r1_calibrator.calibration_path is not None:
             return (DataLevel.R0, DataLevel.R1)
         return (DataLevel.R0, )
@@ -437,24 +467,37 @@ class LSTEventSource(EventSource):
 
     def fill_from_cta_r1(self, array_event, zfits_event):
         tel_id = self.tel_id
+        scale = self.data_stream.waveform_scale
+        offset = self.data_stream.waveform_offset
+        pixel_id_map = self.camera_config.pixel_id_map
 
-        # TODO: decide from applied preprocessing options, not gains
+        # FIXME: missing modules / pixels
+        # FIXME: DVR? should not happen in r1 but dl0, but our own converter uses the old R1
+
+        # reorder to nominal pixel order
+        pixel_status = _reorder_pixel_status(
+            zfits_event.pixel_status, pixel_id_map, set_dvr_bits=True
+        )
+
+        n_channels = zfits_event.num_channels
+        n_pixels = zfits_event.num_pixels
+        n_samples = zfits_event.num_samples
+
+        readout_shape = (n_channels, n_pixels, n_samples)
+        raw_waveform = zfits_event.waveform.reshape(readout_shape)
+        waveform = raw_waveform.astype(np.float32) / scale - offset
+
+        reordered_waveform = np.full((n_channels, N_PIXELS, n_samples), 0.0, dtype=np.float32)
+        reordered_waveform[:, pixel_id_map] = waveform
+        waveform = reordered_waveform
+
+        # FIXME, check using evb_preprocessing and make ctapipe support 2 gains
         if zfits_event.num_channels == 2:
-            shape = (zfits_event.num_channels, zfits_event.num_pixels, zfits_event.num_samples)
-            array_event.r0.tel[self.tel_id] = R0CameraContainer(
-                waveform=zfits_event.waveform.reshape(shape),
-            )
-            array_event.r1.tel[self.tel_id] = R1CameraContainer()
+            selected_gain_channel = None
         else:
-            has_high_gain = (zfits_event.pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
+            has_high_gain = (pixel_status & PixelStatus.HIGH_GAIN_STORED).astype(bool)
             selected_gain_channel = np.where(has_high_gain, 0, 1)
-
-            shape = (zfits_event.num_pixels, zfits_event.num_samples)
-            array_event.r1.tel[self.tel_id] = R1CameraContainer(
-                waveform=zfits_event.waveform.reshape(shape),
-                selected_gain_channel=selected_gain_channel,
-            )
-            array_event.r0.tel[self.tel_id] = R0CameraContainer()
+            waveform = waveform[0]
 
         array_event.lst.tel[self.tel_id] = self.fill_lst_from_ctar1(zfits_event)
 
@@ -462,15 +505,38 @@ class LSTEventSource(EventSource):
         trigger.time = cta_high_res_to_time(zfits_event.event_time_s, zfits_event.event_time_qns)
         trigger.tels_with_trigger = [tel_id]
         trigger.tel[tel_id].time = trigger.time
-        trigger.event_type = self._event_type_from_trigger_bits(zfits_event.event_type)
+        trigger.event_type = EventType(zfits_event.event_type)
+
+        r1 = R1CameraContainer(
+            waveform=waveform,
+            selected_gain_channel=selected_gain_channel,
+        )
+
+        if CTAPIPE_0_20:
+            r1.pixel_status = pixel_status
+            r1.event_type = EventType(zfits_event.event_type)
+            r1.event_time = trigger.time
+
+        array_event.r1.tel[self.tel_id] = r1
+
+        if DataLevel.R0 in self.datalevels:
+            reordered_raw_waveform = np.full((n_channels, N_PIXELS, n_samples), 0, dtype=np.uint16)
+            reordered_raw_waveform[:, pixel_id_map] = raw_waveform
+            array_event.r0.tel[self.tel_id] = R0CameraContainer(
+                waveform=reordered_raw_waveform,
+            )
 
     def fill_lst_from_ctar1(self, zfits_event):
         evt = LSTEventContainer(
-            pixel_status=zfits_event.pixel_status,
+            pixel_status=zfits_event.pixel_status.copy(),
             first_capacitor_id=zfits_event.first_cell_id,
             calibration_monitoring_id=zfits_event.calibration_monitoring_id,
             local_clock_counter=zfits_event.module_hires_local_clock_counter,
         )
+        # set bits for dvr if not already set
+        if not self.dvr_applied:
+            not_broken = get_channel_info(evt.pixel_status) != 0
+            evt.pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
 
         if zfits_event.debug is not None:
             debug = zfits_event.debug
@@ -530,27 +596,30 @@ class LSTEventSource(EventSource):
 
     def _generator(self):
 
-        # container for LST data
-        array_event = LSTArrayEventContainer()
-        array_event.meta['input_url'] = self.input_url
-        array_event.meta['max_events'] = self.max_events
-        array_event.meta['origin'] = 'LSTCAM'
-
         # also add service container to the event section
 
         # initialize general monitoring container
-        self.initialize_mon_container(array_event)
+        mon = self.initialize_mon_container()
 
         # loop on events
         for count, zfits_event in enumerate(self.multi_file):
-            array_event.count = count
-            array_event.index.event_id = zfits_event.event_id
-            array_event.index.obs_id = self.local_run_id
-
             # Skip "empty" events that occur at the end of some runs
             if zfits_event.event_id == 0:
                 self.log.warning('Event with event_id=0 found, skipping')
                 continue
+
+            # container for LST data
+            array_event = LSTArrayEventContainer(
+                count=count,
+                index=EventIndexContainer(
+                    obs_id=self.local_run_id,
+                    event_id=zfits_event.event_id,
+                ),
+                mon=mon,
+            )
+            array_event.meta['input_url'] = self.input_url
+            array_event.meta['max_events'] = self.max_events
+            array_event.meta['origin'] = 'LSTCAM'
 
             array_event.lst.tel[self.tel_id].svc = self.lst_service
 
@@ -986,6 +1055,16 @@ class LSTEventSource(EventSource):
             r0 = R0CameraContainer(waveform=reordered_waveform)
             r1 = R1CameraContainer()
 
+        if CTAPIPE_0_20:
+            # reorder to nominal pixel order
+            pixel_status = _reorder_pixel_status(
+                zfits_event.pixel_status, pixel_id_map, set_dvr_bits=True
+            )
+            r1.pixel_status = pixel_status
+            r1.event_time = cta_high_res_to_time(
+                zfits_event.trigger_time_s, zfits_event.trigger_time_qns,
+            )
+
         return r0, r1
 
     def fill_r0r1_container(self, array_event, zfits_event):
@@ -997,15 +1076,12 @@ class LSTEventSource(EventSource):
         array_event.r0.tel[self.tel_id] = r0
         array_event.r1.tel[self.tel_id] = r1
 
-    def initialize_mon_container(self, array_event):
+    def initialize_mon_container(self):
         """
         Fill with MonitoringContainer.
         For the moment, initialize only the PixelStatusContainer
 
         """
-        container = array_event.mon
-        mon_camera_container = container.tel[self.tel_id]
-
         shape = (N_GAINS, N_PIXELS)
         # all pixels broken by default
         status_container = PixelStatusContainer(
@@ -1013,7 +1089,13 @@ class LSTEventSource(EventSource):
             pedestal_failing_pixels=np.zeros(shape, dtype=bool),
             flatfield_failing_pixels=np.zeros(shape, dtype=bool),
         )
-        mon_camera_container.pixel_status = status_container
+
+        camera_container = MonitoringCameraContainer(
+            pixel_status = status_container,
+        )
+        container = MonitoringContainer()
+        container.tel[self.tel_id] = camera_container
+        return container
 
     def fill_mon_container(self, array_event, zfits_event):
         """
