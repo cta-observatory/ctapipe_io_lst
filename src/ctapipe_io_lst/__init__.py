@@ -338,12 +338,14 @@ class LSTEventSource(EventSource):
         self.r0_r1_calibrator = LSTR0Corrections(
             subarray=self._subarray, parent=self
         )
-        self.time_calculator = EventTimeCalculator(
-            subarray=self.subarray,
-            run_id=self.local_run_id,
-            expected_modules_id=self.module_id_map,
-            parent=self,
-        )
+        self.time_calculator = None
+        if not self.cta_r1:
+            self.time_calculator = EventTimeCalculator(
+                subarray=self.subarray,
+                run_id=self.local_run_id,
+                expected_modules_id=self.module_id_map,
+                parent=self,
+            )
         self.pointing_source = PointingSource(subarray=self.subarray, parent=self)
 
         target_info = {}
