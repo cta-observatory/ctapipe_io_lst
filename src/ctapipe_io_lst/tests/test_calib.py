@@ -1,3 +1,4 @@
+import pytest
 import pickle
 from ctapipe_io_lst.constants import HIGH_GAIN
 import os
@@ -136,12 +137,14 @@ def test_source_with_calibration():
             assert event.r1.tel[1].waveform is not None
 
 
-def test_source_with_all():
+@pytest.mark.parametrize("trigger_information", [True, False])
+def test_source_with_all(trigger_information):
     from ctapipe_io_lst import LSTEventSource
 
     config = Config({
         'LSTEventSource': {
             'pointing_information': False,
+            'trigger_information': trigger_information,
             'LSTR0Corrections': {
                 'drs4_pedestal_path': test_drs4_pedestal_path,
                 'drs4_time_calibration_path': test_time_calib_path,
