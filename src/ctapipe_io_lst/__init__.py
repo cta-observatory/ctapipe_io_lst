@@ -630,9 +630,7 @@ class LSTEventSource(EventSource):
             else:
                 self.fill_r0r1_container(array_event, zfits_event)
                 self.fill_lst_event_container(array_event, zfits_event)
-
-                if self.trigger_information:
-                    self.fill_trigger_info(array_event)
+                self.fill_trigger_info(array_event)
 
             self.fill_mon_container(array_event, zfits_event)
 
@@ -878,8 +876,12 @@ class LSTEventSource(EventSource):
         tel_id = self.tel_id
 
         trigger = array_event.trigger
-        trigger.time = self.time_calculator(tel_id, array_event)
         trigger.tels_with_trigger = [tel_id]
+
+        if not self.trigger_information:
+            return
+
+        trigger.time = self.time_calculator(tel_id, array_event)
         trigger.tel[tel_id].time = trigger.time
 
         lst = array_event.lst.tel[tel_id]
