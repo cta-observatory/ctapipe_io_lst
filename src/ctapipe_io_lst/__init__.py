@@ -929,6 +929,9 @@ class LSTEventSource(EventSource):
         if trigger.event_type == EventType.UNKNOWN:
             self.log.warning(f'Event {array_event.index.event_id} has unknown event type, trigger: {trigger_bits:08b}')
 
+        if CTAPIPE_0_20:
+            array_event.r1.tel[tel_id].event_type = trigger.event_type
+
     def tag_flatfield_events(self, array_event):
         '''
         Use a heuristic based on R1 waveforms to recognize flat field events
@@ -1139,15 +1142,19 @@ class LSTEventSource(EventSource):
         event_id = array_event.index.event_id
 
         if event_id in self.pedestal_ids:
-            array_event.trigger.event_type = EventType.SKY_PEDESTAL
+            event_type = EventType.SKY_PEDESTAL
             self.log.debug("Event %d is an interleaved pedestal", event_id)
-
         elif array_event.trigger.event_type == EventType.SKY_PEDESTAL:
             # wrongly tagged pedestal event must be cosmic, since it would
             # have been changed to flatfield by the flatfield tagging if ff
-            array_event.trigger.event_type = EventType.SUBARRAY
+            event_type = EventType.SUBARRAY
             self.log.debug(
                 "Event %d is tagged as pedestal but not a known pedestal event",
                 event_id,
             )
+        else:
+            return
 
+        array_event.trigger.event_type = event_type
+        if CTAPIPE_0_20:
+            array_event.r1.tel[self.tel_id].event_type = event_type
