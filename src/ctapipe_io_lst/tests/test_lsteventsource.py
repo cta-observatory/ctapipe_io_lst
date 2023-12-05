@@ -12,7 +12,7 @@ from ctapipe.containers import CoordinateFrameType, EventType, PointingMode
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
 from ctapipe_io_lst.constants import LST1_LOCATION, N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS
-from ctapipe_io_lst import TriggerBits, PixelStatus
+from ctapipe_io_lst import CTAPIPE_0_20, TriggerBits, PixelStatus
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_dir = test_data / 'real/R0/20200218'
@@ -319,7 +319,8 @@ def test_pedestal_events(tmp_path):
             else:
                 assert event.trigger.event_type != EventType.SKY_PEDESTAL
 
-
+            if CTAPIPE_0_20:
+                assert event.r1.tel[1].event_type == event.trigger.event_type
 
 
 @pytest.mark.parametrize(
