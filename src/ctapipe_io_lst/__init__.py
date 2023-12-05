@@ -1033,7 +1033,7 @@ class LSTEventSource(EventSource):
             # the code here works for both cases but not for the hypothetical
             # case of broken pixels marked as broken (so camera config as 1855 pixels)
             # and 1855 pixel_status entries but broken pixels not contained in `waveform`
-            if np.any(broken_pixels) and len(waveform) < n_pixels:
+            if not self.dvr_applied and np.any(broken_pixels) and len(waveform) < n_pixels:
                 raise NotImplementedError(
                     "Case of broken pixels not contained in waveform is not implemented."
                     "If you encounter this error, open an issue in ctapipe_io_lst noting"
