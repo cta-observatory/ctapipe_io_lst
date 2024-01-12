@@ -19,7 +19,7 @@ from ctapipe.instrument import (
     OpticsDescription,
     SizeType,
 )
-from astropy.time import Time
+from astropy.time import Time, TimeDelta
 
 from ctapipe.io import EventSource, read_table
 from ctapipe.io.datalevels import DataLevel
@@ -267,6 +267,12 @@ class LSTEventSource(EventSource):
         )
     ).tag(config=True)
 
+    event_time_correction_s = Float(
+        default_value=None,
+        allow_none=True,
+        help='If given, this number of seconds is *added* to the original event time. This is intendend to be used to correct wrong event timestamps due to wrong time on the White Rabbit switch.'
+    ).tag(config=True)
+
 
     classes = [PointingSource, EventTimeCalculator, LSTR0Corrections]
 
@@ -378,11 +384,13 @@ class LSTEventSource(EventSource):
 
         self.read_pedestal_ids()
 
-
-
         if self.use_flatfield_heuristic is None:
             self.use_flatfield_heuristic = self.run_start < NO_FF_HEURISTIC_DATE
             self.log.info(f"Changed `use_flatfield_heuristic` to {self.use_flatfield_heuristic}")
+
+        self._event_time_correction = None
+        if self.event_time_correction_s is not None:
+            self._event_time_correction = TimeDelta(self.event_time_correction_s * u.s)
 
     @property
     def subarray(self):
@@ -657,6 +665,11 @@ class LSTEventSource(EventSource):
                     or array_event.trigger.event_type not in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}
                 ):
                     self.r0_r1_calibrator.calibrate(array_event)
+
+            if self._event_time_correction is not None:
+                array_event.trigger.time += self._event_time_correction
+                for tel_trigger in array_event.trigger.tel.values():
+                    tel_trigger.time += self._event_time_correction
 
             yield array_event
 
