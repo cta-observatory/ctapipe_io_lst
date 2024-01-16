@@ -356,3 +356,28 @@ def test_reference_position():
     assert u.isclose(position.lat, LST1_LOCATION.lat)
     assert u.isclose(position.lon, LST1_LOCATION.lon)
     assert u.isclose(position.height, LST1_LOCATION.height)
+
+
+
+
+@pytest.mark.parametrize("timeshift", (-5, 70))
+def test_time_correction(timeshift):
+    from ctapipe_io_lst import LSTEventSource
+    config = {
+        'LSTEventSource': {
+            'input_url': test_r0_path_all_streams,
+            'apply_drs4_corrections': False,
+            'pointing_information': False,
+            'max_events': 5,
+        },
+    }
+
+    original = LSTEventSource(config=Config(config))
+    shifted = LSTEventSource(config=Config(config), event_time_correction_s=timeshift)
+
+    with original, shifted:
+        for event, event_shifted in zip(original, shifted):
+            dt = event_shifted.trigger.time - event.trigger.time
+            dt_tel = event_shifted.trigger.tel[1].time - event.trigger.tel[1].time
+            assert u.isclose(dt.to_value(u.s), timeshift)
+            assert u.isclose(dt_tel.to_value(u.s), timeshift)
