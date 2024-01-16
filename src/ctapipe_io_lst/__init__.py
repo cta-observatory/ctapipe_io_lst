@@ -642,6 +642,12 @@ class LSTEventSource(EventSource):
 
             self.fill_mon_container(array_event, zfits_event)
 
+            # apply correction before the rest, so corrected time is used e.g. for pointing
+            if self._event_time_correction is not None:
+                array_event.trigger.time += self._event_time_correction
+                for tel_trigger in array_event.trigger.tel.values():
+                    tel_trigger.time += self._event_time_correction
+
             if self.pointing_information:
                 self.fill_pointing_info(array_event)
 
@@ -665,11 +671,6 @@ class LSTEventSource(EventSource):
                     or array_event.trigger.event_type not in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}
                 ):
                     self.r0_r1_calibrator.calibrate(array_event)
-
-            if self._event_time_correction is not None:
-                array_event.trigger.time += self._event_time_correction
-                for tel_trigger in array_event.trigger.tel.values():
-                    tel_trigger.time += self._event_time_correction
 
             yield array_event
 
