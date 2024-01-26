@@ -24,6 +24,11 @@ test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_f
 
 test_drive_report = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20200218.txt'
 
+calib_version = "ctapipe-v0.17"
+calib_path = test_data / 'real/monitoring/PixelCalibration/Cat-A/'
+test_calib_path = calib_path / f'calibration/20200218/{calib_version}/calibration_filters_52.Run02006.0000.h5'
+test_time_calib_path = calib_path / f'drs4_time_sampling_from_FF/20191124/{calib_version}/time_calibration.Run01625.0000.h5'
+
 # ADC_SAMPLES_SHAPE = (2, 14, 40)
 
 
@@ -358,8 +363,6 @@ def test_reference_position():
     assert u.isclose(position.height, LST1_LOCATION.height)
 
 
-
-
 @pytest.mark.parametrize("timeshift", (-5, 70))
 def test_time_correction(timeshift):
     from ctapipe_io_lst import LSTEventSource
@@ -381,3 +384,26 @@ def test_time_correction(timeshift):
             dt_tel = event_shifted.trigger.tel[1].time - event.trigger.tel[1].time
             assert u.isclose(dt.to_value(u.s), timeshift)
             assert u.isclose(dt_tel.to_value(u.s), timeshift)
+
+
+def test_evb_calibrated_data():
+    from ctapipe_io_lst import LSTEventSource
+    input_url = test_data / 'real/R0/20231219/LST-1.1.Run16255.0000_first50.fits.fz'
+
+    config = {
+        'LSTEventSource': {
+            "pointing_information": False,
+            'LSTR0Corrections': {
+                'drs4_time_calibration_path': str(test_time_calib_path),
+                'calibration_path': str(test_calib_path),
+            },
+        },
+    }
+
+    with LSTEventSource(input_url, config=Config(config)) as source:
+        read_events = 0
+        for e in source:
+            read_events += 1
+            assert np.all(e.calibration.tel[1].dl1.time_shift != 0)
+
+        assert read_events == 200

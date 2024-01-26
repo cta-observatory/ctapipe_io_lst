@@ -1,4 +1,4 @@
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 from .constants import TriggerBits
 from collections import defaultdict
 
@@ -6,26 +6,40 @@ class EVBPreprocessing(IntEnum):
     """
     The preprocessing steps that can be applied by EVB.
 
-    The values of this Enum is the index of this step in the tdp_action array.
+    The values of this Enum is the index of this step in the ttype_pattern array.
 
-    Note
-    ----
+    Notes
+    -----
     This was supposed to be documented in the EVB ICD:
     https://edms.cern.ch/ui/file/2411710/2.6/LSTMST-ICD-20191206.pdf
     But that document doest match the current EVB code.
+
+    As of 2024-01-26, there is a bug in EVB that the ttype_pattern and
+    tdp_action arrays are actually mixed up in the camera_configuration
+    object.
     """
     # pre-processing flags
     GAIN_SELECTION = 0        # PPF0
     BASELINE_SUBTRACTION = 1  # PPF1
     DELTA_T_CORRECTION = 2    # PPF2
     SPIKE_REMOVAL = 3         # PPF3
-    RESERVED1 = 4             # PPF4
 
     # processing flags
     PEDESTAL_SUBTRACTION = 5  # PF0
     PE_CALIBRATION = 6  # PF0
-    RESERVED2 = 7  # PF0
-    RESERVED3 = 8  # PF0
+
+
+class EVBPreprocessingFlag(IntFlag):
+    """
+    IntFlag version of the EVBPreprocessing, as stored in Event.debug.tdp_action
+    """
+    GAIN_SELECTION = 1 << EVBPreprocessing.GAIN_SELECTION
+    BASELINE_SUBTRACTION = 1 << EVBPreprocessing.BASELINE_SUBTRACTION
+    DELTA_T_CORRECTION = 1 << EVBPreprocessing.DELTA_T_CORRECTION
+    SPIKE_REMOVAL = 1 << EVBPreprocessing.SPIKE_REMOVAL
+
+    PEDESTAL_SUBTRACTION = 1 << EVBPreprocessing.PEDESTAL_SUBTRACTION
+    PE_CALIBRATION = 1 << EVBPreprocessing.PE_CALIBRATION
 
 
 def get_processings_for_trigger_bits(camera_configuration):
