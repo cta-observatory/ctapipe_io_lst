@@ -146,6 +146,7 @@ class MultiFiles(Component):
 
         if stream is None:
             path = self.path
+            stream = self.file_info.stream
         else:
             self.current_subrun[stream] += 1
 
@@ -235,4 +236,4 @@ class MultiFiles(Component):
                 except FileNotFoundError:
                     pass
 
-        return event
+        return stream, event

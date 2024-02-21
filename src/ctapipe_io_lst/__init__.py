@@ -612,7 +612,7 @@ class LSTEventSource(EventSource):
         mon = self.initialize_mon_container()
 
         # loop on events
-        for count, zfits_event in enumerate(self.multi_file):
+        for count, (_, zfits_event) in enumerate(self.multi_file):
             # Skip "empty" events that occur at the end of some runs
             if zfits_event.event_id == 0:
                 self.log.warning('Event with event_id=0 found, skipping')
