@@ -8,8 +8,8 @@ from astropy.time import Time
 import astropy.units as u
 
 import protozfits
-from protozfits.CTA_R1_pb2 import CameraConfiguration, Event, TelescopeDataStream
-from protozfits.Debug_R1_pb2 import DebugEvent, DebugCameraConfiguration
+from protozfits.R1v1_pb2 import CameraConfiguration, Event, TelescopeDataStream
+from protozfits.R1v1_debug_pb2 import DebugEvent, DebugCameraConfiguration
 from protozfits.CoreMessages_pb2 import AnyArray
 from traitlets.config import Config
 from ctapipe_io_lst import LSTEventSource

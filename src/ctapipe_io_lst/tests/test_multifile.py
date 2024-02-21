@@ -96,3 +96,25 @@ def test_multifile_single():
             assert event.event_id == event_count
             assert stream == 1
         assert event_count == 37
+
+
+def test_multifile_pure_protobuf():
+    from protozfits import get_class_from_PBFHEAD
+    from ctapipe_io_lst.multifiles import MultiFiles
+
+    path = test_r0_dir / 'LST-1.1.Run00001.0000.fits.fz'
+
+    with MultiFiles(path, pure_protobuf=True) as multi_files:
+        assert multi_files.n_open_files == 4
+        assert multi_files.dvr_applied is False
+
+        cls = get_class_from_PBFHEAD("ProtoR1.CameraEvent")
+
+        event_count = 0
+        for stream, event in multi_files:
+            assert isinstance(event, cls)
+            event_count += 1
+            assert event.event_id == event_count
+            assert stream in (1, 2, 3, 4)
+
+        assert event_count == 40
