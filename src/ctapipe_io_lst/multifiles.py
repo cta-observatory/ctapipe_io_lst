@@ -60,6 +60,14 @@ class MultiFiles(Component):
         )
     ).tag(config=True)
 
+    pure_protobuf = Bool(
+        default_value=False,
+        help=(
+            "By default, protozfits converts protobuf message to namedtuples of numpy arrays."
+            "If this option is true, the protobuf Message object will be returned instead."
+        ),
+    ).tag(config=True)
+
     last_subrun = Integer(
         default_value=None,
         allow_none=True,
@@ -138,6 +146,7 @@ class MultiFiles(Component):
 
         if stream is None:
             path = self.path
+            stream = self.file_info.stream
         else:
             self.current_subrun[stream] += 1
 
@@ -160,7 +169,7 @@ class MultiFiles(Component):
             self._files.pop(stream).close()
 
         Provenance().add_input_file(str(path), "R0")
-        file_ = File(str(path))
+        file_ = File(str(path), pure_protobuf=self.pure_protobuf)
         self._files[stream] = file_
         self.log.info("Opened file %s", path)
         self._events_tables[stream] = file_.Events
@@ -227,4 +236,4 @@ class MultiFiles(Component):
                 except FileNotFoundError:
                     pass
 
-        return event
+        return stream, event
