@@ -52,7 +52,8 @@ def get_processings_for_trigger_bits(camera_configuration):
     tdp_action = camera_configuration.debug.ttype_pattern
 
     # first bit (no shift) is default handling
-    default = EVBPreprocessingFlag(int(tdp_action[0]))
+    # only look at the first byte for now (maximum 6 bits defied above)
+    default = EVBPreprocessingFlag(int(tdp_action[0]) & 0xff)
     actions = defaultdict(lambda: default)
 
     # the following bits refer to the entries in tdp_type
@@ -61,6 +62,7 @@ def get_processings_for_trigger_bits(camera_configuration):
         if trigger_bits == 0:
             continue
 
-        actions[TriggerBits(int(trigger_bits))] = EVBPreprocessingFlag(int(tdp_action[i]))
+        # only look at the first byte for now (maximum 6 bits defied above)
+        actions[TriggerBits(int(trigger_bits))] = EVBPreprocessingFlag(int(tdp_action[i]) & 0xff)
 
     return actions
