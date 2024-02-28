@@ -6,7 +6,7 @@ class EVBPreprocessing(IntEnum):
     """
     The preprocessing steps that can be applied by EVB.
 
-    The values of this Enum is the index of this step in the ttype_pattern array.
+    The values of this Enum is the bit index of this step in the tdp_action value.
 
     Notes
     -----
@@ -47,10 +47,12 @@ def get_processings_for_trigger_bits(camera_configuration):
     Parse the tdp_action/type information into a dict mapping 
     """
     tdp_type = camera_configuration.debug.tdp_type
-    tdp_action = camera_configuration.debug.tdp_action
+
+    # EVB has a bug, it stores the tdp_action in the wrong field
+    tdp_action = camera_configuration.debug.ttype_pattern
 
     # first bit (no shift) is default handling
-    default = {step for step in EVBPreprocessing if tdp_action[step] & 1}
+    default = EVBPreprocessingFlag(int(tdp_action[0]))
     actions = defaultdict(lambda: default)
 
     # the following bits refer to the entries in tdp_type
@@ -59,9 +61,6 @@ def get_processings_for_trigger_bits(camera_configuration):
         if trigger_bits == 0:
             continue
 
-        actions[TriggerBits(int(trigger_bits))] = {
-            step for step in EVBPreprocessing
-            if tdp_action[step] & (1 << i)
-        }
+        actions[TriggerBits(int(trigger_bits))] = EVBPreprocessingFlag(int(tdp_action[i]))
 
     return actions
