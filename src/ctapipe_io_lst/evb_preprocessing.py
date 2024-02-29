@@ -51,12 +51,13 @@ def get_processings_for_trigger_bits(camera_configuration):
     # EVB has a bug, it stores the tdp_action in the wrong field
     tdp_action = camera_configuration.debug.ttype_pattern
 
-    # first bit (no shift) is default handling
+    # first entry is default handling
     # only look at the first byte for now (maximum 6 bits defied above)
     default = EVBPreprocessingFlag(int(tdp_action[0]) & 0xff)
     actions = defaultdict(lambda: default)
 
-    # the following bits refer to the entries in tdp_type
+    # the following entries refer to the entries in tdp_type
+    # but with offset of 1, because 0 is the default
     for i, trigger_bits in enumerate(tdp_type, start=1): 
         # all-zero trigger bits can be ignored
         if trigger_bits == 0:
