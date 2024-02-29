@@ -222,7 +222,6 @@ class LSTR0Corrections(TelescopeComponent):
             self.mon_data = self._read_calibration_file(self.calibration_path)
 
     def apply_drs4_corrections(self, event: LSTArrayEventContainer):
-        self.update_first_capacitors(event)
 
         for tel_id in event.trigger.tels_with_trigger:
             r1 = event.r1.tel[tel_id]

@@ -52,7 +52,7 @@ from .constants import (
     PixelStatus, TriggerBits,
 )
 
-from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessing, EVBPreprocessingFlag
+from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessingFlag
 
 
 __all__ = [
@@ -416,7 +416,7 @@ class LSTEventSource(EventSource):
     @property
     def datalevels(self):
         if self.cta_r1:
-            if EVBPreprocessing.PE_CALIBRATION in self.evb_preprocessing[TriggerBits.MONO]:
+            if EVBPreprocessingFlag.PE_CALIBRATION in self.evb_preprocessing[TriggerBits.MONO]:
                 return (DataLevel.R1, )
 
         if self.r0_r1_calibrator.calibration_path is not None:
@@ -617,6 +617,8 @@ class LSTEventSource(EventSource):
                 self.log.warning('Event with event_id=0 found, skipping')
                 continue
 
+
+
             # container for LST data
             array_event = LSTArrayEventContainer(
                 count=count,
@@ -651,6 +653,7 @@ class LSTEventSource(EventSource):
                 self.fill_pointing_info(array_event)
 
             # apply low level corrections
+            self.r0_r1_calibrator.update_first_capacitors(array_event)
             tdp_action = array_event.lst.tel[self.tel_id].evt.tdp_action
             is_calibrated = False
             if tdp_action is not None:
