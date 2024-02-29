@@ -1,25 +1,28 @@
 import os
+import socket
 from pathlib import Path
 from contextlib import ExitStack
+
 import pytest
 import numpy as np
-from ctapipe.io import EventSource
 from astropy.time import Time
 import astropy.units as u
+from traitlets.config import Config
+
+from ctapipe.io import EventSource
+from ctapipe.image.toymodel import WaveformModel, Gaussian
+from ctapipe.containers import EventType
 
 import protozfits
 from protozfits.R1v1_pb2 import CameraConfiguration, Event, TelescopeDataStream
 from protozfits.R1v1_debug_pb2 import DebugEvent, DebugCameraConfiguration
 from protozfits.CoreMessages_pb2 import AnyArray
-from traitlets.config import Config
+
 from ctapipe_io_lst import LSTEventSource
 from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
-from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ
-from ctapipe.image.toymodel import WaveformModel, Gaussian
-from ctapipe.containers import EventType
-import socket
-
+from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ, TriggerBits
 from ctapipe_io_lst.event_time import time_to_cta_high
+from ctapipe_io_lst.evb_preprocessing import EVBPreprocessingFlag
 
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
@@ -126,6 +129,30 @@ def dummy_cta_r1(dummy_cta_r1_dir):
     ucts_address = np.frombuffer(socket.inet_pton(socket.AF_INET, "10.0.100.123"), dtype=np.uint32)[0]
 
     run_start = Time("2023-05-16T16:06:31.123")
+
+    # trigger dependent processing definition
+    # tdp_type is a list of TriggerBits
+    # tdp_action is the bit pattern of pre-processing steps to apply
+    # to the corresponding tdp_type. 
+    tdp_type = np.zeros(15, dtype=np.uint16)
+    tdp_action = np.zeros(16, dtype=np.uint16)
+
+    # tdp_action[0] is the default for unknown trigger bits 
+    tdp_action[0] = EVBPreprocessingFlag.BASELINE_SUBTRACTION | EVBPreprocessingFlag.GAIN_SELECTION
+    # tdp_action[i] corresponds to tdp_type[i - 1]
+    # physics (mono for now)
+    tdp_type[0] = TriggerBits.MONO
+    tdp_action[1] = EVBPreprocessingFlag.BASELINE_SUBTRACTION | EVBPreprocessingFlag.GAIN_SELECTION
+    # flat field events
+    tdp_type[1] = TriggerBits.CALIBRATION
+    tdp_action[2] = EVBPreprocessingFlag.BASELINE_SUBTRACTION
+    tdp_type[2] = TriggerBits.CALIBRATION | TriggerBits.MONO
+    tdp_action[3] = EVBPreprocessingFlag.BASELINE_SUBTRACTION
+    # pedestal events
+    tdp_type[3] = TriggerBits.PEDESTAL
+    tdp_action[4] = EVBPreprocessingFlag.BASELINE_SUBTRACTION
+
+
     camera_config = CameraConfiguration(
         tel_id=1,
         local_run_id=10000,
@@ -138,12 +165,15 @@ def dummy_cta_r1(dummy_cta_r1_dir):
         num_samples_nominal=num_samples,
         pixel_id_map=to_anyarray(np.arange(num_pixels).astype(np.uint16)),
         module_id_map=to_anyarray(np.arange(num_modules).astype(np.uint16)),
+
         debug=DebugCameraConfiguration(
             cs_serial="???",
             evb_version="evb-dummy",
             cdhs_version="evb-dummy",
-            tdp_type=to_anyarray(np.zeros(15, dtype=np.uint16)),
+            tdp_type=to_anyarray(tdp_type),
             tdp_action=to_anyarray(np.zeros(16, dtype=np.uint16)),
+            # at the moment, the tdp_action and ttype_pattern fields are mixed up in EVB
+            ttype_pattern=to_anyarray(tdp_action),
         )
     )
 
@@ -304,3 +334,27 @@ def test_drs4_calibration(dummy_cta_r1):
 
             n_events += 1
         assert n_events == 100
+
+
+test_files = [
+    "20231214/LST-1.1.Run16102.0000_first50.fits.fz",  # has only baseline enabled
+    "20231218/LST-1.1.Run16231.0000_first50.fits.fz",  # baseline + gain selection for physics
+    "20231219/LST-1.1.Run16255.0000_first50.fits.fz",  # all corrections + gain selection for physics
+]
+
+
+@pytest.mark.parametrize("test_file", test_files)
+def test_read_real_files(test_file):
+    config = Config({
+        'LSTEventSource': {
+            'pointing_information': False,
+            'apply_drs4_corrections': False,
+        },
+    })
+
+    with EventSource(test_data / "real/R0" / test_file, config=config) as source:
+        n_read = 0
+        for _ in source:
+            n_read += 1
+
+        assert n_read == 200

@@ -222,7 +222,6 @@ class LSTR0Corrections(TelescopeComponent):
             self.mon_data = self._read_calibration_file(self.calibration_path)
 
     def apply_drs4_corrections(self, event: LSTArrayEventContainer):
-        self.update_first_capacitors(event)
 
         for tel_id in event.trigger.tels_with_trigger:
             r1 = event.r1.tel[tel_id]
@@ -277,7 +276,7 @@ class LSTR0Corrections(TelescopeComponent):
             )
 
     def calibrate(self, event: LSTArrayEventContainer):
-        for tel_id in event.r0.tel:
+        for tel_id in event.trigger.tels_with_trigger:
             r1 = event.r1.tel[tel_id]
             # if `apply_drs4_corrections` is False, we did not fill in the
             # waveform yet.
@@ -311,6 +310,21 @@ class LSTR0Corrections(TelescopeComponent):
             else:
                 r1.waveform[invalid_pixels[r1.selected_gain_channel, PIXEL_INDEX]] = 0.0
 
+            # needed for charge scaling in ctapipe dl1 calib
+            if r1.selected_gain_channel is not None:
+                relative_factor = np.empty(N_PIXELS)
+                relative_factor[r1.selected_gain_channel == HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
+                relative_factor[r1.selected_gain_channel == LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
+            else:
+                relative_factor = np.empty((N_GAINS, N_PIXELS))
+                relative_factor[HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
+                relative_factor[LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
+
+            event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
+
+    def fill_time_correction(self, event):
+        for tel_id in event.trigger.tels_with_trigger:
+            r1 = event.r1.tel[tel_id]
             # store calibration data needed for dl1 calibration in ctapipe
             # first drs4 time shift (zeros if no calib file was given)
             time_shift = self.get_drs4_time_correction(
@@ -330,17 +344,6 @@ class LSTR0Corrections(TelescopeComponent):
 
             event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
-            # needed for charge scaling in ctpaipe dl1 calib
-            if r1.selected_gain_channel is not None:
-                relative_factor = np.empty(N_PIXELS)
-                relative_factor[r1.selected_gain_channel == HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
-                relative_factor[r1.selected_gain_channel == LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
-            else:
-                relative_factor = np.empty((N_GAINS, N_PIXELS))
-                relative_factor[HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
-                relative_factor[LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
-
-            event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
 
     @staticmethod
     def _read_calibration_file(path):

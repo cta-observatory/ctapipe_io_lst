@@ -1,12 +1,14 @@
-import pytest
-import pickle
-from ctapipe_io_lst.constants import HIGH_GAIN
 import os
-from pathlib import Path
-from traitlets.config import Config
-import numpy as np
-import tables
 from importlib_resources import files, as_file
+from pathlib import Path
+import pickle
+
+import numpy as np
+import pytest
+import tables
+from traitlets.config import Config
+
+from ctapipe_io_lst.constants import HIGH_GAIN
 
 
 resource_dir = files('ctapipe_io_lst') / 'tests/resources'
@@ -299,3 +301,43 @@ def test_spike_positions():
 
     for key, pos in positions.items():
         assert sorted(pos) == sorted(expected_positions[key])
+
+
+def test_calibrate_precalibrated():
+    from ctapipe_io_lst import LSTEventSource
+
+    # file with pe calibration applied by EVB
+    test_file = "20231219/LST-1.1.Run16255.0000_first50.fits.fz"
+
+    path = test_data / "real/R0" / test_file
+    config = Config({
+        'LSTEventSource': {
+            'pointing_information': False,
+            'apply_drs4_corrections': True,
+            'LSTR0Corrections': {
+                'drs4_pedestal_path': test_drs4_pedestal_path,
+                'drs4_time_calibration_path': test_time_calib_path,
+                'calibration_path': test_calib_path,
+            },
+        },
+    })
+
+
+    previous = None
+    with LSTEventSource(path, config=config) as source:
+        n_read = 0
+        for event in source:
+            n_read += 1
+
+            time_shift = event.calibration.tel[1].dl1.time_shift
+            # test we filled the timeshift although the data is pre-calibrated
+            assert time_shift is not None
+            assert np.any(time_shift != 0)
+
+            # check that time_shift varies from event to event due to drs4 time shift
+            # regression test for the bug of not updating first_capacitors
+            if previous is not None and time_shift.shape == previous.shape:
+                assert np.any(time_shift != previous)
+            previous = time_shift
+
+        assert n_read == 200

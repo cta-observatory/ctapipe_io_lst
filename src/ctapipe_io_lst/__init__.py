@@ -52,7 +52,7 @@ from .constants import (
     PixelStatus, TriggerBits,
 )
 
-from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessing
+from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessingFlag
 
 
 __all__ = [
@@ -416,10 +416,8 @@ class LSTEventSource(EventSource):
     @property
     def datalevels(self):
         if self.cta_r1:
-            if EVBPreprocessing.CALIBRATION in self.evb_preprocessing[TriggerBits.MONO]:
+            if EVBPreprocessingFlag.PE_CALIBRATION in self.evb_preprocessing[TriggerBits.MONO]:
                 return (DataLevel.R1, )
-            else:
-                return (DataLevel.R0, )
 
         if self.r0_r1_calibrator.calibration_path is not None:
             return (DataLevel.R0, DataLevel.R1)
@@ -555,6 +553,7 @@ class LSTEventSource(EventSource):
             evt.chips_flags = debug.chips_flags
             evt.charges_hg = debug.charges_gain1
             evt.charges_lg = debug.charges_gain2
+            evt.tdp_action = debug.tdp_action
 
             # unpack Dragon counters
             counters = debug.counters.view(DRAGON_COUNTERS_DTYPE)
@@ -618,6 +617,8 @@ class LSTEventSource(EventSource):
                 self.log.warning('Event with event_id=0 found, skipping')
                 continue
 
+
+
             # container for LST data
             array_event = LSTArrayEventContainer(
                 count=count,
@@ -652,11 +653,19 @@ class LSTEventSource(EventSource):
                 self.fill_pointing_info(array_event)
 
             # apply low level corrections
-            if self.apply_drs4_corrections:
-                self.r0_r1_calibrator.apply_drs4_corrections(array_event)
+            self.r0_r1_calibrator.update_first_capacitors(array_event)
+            tdp_action = array_event.lst.tel[self.tel_id].evt.tdp_action
+            is_calibrated = False
+            if tdp_action is not None:
+                tdp_action = EVBPreprocessingFlag(int(tdp_action))
+                is_calibrated = EVBPreprocessingFlag.PE_CALIBRATION in tdp_action
 
+            if self.apply_drs4_corrections and not is_calibrated:
+                self.r0_r1_calibrator.apply_drs4_corrections(array_event)
                 # flat field tagging is performed on r1 data, so can only
                 # be done after the drs4 corrections are applied
+                # it also assumes uncalibrated data, so cannot be done if EVB
+                # already calibrated the data
                 if self.use_flatfield_heuristic:
                     self.tag_flatfield_events(array_event)
 
@@ -664,13 +673,16 @@ class LSTEventSource(EventSource):
                 self.check_interleaved_pedestal(array_event)
 
             # gain select and calibrate to pe
-            if self.r0_r1_calibrator.calibration_path is not None:
+            if not is_calibrated and self.r0_r1_calibrator.calibration_path is not None:
                 # skip flatfield and pedestal events if asked
                 if (
                     self.calibrate_flatfields_and_pedestals
                     or array_event.trigger.event_type not in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}
                 ):
                     self.r0_r1_calibrator.calibrate(array_event)
+
+            # dl1 and drs4 timeshift needs to be filled always
+            self.r0_r1_calibrator.fill_time_correction(array_event)
 
             yield array_event
 
