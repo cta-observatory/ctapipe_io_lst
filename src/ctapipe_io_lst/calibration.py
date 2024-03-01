@@ -175,7 +175,7 @@ class LSTR0Corrections(TelescopeComponent):
 
     select_gain_flatfields_and_pedestals = Bool(
         default_value=True,
-        help="Set to false keep both gains for flatfield and pedestal events.",
+        help="Set to false to keep both gains for flatfield and pedestal events.",
     ).tag(config=True)
 
     apply_drs4_pedestal_correction = Bool(
