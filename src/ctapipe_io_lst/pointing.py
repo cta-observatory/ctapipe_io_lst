@@ -1,4 +1,5 @@
 from pathlib import Path
+import warnings
 
 import numpy as np
 from scipy.interpolate import interp1d
@@ -69,7 +70,7 @@ class PointingSource(TelescopeComponent):
         self.interp_alt = {}
 
     @staticmethod
-    def _read_target_log(path):
+    def read_target_log(path, ignore_missing_end=True):
         path = Path(path)
 
         def parse_start(tokens):
@@ -103,10 +104,19 @@ class PointingSource(TelescopeComponent):
 
                 tokens = line.strip().split(" ")
                 if tokens[1] == "TrackStart":
+                    start = parse_start(tokens)
+
                     if tracking:
-                        raise ValueError(f"Expected TrackingEnd, got {line}")
+                        msg = f"Expected TrackingEnd, got {line}"
+                        if ignore_missing_end:
+                            warnings.warn(msg)
+                            # let previous target end one second before new one
+                            targets[-1].update({"end_unix": start["start_unix"] - 1})
+                        else:
+                            raise ValueError(msg)
+
                     tracking = True
-                    targets.append(parse_start(tokens))
+                    targets.append(start)
 
                 elif tokens[1] == "TrackEnd":
                     if not tracking:
@@ -282,7 +292,7 @@ class PointingSource(TelescopeComponent):
             if path is None:
                 self.target_log[tel_id] = None
             else:
-                self.target_log[tel_id] = self._read_target_log(path)
+                self.target_log[tel_id] = self.read_target_log(path)
 
         targets = self.target_log[tel_id]
         if targets is None:
