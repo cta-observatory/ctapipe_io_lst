@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import numpy as np
+import pytest
 from astropy.time import Time
 import astropy.units as u
 from ctapipe.core import Provenance
@@ -69,7 +70,7 @@ def test_load_position_and_bending_corrections():
 def test_read_target_log(tmp_path):
     from ctapipe_io_lst.pointing import PointingSource
 
-    targets = PointingSource._read_target_log(test_target_log)
+    targets = PointingSource.read_target_log(test_target_log)
     assert len(targets) == 7
     assert targets.colnames == ["start_unix", "ra", "dec", "name", "end_unix", "start", "end"]
 
@@ -83,7 +84,7 @@ def test_read_target_log(tmp_path):
     # test with empty file
     empty_log = (tmp_path / "Target_log.txt")
     empty_log.open("w").close()
-    targets = PointingSource._read_target_log(empty_log)
+    targets = PointingSource.read_target_log(empty_log)
     assert len(targets) == 0
     assert targets.colnames == ["start_unix", "ra", "dec", "name", "end_unix", "start", "end"]
     assert targets["ra"].unit == u.deg
@@ -99,12 +100,27 @@ def test_read_target_log(tmp_path):
                 tokens = tokens[:-1]
             f.write(" ".join(tokens) + "\n")
 
-    targets = PointingSource._read_target_log(log_no_names)
+    targets = PointingSource.read_target_log(log_no_names)
     assert len(targets) == 7
     assert targets.colnames == ["start_unix", "ra", "dec", "name", "end_unix", "start", "end"]
 
     np.testing.assert_array_equal(targets["name"], ["unknown"] * 7)
     np.testing.assert_array_equal(targets["ra"], [83.6296, 86.6333] * 3 + [79.1725])
+
+    # test with missing TrackEnd line
+    log_missing_end = tmp_path / "target_log_missing_end.txt"
+    log_lines.pop(1)
+    log_missing_end.write_text('\n'.join(log_lines))
+
+    with pytest.warns(match="Expected TrackingEnd"):
+        targets = PointingSource.read_target_log(log_missing_end)
+
+    assert len(targets) == 7
+    assert targets[0]['end_unix'] == targets[1]['start_unix'] - 1
+
+    with pytest.raises(ValueError, match="Expected TrackingEnd"):
+        targets = PointingSource.read_target_log(log_missing_end, ignore_missing_end=False)
+
 
 
 def test_targets():
