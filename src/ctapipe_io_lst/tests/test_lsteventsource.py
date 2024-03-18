@@ -21,6 +21,7 @@ test_r0_path = test_r0_dir / 'LST-1.1.Run02006.0004.fits.fz'
 test_r0_path_all_streams = test_r0_dir / 'LST-1.1.Run02008.0000_first50.fits.fz'
 
 test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
+test_missing_module_r1v1_path = test_data / 'real/R0/20240310/LST-1.1.Run17016.0000_first10.fits.fz'
 
 test_drive_report = test_data / 'real/monitoring/DrivePositioning/DrivePosition_log_20200218.txt'
 
@@ -140,6 +141,35 @@ def test_missing_modules():
 
         # 514 is one of the missing pixels
         assert np.all(event.r0.tel[1].waveform[:, 514] == fill)
+
+
+def test_missing_modules_r1v1():
+    from ctapipe_io_lst import LSTEventSource
+    source = LSTEventSource(
+        test_missing_module_r1v1_path,
+        apply_drs4_corrections=False,
+        pointing_information=False,
+    )
+
+    assert source.lst_service.telescope_id == 1
+    assert source.lst_service.num_modules == 264
+
+    n_events = 0
+    for event in source:
+        n_events += 1
+        # one module missing, so 7 pixels
+        assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
+        assert np.count_nonzero(event.r0.tel[1].waveform == 0.0) == N_PIXELS_MODULE * N_SAMPLES * N_GAINS
+
+        missing_gain, missing_pixel = np.nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels)
+        # 514 is one of the missing pixels
+        for gain, pixel in zip(missing_gain, missing_pixel):
+            np.testing.assert_equal(event.r0.tel[1].waveform[gain, pixel], 0.0)
+
+        if CTAPIPE_0_20:
+            np.testing.assert_equal(event.lst.tel[1].evt.pixel_status, event.r1.tel[1].pixel_status)
+
+    assert n_events == 40
 
 
 def test_gain_selected():

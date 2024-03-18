@@ -479,12 +479,9 @@ class LSTEventSource(EventSource):
         offset = self.data_stream.waveform_offset
         pixel_id_map = self.camera_config.pixel_id_map
 
-        # FIXME: missing modules / pixels
-        # FIXME: DVR? should not happen in r1 but dl0, but our own converter uses the old R1
-
         # reorder to nominal pixel order
         pixel_status = _reorder_pixel_status(
-            zfits_event.pixel_status, pixel_id_map, set_dvr_bits=True
+            zfits_event.pixel_status, pixel_id_map, set_dvr_bits=not self.dvr_applied,
         )
 
         n_channels = zfits_event.num_channels
@@ -495,11 +492,16 @@ class LSTEventSource(EventSource):
         raw_waveform = zfits_event.waveform.reshape(readout_shape)
         waveform = raw_waveform.astype(np.float32) / scale - offset
 
+        if self.dvr_applied:
+            stored_pixels = (zfits_event.pixel_status & PixelStatus.DVR_STATUS) > 0
+        else:
+            stored_pixels = slice(None)  # all pixels stored
+
         reordered_waveform = np.full((n_channels, N_PIXELS, n_samples), 0.0, dtype=np.float32)
-        reordered_waveform[:, pixel_id_map] = waveform
+        reordered_waveform[:, pixel_id_map[stored_pixels]] = waveform
         waveform = reordered_waveform
 
-        # FIXME, check using evb_preprocessing and make ctapipe support 2 gains
+
         if zfits_event.num_channels == 2:
             selected_gain_channel = None
         else:
@@ -535,16 +537,17 @@ class LSTEventSource(EventSource):
             )
 
     def fill_lst_from_ctar1(self, zfits_event):
+        pixel_status = _reorder_pixel_status(
+            zfits_event.pixel_status,
+            self.pixel_id_map,
+            set_dvr_bits=not self.dvr_applied,
+        )
         evt = LSTEventContainer(
-            pixel_status=zfits_event.pixel_status.copy(),
+            pixel_status=pixel_status,
             first_capacitor_id=zfits_event.first_cell_id,
             calibration_monitoring_id=zfits_event.calibration_monitoring_id,
             local_clock_counter=zfits_event.module_hires_local_clock_counter,
         )
-        # set bits for dvr if not already set
-        if not self.dvr_applied:
-            not_broken = get_channel_info(evt.pixel_status) != 0
-            evt.pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
 
         if zfits_event.debug is not None:
             debug = zfits_event.debug
@@ -971,7 +974,7 @@ class LSTEventSource(EventSource):
         '''
         tel_id = self.tel_id
         waveform = array_event.r1.tel[tel_id].waveform
-        
+
         if waveform.ndim == 3:
             image = waveform[HIGH_GAIN].sum(axis=1)
         else:
@@ -981,7 +984,7 @@ class LSTEventSource(EventSource):
         n_in_range = np.count_nonzero(in_range)
 
         looks_like_ff = n_in_range >= self.min_flatfield_pixel_fraction * image.size
-        
+
         if looks_like_ff:
             # Tag as FF only events with 2-gains waveforms: both gains are needed for calibration
             if waveform.ndim == 3:
@@ -1091,7 +1094,7 @@ class LSTEventSource(EventSource):
         if CTAPIPE_0_20:
             # reorder to nominal pixel order
             pixel_status = _reorder_pixel_status(
-                zfits_event.pixel_status, pixel_id_map, set_dvr_bits=True
+                zfits_event.pixel_status, pixel_id_map, set_dvr_bits=not self.dvr_applied
             )
             r1.pixel_status = pixel_status
             r1.event_time = cta_high_res_to_time(
