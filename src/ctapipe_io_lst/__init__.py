@@ -485,17 +485,18 @@ class LSTEventSource(EventSource):
         )
 
         n_channels = zfits_event.num_channels
-        n_pixels = zfits_event.num_pixels
         n_samples = zfits_event.num_samples
+
+        if self.dvr_applied:
+            stored_pixels = (zfits_event.pixel_status & PixelStatus.DVR_STATUS) > 0
+            n_pixels = np.count_nonzero(stored_pixels)
+        else:
+            stored_pixels = slice(None)  # all pixels stored
+            n_pixels = zfits_event.num_pixels
 
         readout_shape = (n_channels, n_pixels, n_samples)
         raw_waveform = zfits_event.waveform.reshape(readout_shape)
         waveform = raw_waveform.astype(np.float32) / scale - offset
-
-        if self.dvr_applied:
-            stored_pixels = (zfits_event.pixel_status & PixelStatus.DVR_STATUS) > 0
-        else:
-            stored_pixels = slice(None)  # all pixels stored
 
         reordered_waveform = np.full((n_channels, N_PIXELS, n_samples), 0.0, dtype=np.float32)
         reordered_waveform[:, pixel_id_map[stored_pixels]] = waveform
@@ -531,7 +532,7 @@ class LSTEventSource(EventSource):
 
         if DataLevel.R0 in self.datalevels:
             reordered_raw_waveform = np.full((n_channels, N_PIXELS, n_samples), 0, dtype=np.uint16)
-            reordered_raw_waveform[:, pixel_id_map] = raw_waveform
+            reordered_raw_waveform[:, pixel_id_map[stored_pixels]] = raw_waveform
             array_event.r0.tel[self.tel_id] = R0CameraContainer(
                 waveform=reordered_raw_waveform,
             )
