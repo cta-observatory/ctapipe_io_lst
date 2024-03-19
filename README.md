@@ -1,4 +1,4 @@
-# ctapipe_io_lst [![Build Status](https://github.com/cta-observatory/ctapipe_io_lst/workflows/CI/badge.svg?branch=main)](https://github.com/cta-observatory/ctapipe_io_lst/actions?query=workflow%3ACI+branch%3Amain)
+# ctapipe_io_lst [![CI](https://github.com/cta-observatory/ctapipe_io_lst/actions/workflows/ci.yml/badge.svg)](https://github.com/cta-observatory/ctapipe_io_lst/actions/workflows/ci.yml)
 
 EventSource Plugin for ctapipe, able to read LST zfits files
 and calibration them to R1 as needed for ctapipe tools.
