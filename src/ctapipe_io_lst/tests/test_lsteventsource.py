@@ -450,4 +450,4 @@ def test_arbitrary_filename(tmp_path):
         n_read = 0
         for _ in source:
             n_read += 1
-        assert n_read == n_read
+        assert n_read == 50
