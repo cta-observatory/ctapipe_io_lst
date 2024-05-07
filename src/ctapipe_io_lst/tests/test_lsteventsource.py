@@ -437,3 +437,17 @@ def test_evb_calibrated_data():
             assert np.all(e.calibration.tel[1].dl1.time_shift != 0)
 
         assert read_events == 200
+
+
+def test_arbitrary_filename(tmp_path):
+    from ctapipe_io_lst import LSTEventSource
+    path = tmp_path / "some_name_not_matching_the_lst_pattern.fits.fz"
+    path.write_bytes(test_r0_path_all_streams.read_bytes())
+
+    assert LSTEventSource.is_compatible(path)
+
+    with LSTEventSource(path, pointing_information=False, apply_drs4_corrections=False) as source:
+        n_read = 0
+        for _ in source:
+            n_read += 1
+        assert n_read == n_read
