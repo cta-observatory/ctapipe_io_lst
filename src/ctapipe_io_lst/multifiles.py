@@ -146,7 +146,7 @@ class MultiFiles(Component):
 
         if stream is None:
             path = self.path
-            stream = self.file_info.stream
+            stream = self.file_info.stream if self.file_info is not None else None
         else:
             self.current_subrun[stream] += 1
 
