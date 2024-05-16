@@ -11,25 +11,40 @@ from traitlets.config import Config
 from ctapipe_io_lst.constants import HIGH_GAIN
 
 
-resource_dir = files('ctapipe_io_lst') / 'tests/resources'
-test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
-test_r0_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0000_first50.fits.fz'
-test_r0_calib_path = test_data / 'real/R0/20200218/LST-1.1.Run02006.0004.fits.fz'
-test_missing_module_path = test_data / 'real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz'
-test_r0_gainselected_path = test_data / 'real/R0/20200218/LST-1.1.Run02008.0000_first50_gainselected.fits.fz'
+resource_dir = files("ctapipe_io_lst") / "tests/resources"
+test_data = Path(os.getenv("LSTCHAIN_TEST_DATA", "test_data")).absolute()
+test_r0_path = test_data / "real/R0/20200218/LST-1.1.Run02008.0000_first50.fits.fz"
+test_r0_calib_path = test_data / "real/R0/20200218/LST-1.1.Run02006.0004.fits.fz"
+test_missing_module_path = (
+    test_data / "real/R0/20210215/LST-1.1.Run03669.0000_first50.fits.fz"
+)
+test_r0_gainselected_path = (
+    test_data / "real/R0/20200218/LST-1.1.Run02008.0000_first50_gainselected.fits.fz"
+)
 
 calib_version = "ctapipe-v0.17"
-calib_path = test_data / 'real/monitoring/PixelCalibration/Cat-A/'
-test_calib_path = calib_path / f'calibration/20200218/{calib_version}/calibration_filters_52.Run02006.0000.h5'
-test_drs4_pedestal_path = calib_path / f'drs4_baseline/20200218/{calib_version}/drs4_pedestal.Run02005.0000.h5'
-test_time_calib_path = calib_path / f'drs4_time_sampling_from_FF/20191124/{calib_version}/time_calibration.Run01625.0000.h5'
+calib_path = test_data / "real/monitoring/PixelCalibration/Cat-A/"
+test_calib_path = (
+    calib_path
+    / f"calibration/20200218/{calib_version}/calibration_filters_52.Run02006.0000.h5"
+)
+test_drs4_pedestal_path = (
+    calib_path
+    / f"drs4_baseline/20200218/{calib_version}/drs4_pedestal.Run02005.0000.h5"
+)
+test_time_calib_path = (
+    calib_path
+    / f"drs4_time_sampling_from_FF/20191124/{calib_version}/time_calibration.Run01625.0000.h5"
+)
 
 
 def test_get_first_capacitor():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.calibration import (
         get_first_capacitors_for_pixels,
-        N_GAINS, N_PIXELS_MODULE, N_MODULES,
+        N_GAINS,
+        N_PIXELS_MODULE,
+        N_MODULES,
     )
 
     tel_id = 1
@@ -42,8 +57,8 @@ def test_get_first_capacitor():
 
     first_capacitor_id = event.lst.tel[tel_id].evt.first_capacitor_id
 
-    with as_file(resource_dir / 'first_caps.hdf5') as path:
-        with tables.open_file(path, 'r') as f:
+    with as_file(resource_dir / "first_caps.hdf5") as path:
+        with tables.open_file(path, "r") as f:
             expected = f.root.first_capacitor_for_modules[:]
 
     first_caps = get_first_capacitors_for_pixels(first_capacitor_id)
@@ -60,13 +75,21 @@ def test_read_calib_file():
 
     mon = LSTR0Corrections._read_calibration_file(test_calib_path)
     # only one telescope in that file
-    assert mon.tel.keys() == {1, }
+    assert mon.tel.keys() == {
+        1,
+    }
 
 
 def test_read_drs4_pedestal_file():
-    from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS_PIXEL, N_SAMPLES
+    from ctapipe_io_lst.calibration import (
+        LSTR0Corrections,
+        N_CAPACITORS_PIXEL,
+        N_SAMPLES,
+    )
 
-    pedestal = LSTR0Corrections._get_drs4_pedestal_data(test_drs4_pedestal_path, tel_id=1)
+    pedestal = LSTR0Corrections._get_drs4_pedestal_data(
+        test_drs4_pedestal_path, tel_id=1
+    )
 
     assert pedestal.shape[-1] == N_CAPACITORS_PIXEL + N_SAMPLES
     # check circular boundary
@@ -89,26 +112,33 @@ def test_init():
 
     subarray = LSTEventSource.create_subarray()
     r0corr = LSTR0Corrections(subarray)
-    assert r0corr.last_readout_time.keys() == {1, }
+    assert r0corr.last_readout_time.keys() == {
+        1,
+    }
 
 
 def test_source_with_drs4_pedestal():
     from ctapipe_io_lst import LSTEventSource
 
-    config = Config({
-        'LSTEventSource': {
-            'pointing_information': False,
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
+    config = Config(
+        {
+            "LSTEventSource": {
+                "pointing_information": False,
+                "LSTR0Corrections": {
+                    "drs4_pedestal_path": test_drs4_pedestal_path,
+                },
             },
-        },
-    })
+        }
+    )
 
     source = LSTEventSource(
         input_url=test_r0_path,
         config=config,
     )
-    assert source.r0_r1_calibrator.drs4_pedestal_path.tel[1] == test_drs4_pedestal_path.absolute()
+    assert (
+        source.r0_r1_calibrator.drs4_pedestal_path.tel[1]
+        == test_drs4_pedestal_path.absolute()
+    )
 
     with source:
         for event in source:
@@ -118,15 +148,17 @@ def test_source_with_drs4_pedestal():
 def test_source_with_calibration():
     from ctapipe_io_lst import LSTEventSource
 
-    config = Config({
-        'LSTEventSource': {
-            'pointing_information': False,
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'calibration_path': test_calib_path,
+    config = Config(
+        {
+            "LSTEventSource": {
+                "pointing_information": False,
+                "LSTR0Corrections": {
+                    "drs4_pedestal_path": test_drs4_pedestal_path,
+                    "calibration_path": test_calib_path,
+                },
             },
-        },
-    })
+        }
+    )
 
     source = LSTEventSource(
         input_url=test_r0_path,
@@ -143,17 +175,19 @@ def test_source_with_calibration():
 def test_source_with_all(trigger_information):
     from ctapipe_io_lst import LSTEventSource
 
-    config = Config({
-        'LSTEventSource': {
-            'pointing_information': False,
-            'trigger_information': trigger_information,
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'drs4_time_calibration_path': test_time_calib_path,
-                'calibration_path': test_calib_path,
+    config = Config(
+        {
+            "LSTEventSource": {
+                "pointing_information": False,
+                "trigger_information": trigger_information,
+                "LSTR0Corrections": {
+                    "drs4_pedestal_path": test_drs4_pedestal_path,
+                    "drs4_time_calibration_path": test_time_calib_path,
+                    "calibration_path": test_calib_path,
+                },
             },
-        },
-    })
+        }
+    )
 
     source = LSTEventSource(
         input_url=test_r0_path,
@@ -171,16 +205,18 @@ def test_missing_module():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.constants import N_PIXELS_MODULE, N_SAMPLES
 
-    config = Config({
-        'LSTEventSource': {
-            'pointing_information': False,
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'drs4_time_calibration_path': test_time_calib_path,
-                'calibration_path': test_calib_path,
+    config = Config(
+        {
+            "LSTEventSource": {
+                "pointing_information": False,
+                "LSTR0Corrections": {
+                    "drs4_pedestal_path": test_drs4_pedestal_path,
+                    "drs4_time_calibration_path": test_time_calib_path,
+                    "calibration_path": test_calib_path,
+                },
             },
-        },
-    })
+        }
+    )
 
     source = LSTEventSource(
         input_url=test_missing_module_path,
@@ -193,11 +229,10 @@ def test_missing_module():
             waveform = event.r1.tel[1].waveform
             assert waveform is not None
 
-
             failing_pixels = event.mon.tel[1].pixel_status.hardware_failing_pixels
 
             # one module failed, in each gain channel
-            assert np.count_nonzero(failing_pixels) ==  2 * N_PIXELS_MODULE
+            assert np.count_nonzero(failing_pixels) == 2 * N_PIXELS_MODULE
 
             # there might be zeros in other pixels than just the broken ones
             assert np.count_nonzero(waveform == 0) >= N_PIXELS_MODULE * (N_SAMPLES - 4)
@@ -205,21 +240,25 @@ def test_missing_module():
             # waveforms in failing pixels must be all 0
             assert np.all(waveform[failing_pixels[HIGH_GAIN]] == 0)
 
+
 def test_no_gain_selection():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.constants import N_PIXELS, N_GAINS, N_SAMPLES
 
-    config = Config({
-        'LSTEventSource': {
-            'pointing_information': False,
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'drs4_time_calibration_path': test_time_calib_path,
-                'calibration_path': test_calib_path,
-                'select_gain': False,
+    config = Config(
+        {
+            "LSTEventSource": {
+                "pointing_information": False,
+                "LSTR0Corrections": {
+                    "drs4_pedestal_path": test_drs4_pedestal_path,
+                    "drs4_time_calibration_path": test_time_calib_path,
+                    "calibration_path": test_calib_path,
+                    "select_gain": False,
+                    "select_gain_flatfields_and_pedestals": False,
+                },
             },
-        },
-    })
+        }
+    )
 
     source = LSTEventSource(
         input_url=test_r0_calib_path,
@@ -234,20 +273,70 @@ def test_no_gain_selection():
             assert event.r1.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES - 4)
 
 
+def test_no_gain_selection_flatfields_and_pedestals():
+    from ctapipe.containers import EventType
+    from ctapipe_io_lst import LSTEventSource
+    from ctapipe_io_lst.constants import N_PIXELS, N_GAINS, N_SAMPLES
+
+    config = Config(
+        {
+            "LSTEventSource": {
+                "pointing_information": False,
+                "LSTR0Corrections": {
+                    "drs4_pedestal_path": test_drs4_pedestal_path,
+                    "drs4_time_calibration_path": test_time_calib_path,
+                    "calibration_path": test_calib_path,
+                    "select_gain": True,
+                    "select_gain_flatfields_and_pedestals": False,
+                },
+            },
+        }
+    )
+
+    source = LSTEventSource(
+        input_url=test_r0_calib_path,
+        config=config,
+    )
+
+    assert source.r0_r1_calibrator.mon_data is not None
+    with source:
+        for event in source:
+            assert event.r1.tel[1].waveform is not None
+            if event.trigger.event_type in {
+                EventType.FLATFIELD,
+                EventType.SKY_PEDESTAL,
+            }:
+                assert event.r1.tel[1].waveform.ndim == 3
+                assert event.r1.tel[1].waveform.shape == (
+                    N_GAINS,
+                    N_PIXELS,
+                    N_SAMPLES - 4,
+                )
+            else:
+                assert event.r1.tel[1].waveform.ndim == 2
+                assert event.r1.tel[1].waveform.shape == (
+                    N_PIXELS,
+                    N_SAMPLES - 4,
+                )
+
+
 def test_no_gain_selection_no_drs4time_calib():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.constants import N_PIXELS, N_GAINS, N_SAMPLES
 
-    config = Config({
-        'LSTEventSource': {
-            'pointing_information': False,
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'calibration_path': test_calib_path,
-                'select_gain': False,
+    config = Config(
+        {
+            "LSTEventSource": {
+                "pointing_information": False,
+                "LSTR0Corrections": {
+                    "drs4_pedestal_path": test_drs4_pedestal_path,
+                    "calibration_path": test_calib_path,
+                    "select_gain": False,
+                    "select_gain_flatfields_and_pedestals": False,
+                },
             },
-        },
-    })
+        }
+    )
 
     source = LSTEventSource(
         input_url=test_r0_calib_path,
@@ -265,23 +354,27 @@ def test_no_gain_selection_no_drs4time_calib():
 def test_already_gain_selected():
     from ctapipe_io_lst import LSTEventSource
 
-    config = Config({
-        'LSTEventSource': {
-            'pointing_information': False,
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'drs4_time_calibration_path': test_time_calib_path,
-                'calibration_path': test_calib_path,
+    config = Config(
+        {
+            "LSTEventSource": {
+                "pointing_information": False,
+                "LSTR0Corrections": {
+                    "drs4_pedestal_path": test_drs4_pedestal_path,
+                    "drs4_time_calibration_path": test_time_calib_path,
+                    "calibration_path": test_calib_path,
+                },
             },
-        },
-    })
+        }
+    )
 
     source = LSTEventSource(test_r0_gainselected_path, config=config)
     reference_source = LSTEventSource(test_r0_path, config=config)
 
     with source, reference_source:
         for event, reference_event in zip(source, reference_source):
-            assert np.all(event.r1.tel[1].waveform == reference_event.r1.tel[1].waveform)
+            assert np.all(
+                event.r1.tel[1].waveform == reference_event.r1.tel[1].waveform
+            )
     assert event.count == 199
 
 
@@ -296,7 +389,7 @@ def test_spike_positions():
             if pos:
                 positions[(current, previous)] = pos
 
-    with (test_data / 'spike_positions.pickle').open('rb') as f:
+    with (test_data / "spike_positions.pickle").open("rb") as f:
         expected_positions = pickle.load(f)
 
     for key, pos in positions.items():
@@ -310,18 +403,19 @@ def test_calibrate_precalibrated():
     test_file = "20231219/LST-1.1.Run16255.0000_first50.fits.fz"
 
     path = test_data / "real/R0" / test_file
-    config = Config({
-        'LSTEventSource': {
-            'pointing_information': False,
-            'apply_drs4_corrections': True,
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': test_drs4_pedestal_path,
-                'drs4_time_calibration_path': test_time_calib_path,
-                'calibration_path': test_calib_path,
+    config = Config(
+        {
+            "LSTEventSource": {
+                "pointing_information": False,
+                "apply_drs4_corrections": True,
+                "LSTR0Corrections": {
+                    "drs4_pedestal_path": test_drs4_pedestal_path,
+                    "drs4_time_calibration_path": test_time_calib_path,
+                    "calibration_path": test_calib_path,
+                },
             },
-        },
-    })
-
+        }
+    )
 
     previous = None
     with LSTEventSource(path, config=config) as source:
