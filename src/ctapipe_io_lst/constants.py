@@ -26,7 +26,7 @@ PIXEL_INDEX = np.arange(N_PIXELS)
 
 #: Distance from central pin to elevaion axis
 ELEVATION_AXIS_PIN_DISTANCE = 15.885 * u.m
-#: location of lst-1 as `~astropy.coordinates.EarthLocation`
+#: location of LSTN-01 as `~astropy.coordinates.EarthLocation`
 #: Taken from Abelardo's Coordinates of LST-1 & MAGIC presentation
 #: https://redmine.cta-observatory.org/attachments/65827
 LST1_LOCATION = EarthLocation(
@@ -36,6 +36,10 @@ LST1_LOCATION = EarthLocation(
     height=2184 * u.m + ELEVATION_AXIS_PIN_DISTANCE
 )
 
+#: Official location of LSTN-01 as `~astropy.coordinates.EarthLocation`.
+#:
+#: Taken from https://gitlab.cta-observatory.org/cta-science/array-element-positions/-/blob/main/CTAN_ArrayElements_Positions.ecsv?ref_type=heads
+#: EPSG coordinates transformed to lon/lat using pyproj
 LST1_LOCATION_CTAO = EarthLocation(
     lon=-17.891496913272913 * u.deg,
     lat=28.761526467885083 * u.deg,
@@ -43,21 +47,27 @@ LST1_LOCATION_CTAO = EarthLocation(
     height=2184 * u.m + ELEVATION_AXIS_PIN_DISTANCE
 )
 
-#: location of lst-2 as `~astropy.coordinates.EarthLocation`
-#: Taken from https://gitlab.cta-observatory.org/cta-science/array-element-positions/-/blob/main/CTAN_ArrayElements_Positions.ecsv?ref_type=heads
-#: EPSG coordinates transformed to lon/lat using pyproj
+#: Official location of LSTN-02 as `~astropy.coordinates.EarthLocation`.
+#:
+#: See `LST1_LOCATION_CTAO` for details
 LST2_LOCATION_CTAO = EarthLocation(
     lon=-17.892707541577614 * u.deg,
     lat=28.761847808998038 * u.deg,
     height=2172.5 * u.m + ELEVATION_AXIS_PIN_DISTANCE,
 )
-#: location of lst-3 as `~astropy.coordinates.EarthLocation`
+
+#: Official location of LSTN-03 as `~astropy.coordinates.EarthLocation`
+#:
+#: See `LST1_LOCATION_CTAO` for details
 LST3_LOCATION_CTAO = EarthLocation(
     lon=-17.892546711522133 * u.deg,
     lat=28.762845266359122 * u.deg,
     height=2168.2 * u.m + ELEVATION_AXIS_PIN_DISTANCE,
 )
-#: location of lst-4 as `~astropy.coordinates.EarthLocation`
+
+#: Official location of LSTN-04 as `~astropy.coordinates.EarthLocation`
+#:
+#: See `LST1_LOCATION_CTAO` for details
 LST4_LOCATION_CTAO = EarthLocation(
     lon=-17.89137994602903 * u.deg,
     lat=28.76244451041423 * u.deg,
