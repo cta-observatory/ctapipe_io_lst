@@ -24,6 +24,7 @@ CHANNEL_ORDER_LOW_GAIN = [4, 4, 5, 5, 6, 6, 7]
 
 PIXEL_INDEX = np.arange(N_PIXELS)
 
+#: Distance from central pin to elevaion axis
 ELEVATION_AXIS_PIN_DISTANCE = 15.885 * u.m
 #: location of lst-1 as `~astropy.coordinates.EarthLocation`
 #: Taken from Abelardo's Coordinates of LST-1 & MAGIC presentation
@@ -35,22 +36,29 @@ LST1_LOCATION = EarthLocation(
     height=2184 * u.m + ELEVATION_AXIS_PIN_DISTANCE
 )
 
+LST1_LOCATION_CTAO = EarthLocation(
+    lon=-17.891496913272913 * u.deg,
+    lat=28.761526467885083 * u.deg,
+    # height of central pin + distance from pin to elevation axis
+    height=2184 * u.m + ELEVATION_AXIS_PIN_DISTANCE
+)
+
 #: location of lst-2 as `~astropy.coordinates.EarthLocation`
 #: Taken from https://gitlab.cta-observatory.org/cta-science/array-element-positions/-/blob/main/CTAN_ArrayElements_Positions.ecsv?ref_type=heads
 #: EPSG coordinates transformed to lon/lat using pyproj
-LST2_LOCATION = EarthLocation(
+LST2_LOCATION_CTAO = EarthLocation(
     lon=-17.892707541577614 * u.deg,
     lat=28.761847808998038 * u.deg,
     height=2172.5 * u.m + ELEVATION_AXIS_PIN_DISTANCE,
 )
 #: location of lst-3 as `~astropy.coordinates.EarthLocation`
-LST3_LOCATION = EarthLocation(
+LST3_LOCATION_CTAO = EarthLocation(
     lon=-17.892546711522133 * u.deg,
     lat=28.762845266359122 * u.deg,
     height=2168.2 * u.m + ELEVATION_AXIS_PIN_DISTANCE,
 )
 #: location of lst-4 as `~astropy.coordinates.EarthLocation`
-LST4_LOCATION = EarthLocation(
+LST4_LOCATION_CTAO = EarthLocation(
     lon=-17.89137994602903 * u.deg,
     lat=28.76244451041423 * u.deg,
     height=2172.8 * u.m + ELEVATION_AXIS_PIN_DISTANCE,
@@ -64,10 +72,10 @@ REFERENCE_LOCATION = EarthLocation(
 )
 
 LST_LOCATIONS = {
-    1: LST1_LOCATION,
-    2: LST2_LOCATION,
-    3: LST3_LOCATION,
-    4: LST4_LOCATION,
+    1: LST1_LOCATION_CTAO,
+    2: LST2_LOCATION_CTAO,
+    3: LST3_LOCATION_CTAO,
+    4: LST4_LOCATION_CTAO,
 }
 
 
