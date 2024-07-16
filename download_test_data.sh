@@ -2,7 +2,7 @@
 
 set -e
 
-TEST_DATA_URL=${TEST_DATA_URL:-https://big-tank.app.tu-dortmund.de/lst-testdata/}
+TEST_DATA_URL=${TEST_DATA_URL:-https://cloud.e5.physik.tu-dortmund.de/lst-testdata/}
 
 if [ -z "$TEST_DATA_USER" ]; then
 	echo -n "Username: "

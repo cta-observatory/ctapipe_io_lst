@@ -19,3 +19,4 @@ dependencies:
   - zlib
   - pip
   - h5py
+  - scipy <1.14
