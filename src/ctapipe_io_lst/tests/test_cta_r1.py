@@ -91,6 +91,8 @@ def create_shower(rng):
 
 def create_waveform(image, peak_time, num_samples=40, gains=(86, 5), offset=400):
     r1 = waveform_model.get_waveform(image, peak_time, num_samples)
+    if CTAPIPE_0_21:
+        r1 = r1[0]
     return np.array([r1 * gain + offset for gain in gains]).astype(np.uint16)
 
 
