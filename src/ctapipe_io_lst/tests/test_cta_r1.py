@@ -18,7 +18,7 @@ from protozfits.R1v1_pb2 import CameraConfiguration, Event, TelescopeDataStream
 from protozfits.R1v1_debug_pb2 import DebugEvent, DebugCameraConfiguration
 from protozfits.CoreMessages_pb2 import AnyArray
 
-from ctapipe_io_lst import LSTEventSource
+from ctapipe_io_lst import LSTEventSource, CTAPIPE_0_21
 from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
 from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ, TriggerBits
 from ctapipe_io_lst.event_time import time_to_cta_high
@@ -47,8 +47,12 @@ DTYPE_TO_ANYARRAY_TYPE = {v: k for k, v in ANY_ARRAY_TYPE_TO_NUMPY_TYPE.items()}
 
 subarray = LSTEventSource.create_subarray(tel_id=1)
 GEOMETRY = subarray.tel[1].camera.geometry
+pulse_shape = subarray.tel[1].camera.readout.reference_pulse_shape[0]
+if CTAPIPE_0_21:
+    pulse_shape = pulse_shape[np.newaxis, ...]
+
 waveform_model = WaveformModel(
-    reference_pulse=subarray.tel[1].camera.readout.reference_pulse_shape[0],
+    reference_pulse=pulse_shape,
     reference_pulse_sample_width=subarray.tel[1].camera.readout.reference_pulse_sample_width,
     sample_width=1 * u.ns,
 )

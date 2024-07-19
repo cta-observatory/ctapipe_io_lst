@@ -63,6 +63,7 @@ __all__ = [
 
 CTAPIPE_VERSION = tuple(int(v) for v in ctapipe_version.split(".")[:3])
 CTAPIPE_0_20 = CTAPIPE_VERSION >= (0, 20)
+CTAPIPE_0_21 = CTAPIPE_VERSION >= (0, 21)
 
 
 log = logging.getLogger(__name__)
