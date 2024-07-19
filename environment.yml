@@ -1,7 +1,6 @@
 name: lstio
 channels:
   - conda-forge
-  - default
 dependencies:
   - astropy >=5.2,<7
   - python=3.11 # nail the python version, so conda does not try upgrading / dowgrading
