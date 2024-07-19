@@ -18,7 +18,7 @@ from protozfits.R1v1_pb2 import CameraConfiguration, Event, TelescopeDataStream
 from protozfits.R1v1_debug_pb2 import DebugEvent, DebugCameraConfiguration
 from protozfits.CoreMessages_pb2 import AnyArray
 
-from ctapipe_io_lst import LSTEventSource, CTAPIPE_0_21
+from ctapipe_io_lst import LSTEventSource, CTAPIPE_GE_0_21
 from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
 from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ, TriggerBits
 from ctapipe_io_lst.event_time import time_to_cta_high
@@ -48,7 +48,7 @@ DTYPE_TO_ANYARRAY_TYPE = {v: k for k, v in ANY_ARRAY_TYPE_TO_NUMPY_TYPE.items()}
 subarray = LSTEventSource.create_subarray(tel_id=1)
 GEOMETRY = subarray.tel[1].camera.geometry
 pulse_shape = subarray.tel[1].camera.readout.reference_pulse_shape[0]
-if CTAPIPE_0_21:
+if CTAPIPE_GE_0_21:
     pulse_shape = pulse_shape[np.newaxis, ...]
 
 waveform_model = WaveformModel(
@@ -91,7 +91,7 @@ def create_shower(rng):
 
 def create_waveform(image, peak_time, num_samples=40, gains=(86, 5), offset=400):
     r1 = waveform_model.get_waveform(image, peak_time, num_samples)
-    if CTAPIPE_0_21:
+    if CTAPIPE_GE_0_21:
         r1 = r1[0]
     return np.array([r1 * gain + offset for gain in gains]).astype(np.uint16)
 
