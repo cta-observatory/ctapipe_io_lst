@@ -20,6 +20,10 @@ jobs:
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
         ctapipe-version: ["0.19.3", "0.20.0"]
+        include:
+          # ctapipe 0.21 requires >= 3.10
+          - python-version: "3.12"
+            ctapipe-version: "0.21.2"
 
     defaults:
       run:

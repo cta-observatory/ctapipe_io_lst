@@ -3,9 +3,9 @@ channels:
   - conda-forge
   - default
 dependencies:
-  - astropy=5.2
+  - astropy >=5.2,<7
   - python=3.11 # nail the python version, so conda does not try upgrading / dowgrading
-  - ctapipe=0.19
+  - ctapipe
   - protozfits=2.4
   - eventio
   - corsikaio
@@ -20,3 +20,4 @@ dependencies:
   - pip
   - h5py
   - scipy <1.14
+  - setuptools <71
