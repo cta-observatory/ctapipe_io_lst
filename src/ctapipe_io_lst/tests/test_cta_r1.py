@@ -334,7 +334,10 @@ def test_drs4_calibration(dummy_cta_r1):
 
             assert e.r1.tel[1].waveform.dtype == np.float32
             if e.trigger.event_type is EventType.SUBARRAY:
-                assert e.r1.tel[1].waveform.shape == (1855, 36)
+                if CTAPIPE_GE_0_21:
+                    assert e.r1.tel[1].waveform.shape == (1, 1855, 36)
+                else:
+                    assert e.r1.tel[1].waveform.shape == (1855, 36)
             else:
                 assert e.r1.tel[1].waveform.shape == (2, 1855, 36)
 

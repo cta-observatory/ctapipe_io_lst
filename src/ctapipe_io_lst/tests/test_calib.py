@@ -9,6 +9,7 @@ import tables
 from traitlets.config import Config
 
 from ctapipe_io_lst.constants import HIGH_GAIN
+from ctapipe_io_lst.compat import CTAPIPE_GE_0_21
 
 
 resource_dir = files('ctapipe_io_lst') / 'tests/resources'
@@ -203,7 +204,10 @@ def test_missing_module():
             assert np.count_nonzero(waveform == 0) >= N_PIXELS_MODULE * (N_SAMPLES - 4)
 
             # waveforms in failing pixels must be all 0
-            assert np.all(waveform[failing_pixels[HIGH_GAIN]] == 0)
+            if CTAPIPE_GE_0_21:
+                np.testing.assert_equal(waveform[:, failing_pixels[HIGH_GAIN]], 0)
+            else:
+                np.testing.assert_equal(waveform[failing_pixels[HIGH_GAIN]], 0)
 
 def test_no_gain_selection():
     from ctapipe_io_lst import LSTEventSource

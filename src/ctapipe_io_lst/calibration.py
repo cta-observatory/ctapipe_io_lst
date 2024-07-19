@@ -395,7 +395,7 @@ class LSTR0Corrections(TelescopeComponent):
         """
 
         if self.drs4_time_calibration_path.tel[tel_id] is None:
-            if selected_gain_channel is None:
+            if CTAPIPE_GE_0_21 or selected_gain_channel is None:
                 return np.zeros((N_GAINS, N_PIXELS))
             else:
                 return np.zeros(N_PIXELS)
