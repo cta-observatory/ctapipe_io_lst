@@ -24,14 +24,54 @@ CHANNEL_ORDER_LOW_GAIN = [4, 4, 5, 5, 6, 6, 7]
 
 PIXEL_INDEX = np.arange(N_PIXELS)
 
-#: location of lst-1 as `~astropy.coordinates.EarthLocation`
+#: Distance from central pin to elevation axis
+ELEVATION_AXIS_PIN_DISTANCE = 15.885 * u.m
+#: location of LSTN-01 as `~astropy.coordinates.EarthLocation`
 #: Taken from Abelardo's Coordinates of LST-1 & MAGIC presentation
 #: https://redmine.cta-observatory.org/attachments/65827
 LST1_LOCATION = EarthLocation(
     lon=-17.89149701 * u.deg,
     lat=28.76152611 * u.deg,
     # height of central pin + distance from pin to elevation axis
-    height=2184 * u.m + 15.883 * u.m
+    height=2184 * u.m + ELEVATION_AXIS_PIN_DISTANCE
+)
+
+#: Official location of LSTN-01 as `~astropy.coordinates.EarthLocation`.
+#:
+#: Taken from https://gitlab.cta-observatory.org/cta-science/array-element-positions/-/blob/main/CTAN_ArrayElements_Positions.ecsv?ref_type=heads
+#: EPSG coordinates transformed to lon/lat using pyproj
+LST1_LOCATION_CTAO = EarthLocation(
+    lon=-17.891496913272913 * u.deg,
+    lat=28.761526467885083 * u.deg,
+    # height of central pin + distance from pin to elevation axis
+    height=2184 * u.m + ELEVATION_AXIS_PIN_DISTANCE
+)
+
+#: Official location of LSTN-02 as `~astropy.coordinates.EarthLocation`.
+#:
+#: See `LST1_LOCATION_CTAO` for details
+LST2_LOCATION_CTAO = EarthLocation(
+    lon=-17.892707541577614 * u.deg,
+    lat=28.761847808998038 * u.deg,
+    height=2172.5 * u.m + ELEVATION_AXIS_PIN_DISTANCE,
+)
+
+#: Official location of LSTN-03 as `~astropy.coordinates.EarthLocation`
+#:
+#: See `LST1_LOCATION_CTAO` for details
+LST3_LOCATION_CTAO = EarthLocation(
+    lon=-17.892546711522133 * u.deg,
+    lat=28.762845266359122 * u.deg,
+    height=2168.2 * u.m + ELEVATION_AXIS_PIN_DISTANCE,
+)
+
+#: Official location of LSTN-04 as `~astropy.coordinates.EarthLocation`
+#:
+#: See `LST1_LOCATION_CTAO` for details
+LST4_LOCATION_CTAO = EarthLocation(
+    lon=-17.89137994602903 * u.deg,
+    lat=28.76244451041423 * u.deg,
+    height=2172.8 * u.m + ELEVATION_AXIS_PIN_DISTANCE,
 )
 
 #: Area averaged position of LST-1, MAGIC-1 and MAGIC-2 (using 23**2 and 17**2 m2)
@@ -42,7 +82,10 @@ REFERENCE_LOCATION = EarthLocation(
 )
 
 LST_LOCATIONS = {
-    1: LST1_LOCATION,
+    1: LST1_LOCATION_CTAO,
+    2: LST2_LOCATION_CTAO,
+    3: LST3_LOCATION_CTAO,
+    4: LST4_LOCATION_CTAO,
 }
 
 

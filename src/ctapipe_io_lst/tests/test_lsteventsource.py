@@ -116,7 +116,7 @@ def test_subarray():
     # mc uses slightly different reference location and z is off
     # so only test x/y distance
     distance = np.linalg.norm(mc_position[:2] - position[:2])
-    assert distance < 0.5 * u.m
+    assert distance < 0.6 * u.m
 
     with tempfile.NamedTemporaryFile(suffix='.h5') as f:
         subarray.to_hdf(f.name)
