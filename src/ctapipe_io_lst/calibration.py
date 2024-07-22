@@ -16,6 +16,7 @@ from ctapipe.containers import FlatFieldContainer, MonitoringCameraContainer, Mo
 from ctapipe.io import HDF5TableReader, read_table
 from traitlets import Enum
 
+from .compat import CTAPIPE_GE_0_21
 from .containers import LSTArrayEventContainer
 
 
@@ -323,6 +324,7 @@ class LSTR0Corrections(TelescopeComponent):
             event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
 
     def fill_time_correction(self, event):
+
         for tel_id in event.trigger.tels_with_trigger:
             r1 = event.r1.tel[tel_id]
             # store calibration data needed for dl1 calibration in ctapipe
@@ -337,10 +339,10 @@ class LSTR0Corrections(TelescopeComponent):
                 time_corr = self.mon_data.tel[tel_id].calibration.time_correction
                 # time_shift is subtracted in ctapipe,
                 # but time_correction should be added
-                if r1.selected_gain_channel is not None:
-                    time_shift -= time_corr[r1.selected_gain_channel, PIXEL_INDEX].to_value(u.ns)
-                else:
+                if CTAPIPE_GE_0_21 or r1.selected_gain_channel is None:
                     time_shift -= time_corr.to_value(u.ns)
+                else:
+                    time_shift -= time_corr[r1.selected_gain_channel, PIXEL_INDEX].to_value(u.ns)
 
             event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
@@ -393,7 +395,7 @@ class LSTR0Corrections(TelescopeComponent):
         """
 
         if self.drs4_time_calibration_path.tel[tel_id] is None:
-            if selected_gain_channel is None:
+            if CTAPIPE_GE_0_21 or selected_gain_channel is None:
                 return np.zeros((N_GAINS, N_PIXELS))
             else:
                 return np.zeros(N_PIXELS)
@@ -402,16 +404,16 @@ class LSTR0Corrections(TelescopeComponent):
         if tel_id not in self.fan:
             self.load_drs4_time_calibration_file_for_tel(tel_id)
 
-        if selected_gain_channel is not None:
-            return calc_drs4_time_correction_gain_selected(
+        if CTAPIPE_GE_0_21 or selected_gain_channel is None:
+            return calc_drs4_time_correction_both_gains(
                 first_capacitors,
-                selected_gain_channel,
                 self.fan[tel_id],
                 self.fbn[tel_id],
             )
         else:
-            return calc_drs4_time_correction_both_gains(
+            return calc_drs4_time_correction_gain_selected(
                 first_capacitors,
+                selected_gain_channel,
                 self.fan[tel_id],
                 self.fbn[tel_id],
             )

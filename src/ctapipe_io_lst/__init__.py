@@ -7,7 +7,6 @@ from ctapipe.instrument.subarray import EarthLocation
 import logging
 import numpy as np
 from astropy import units as u
-from ctapipe import __version__ as ctapipe_version
 from ctapipe.core import Provenance
 from ctapipe.instrument import (
     ReflectorShape,
@@ -53,16 +52,13 @@ from .constants import (
 )
 
 from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessingFlag
+from .compat import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21
 
 
 __all__ = [
     'LSTEventSource',
     '__version__',
 ]
-
-
-CTAPIPE_VERSION = tuple(int(v) for v in ctapipe_version.split(".")[:3])
-CTAPIPE_0_20 = CTAPIPE_VERSION >= (0, 20)
 
 
 log = logging.getLogger(__name__)
@@ -523,7 +519,7 @@ class LSTEventSource(EventSource):
             selected_gain_channel=selected_gain_channel,
         )
 
-        if CTAPIPE_0_20:
+        if CTAPIPE_GE_0_20:
             r1.pixel_status = pixel_status
             r1.event_type = EventType(zfits_event.event_type)
             r1.event_time = trigger.time
@@ -687,6 +683,16 @@ class LSTEventSource(EventSource):
 
             # dl1 and drs4 timeshift needs to be filled always
             self.r0_r1_calibrator.fill_time_correction(array_event)
+
+            # since ctapipe 0.21, waveform is always 3d, also for gain selected data
+            # FIXME: this is the easiest solution to keep compatibility for ctapipe < 0.21
+            # once we drop all version < 0.21, the proper solution would be to directly fill
+            # the correct shape
+            if CTAPIPE_GE_0_21:
+                for c in (array_event.r0, array_event.r1):
+                    for tel_c in c.tel.values():
+                        if tel_c.waveform is not None and tel_c.waveform.ndim == 2:
+                            tel_c.waveform = tel_c.waveform[np.newaxis, ...]
 
             yield array_event
 
@@ -959,7 +965,7 @@ class LSTEventSource(EventSource):
         if trigger.event_type == EventType.UNKNOWN:
             self.log.warning(f'Event {array_event.index.event_id} has unknown event type, trigger: {trigger_bits:08b}')
 
-        if CTAPIPE_0_20:
+        if CTAPIPE_GE_0_20:
             array_event.r1.tel[tel_id].event_type = trigger.event_type
 
     def tag_flatfield_events(self, array_event):
@@ -1092,7 +1098,7 @@ class LSTEventSource(EventSource):
             r0 = R0CameraContainer(waveform=reordered_waveform)
             r1 = R1CameraContainer()
 
-        if CTAPIPE_0_20:
+        if CTAPIPE_GE_0_20:
             # reorder to nominal pixel order
             pixel_status = _reorder_pixel_status(
                 zfits_event.pixel_status, pixel_id_map, set_dvr_bits=not self.dvr_applied
@@ -1186,5 +1192,5 @@ class LSTEventSource(EventSource):
             return
 
         array_event.trigger.event_type = event_type
-        if CTAPIPE_0_20:
+        if CTAPIPE_GE_0_20:
             array_event.r1.tel[self.tel_id].event_type = event_type
