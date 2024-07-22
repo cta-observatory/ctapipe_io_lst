@@ -7,12 +7,24 @@ import tables
 
 from ctapipe.core import TelescopeComponent
 from ctapipe.core.traits import (
-    Path, IntTelescopeParameter,
-    TelescopeParameter, FloatTelescopeParameter, Bool, Float
+    Path,
+    IntTelescopeParameter,
+    TelescopeParameter,
+    FloatTelescopeParameter,
+    Bool,
+    Float,
 )
 
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
-from ctapipe.containers import FlatFieldContainer, MonitoringCameraContainer, MonitoringContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
+from ctapipe.containers import (
+    EventType,
+    FlatFieldContainer,
+    MonitoringCameraContainer,
+    MonitoringContainer,
+    PedestalContainer,
+    PixelStatusContainer,
+    WaveformCalibrationContainer,
+)
 from ctapipe.io import HDF5TableReader, read_table
 from traitlets import Enum
 
@@ -20,28 +32,42 @@ from .containers import LSTArrayEventContainer
 
 
 from .constants import (
-    N_GAINS, N_PIXELS, N_MODULES, N_SAMPLES, LOW_GAIN, HIGH_GAIN,
-    N_PIXELS_MODULE, N_CAPACITORS_PIXEL, N_CAPACITORS_CHANNEL,
+    N_GAINS,
+    N_PIXELS,
+    N_MODULES,
+    N_SAMPLES,
+    LOW_GAIN,
+    HIGH_GAIN,
+    N_PIXELS_MODULE,
+    N_CAPACITORS_PIXEL,
+    N_CAPACITORS_CHANNEL,
     CLOCK_FREQUENCY_KHZ,
-    CHANNEL_ORDER_LOW_GAIN, CHANNEL_ORDER_HIGH_GAIN, N_CHANNELS_MODULE,
-    PIXEL_INDEX, PixelStatus
+    CHANNEL_ORDER_LOW_GAIN,
+    CHANNEL_ORDER_HIGH_GAIN,
+    N_CHANNELS_MODULE,
+    PIXEL_INDEX,
+    PixelStatus,
 )
 
 __all__ = [
-    'LSTR0Corrections',
+    "LSTR0Corrections",
 ]
 
 
 @lru_cache()
 def pixel_channel_indices(n_modules):
     module_index = np.repeat(np.arange(n_modules), 7)
-    low_gain = module_index * N_CHANNELS_MODULE + np.tile(CHANNEL_ORDER_LOW_GAIN, n_modules)
-    high_gain = module_index * N_CHANNELS_MODULE + np.tile(CHANNEL_ORDER_HIGH_GAIN, n_modules)
+    low_gain = module_index * N_CHANNELS_MODULE + np.tile(
+        CHANNEL_ORDER_LOW_GAIN, n_modules
+    )
+    high_gain = module_index * N_CHANNELS_MODULE + np.tile(
+        CHANNEL_ORDER_HIGH_GAIN, n_modules
+    )
     return low_gain, high_gain
 
 
 def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
-    '''
+    """
     Get the first capacitor for each pixel / gain
 
     Parameters
@@ -58,9 +84,9 @@ def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
     -------
     fc: np.ndarray
         First capacitors for each pixel in each gain, shape (N_GAINS, N_PIXELS)
-    '''
+    """
 
-    fc = np.zeros((N_GAINS, N_PIXELS), dtype='uint16')
+    fc = np.zeros((N_GAINS, N_PIXELS), dtype="uint16")
 
     n_modules = first_capacitor_id.size // N_CHANNELS_MODULE
 
@@ -86,25 +112,26 @@ class LSTR0Corrections(TelescopeComponent):
     usually performed on the raw data by the camera server.
     This calibrator exists in lstchain for testing and prototyping purposes.
     """
+
     offset = IntTelescopeParameter(
         default_value=0,
         help=(
-            'Define offset to be subtracted from the waveform *additionally*'
-            ' to the drs4 pedestal offset. This only needs to be given when'
-            ' the drs4 pedestal calibration is not applied or the offset of the'
-            ' drs4 run is different from the data run'
-        )
+            "Define offset to be subtracted from the waveform *additionally*"
+            " to the drs4 pedestal offset. This only needs to be given when"
+            " the drs4 pedestal calibration is not applied or the offset of the"
+            " drs4 run is different from the data run"
+        ),
     ).tag(config=True)
 
     r1_sample_start = IntTelescopeParameter(
         default_value=3,
-        help='Start sample for r1 waveform',
+        help="Start sample for r1 waveform",
         allow_none=True,
     ).tag(config=True)
 
     r1_sample_end = IntTelescopeParameter(
         default_value=39,
-        help='End sample for r1 waveform',
+        help="End sample for r1 waveform",
         allow_none=True,
     ).tag(config=True)
 
@@ -113,74 +140,76 @@ class LSTR0Corrections(TelescopeComponent):
         allow_none=True,
         default_value=None,
         help=(
-            'Path to the LST pedestal file'
-            ', required when `apply_drs4_pedestal_correction=True`'
-            ' or when using spike subtraction'
+            "Path to the LST pedestal file"
+            ", required when `apply_drs4_pedestal_correction=True`"
+            " or when using spike subtraction"
         ),
     ).tag(config=True)
 
     calibration_path = Path(
-        None, exists=True, directory_ok=False, allow_none=True,
-        help='Path to LST calibration file',
+        None,
+        exists=True,
+        directory_ok=False,
+        allow_none=True,
+        help="Path to LST calibration file",
     ).tag(config=True)
 
     drs4_time_calibration_path = TelescopeParameter(
         trait=Path(exists=True, directory_ok=False, allow_none=True),
-        help='Path to the time calibration file',
+        help="Path to the time calibration file",
         default_value=None,
         allow_none=True,
     ).tag(config=True)
 
     calib_scale_high_gain = FloatTelescopeParameter(
-        default_value=1.0,
-        help='High gain waveform is multiplied by this number'
+        default_value=1.0, help="High gain waveform is multiplied by this number"
     ).tag(config=True)
 
     calib_scale_low_gain = FloatTelescopeParameter(
-        default_value=1.0,
-        help='Low gain waveform is multiplied by this number'
+        default_value=1.0, help="Low gain waveform is multiplied by this number"
     ).tag(config=True)
 
-    select_gain = Bool(
+    select_gain = Bool(default_value=True, help="Set to False to keep both gains.").tag(
+        config=True
+    )
+
+    select_gain_flatfields_and_pedestals = Bool(
         default_value=True,
-        help='Set to False to keep both gains.'
+        help="Set to false to keep both gains for flatfield and pedestal events.",
     ).tag(config=True)
 
     apply_drs4_pedestal_correction = Bool(
         default_value=True,
         help=(
-            'Set to False to disable drs4 pedestal correction.'
-            ' Providing the drs4_pedestal_path is required to perform this calibration'
+            "Set to False to disable drs4 pedestal correction."
+            " Providing the drs4_pedestal_path is required to perform this calibration"
         ),
     ).tag(config=True)
 
     apply_timelapse_correction = Bool(
-        default_value=True,
-        help='Set to False to disable drs4 timelapse correction'
+        default_value=True, help="Set to False to disable drs4 timelapse correction"
     ).tag(config=True)
 
     apply_spike_correction = Bool(
-        default_value=True,
-        help='Set to False to disable drs4 spike correction'
+        default_value=True, help="Set to False to disable drs4 spike correction"
     ).tag(config=True)
 
     add_calibration_timeshift = Bool(
         default_value=True,
         help=(
-            'If true, time correction from the calibration'
-            ' file is added to calibration.dl1.time'
+            "If true, time correction from the calibration"
+            " file is added to calibration.dl1.time"
         ),
     ).tag(config=True)
 
     gain_selection_threshold = Float(
-        default_value=3500,
-        help='Threshold for the ThresholdGainSelector.'
+        default_value=3500, help="Threshold for the ThresholdGainSelector."
     ).tag(config=True)
 
     spike_correction_method = Enum(
-        values=['subtraction', 'interpolation'],
-        default_value='subtraction',
-        help='Wheter to use spike subtraction (default) or interpolation',
+        values=["subtraction", "interpolation"],
+        default_value="subtraction",
+        help="Wheter to use spike subtraction (default) or interpolation",
     ).tag(config=True)
 
     def __init__(self, subarray, config=None, parent=None, **kwargs):
@@ -191,9 +220,7 @@ class LSTR0Corrections(TelescopeComponent):
         Parameters
         ----------
         """
-        super().__init__(
-            subarray=subarray, config=config, parent=parent, **kwargs
-        )
+        super().__init__(subarray=subarray, config=config, parent=parent, **kwargs)
 
         self.mon_data = None
         self.last_readout_time = {}
@@ -204,16 +231,15 @@ class LSTR0Corrections(TelescopeComponent):
 
         for tel_id in self.subarray.tel:
             shape = (N_GAINS, N_PIXELS, N_CAPACITORS_PIXEL)
-            self.last_readout_time[tel_id] = np.zeros(shape, dtype='uint64')
+            self.last_readout_time[tel_id] = np.zeros(shape, dtype="uint64")
 
             shape = (N_GAINS, N_PIXELS)
             self.first_cap[tel_id] = np.zeros(shape, dtype=int)
             self.first_cap_old[tel_id] = np.zeros(shape, dtype=int)
 
-        if self.select_gain:
+        if self.select_gain or self.select_gain_flatfields_and_pedestals:
             self.gain_selector = ThresholdGainSelector(
-                threshold=self.gain_selection_threshold,
-                parent=self
+                threshold=self.gain_selection_threshold, parent=self
             )
         else:
             self.gain_selector = None
@@ -222,7 +248,6 @@ class LSTR0Corrections(TelescopeComponent):
             self.mon_data = self._read_calibration_file(self.calibration_path)
 
     def apply_drs4_corrections(self, event: LSTArrayEventContainer):
-
         for tel_id in event.trigger.tels_with_trigger:
             r1 = event.r1.tel[tel_id]
             # If r1 was not yet filled, copy of r0 converted
@@ -243,11 +268,10 @@ class LSTR0Corrections(TelescopeComponent):
                 self.update_last_readout_times(event, tel_id)
 
             if self.apply_spike_correction:
-                if self.spike_correction_method == 'subtraction':
+                if self.spike_correction_method == "subtraction":
                     self.subtract_spikes(event, tel_id)
                 else:
                     self.interpolate_spikes(event, tel_id)
-
 
             # remove samples at beginning / end of waveform
             start = self.r1_sample_start.tel[tel_id]
@@ -258,14 +282,15 @@ class LSTR0Corrections(TelescopeComponent):
                 r1.waveform -= self.offset.tel[tel_id]
 
             broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
-            dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & PixelStatus.DVR_STATUS) == 0
+            dvred_pixels = (
+                event.lst.tel[tel_id].evt.pixel_status & PixelStatus.DVR_STATUS
+            ) == 0
             invalid_pixels = broken_pixels | dvred_pixels
 
             if r1.selected_gain_channel is None:
                 r1.waveform[invalid_pixels] = 0.0
             else:
                 r1.waveform[invalid_pixels[r1.selected_gain_channel, PIXEL_INDEX]] = 0.0
-
 
     def update_first_capacitors(self, event: LSTArrayEventContainer):
         for tel_id, lst in event.lst.tel.items():
@@ -287,7 +312,10 @@ class LSTR0Corrections(TelescopeComponent):
 
             # do gain selection before converting to pe
             # like eventbuilder will do
-            if self.select_gain and r1.selected_gain_channel is None:
+            if (
+                self._should_select_gain(event.trigger.event_type)
+                and r1.selected_gain_channel is None
+            ):
                 r1.selected_gain_channel = self.gain_selector(r1.waveform)
                 r1.waveform = r1.waveform[r1.selected_gain_channel, PIXEL_INDEX]
 
@@ -298,11 +326,13 @@ class LSTR0Corrections(TelescopeComponent):
                 convert_to_pe(
                     waveform=r1.waveform,
                     calibration=calibration,
-                    selected_gain_channel=r1.selected_gain_channel
+                    selected_gain_channel=r1.selected_gain_channel,
                 )
 
             broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
-            dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & PixelStatus.DVR_STATUS ) == 0
+            dvred_pixels = (
+                event.lst.tel[tel_id].evt.pixel_status & PixelStatus.DVR_STATUS
+            ) == 0
             invalid_pixels = broken_pixels | dvred_pixels
 
             if r1.selected_gain_channel is None:
@@ -313,8 +343,12 @@ class LSTR0Corrections(TelescopeComponent):
             # needed for charge scaling in ctapipe dl1 calib
             if r1.selected_gain_channel is not None:
                 relative_factor = np.empty(N_PIXELS)
-                relative_factor[r1.selected_gain_channel == HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
-                relative_factor[r1.selected_gain_channel == LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
+                relative_factor[
+                    r1.selected_gain_channel == HIGH_GAIN
+                ] = self.calib_scale_high_gain.tel[tel_id]
+                relative_factor[
+                    r1.selected_gain_channel == LOW_GAIN
+                ] = self.calib_scale_low_gain.tel[tel_id]
             else:
                 relative_factor = np.empty((N_GAINS, N_PIXELS))
                 relative_factor[HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
@@ -328,7 +362,8 @@ class LSTR0Corrections(TelescopeComponent):
             # store calibration data needed for dl1 calibration in ctapipe
             # first drs4 time shift (zeros if no calib file was given)
             time_shift = self.get_drs4_time_correction(
-                tel_id, self.first_cap[tel_id],
+                tel_id,
+                self.first_cap[tel_id],
                 selected_gain_channel=r1.selected_gain_channel,
             )
 
@@ -338,12 +373,27 @@ class LSTR0Corrections(TelescopeComponent):
                 # time_shift is subtracted in ctapipe,
                 # but time_correction should be added
                 if r1.selected_gain_channel is not None:
-                    time_shift -= time_corr[r1.selected_gain_channel, PIXEL_INDEX].to_value(u.ns)
+                    time_shift -= time_corr[
+                        r1.selected_gain_channel, PIXEL_INDEX
+                    ].to_value(u.ns)
                 else:
                     time_shift -= time_corr.to_value(u.ns)
 
             event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
+    def _should_select_gain(self, event_type):
+        """
+        Check if event should be gain selected.
+        """
+        is_pedestal = event_type in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}
+
+        if self.select_gain and not is_pedestal:
+            return True
+
+        if self.select_gain_flatfields_and_pedestals and is_pedestal:
+            return True
+
+        return False
 
     @staticmethod
     def _read_calibration_file(path):
@@ -353,8 +403,7 @@ class LSTR0Corrections(TelescopeComponent):
 
         with tables.open_file(path) as f:
             tel_groups = [
-                key for key in f.root._v_children.keys()
-                if key.startswith('tel_')
+                key for key in f.root._v_children.keys() if key.startswith("tel_")
             ]
 
         mon = MonitoringContainer()
@@ -364,10 +413,20 @@ class LSTR0Corrections(TelescopeComponent):
                 # read the calibration data
                 tel_id = int(base[4:])
                 mon.tel[tel_id] = MonitoringCameraContainer(
-                    calibration=next(h5_table.read(f'/{base}/calibration', WaveformCalibrationContainer)),
-                    pedestal=next(h5_table.read(f'/{base}/pedestal', PedestalContainer)),
-                    flatfield=next(h5_table.read(f'/{base}/flatfield', FlatFieldContainer)),
-                    pixel_status=next(h5_table.read(f"/{base}/pixel_status", PixelStatusContainer)),
+                    calibration=next(
+                        h5_table.read(
+                            f"/{base}/calibration", WaveformCalibrationContainer
+                        )
+                    ),
+                    pedestal=next(
+                        h5_table.read(f"/{base}/pedestal", PedestalContainer)
+                    ),
+                    flatfield=next(
+                        h5_table.read(f"/{base}/flatfield", FlatFieldContainer)
+                    ),
+                    pixel_status=next(
+                        h5_table.read(f"/{base}/pixel_status", PixelStatusContainer)
+                    ),
                 )
         return mon
 
@@ -376,7 +435,7 @@ class LSTR0Corrections(TelescopeComponent):
         """
         Function to load calibration file.
         """
-        with tables.open_file(path, 'r') as f:
+        with tables.open_file(path, "r") as f:
             fan = f.root.fan[:]
             fbn = f.root.fbn[:]
 
@@ -387,7 +446,9 @@ class LSTR0Corrections(TelescopeComponent):
             self.drs4_time_calibration_path.tel[tel_id]
         )
 
-    def get_drs4_time_correction(self, tel_id, first_capacitors, selected_gain_channel=None):
+    def get_drs4_time_correction(
+        self, tel_id, first_capacitors, selected_gain_channel=None
+    ):
         """
         Return pulse time after time correction.
         """
@@ -434,13 +495,13 @@ class LSTR0Corrections(TelescopeComponent):
                 " but no file provided for telescope"
             )
 
-        table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
+        table = read_table(path, f"/r1/monitoring/drs4_baseline/tel_{tel_id:03d}")
 
         pedestal_data = np.empty(
             (N_GAINS, N_PIXELS_MODULE * N_MODULES, N_CAPACITORS_PIXEL + N_SAMPLES),
-            dtype=np.float32
+            dtype=np.float32,
         )
-        pedestal_data[:, :, :N_CAPACITORS_PIXEL] = table[0]['baseline_mean']
+        pedestal_data[:, :, :N_CAPACITORS_PIXEL] = table[0]["baseline_mean"]
         pedestal_data[:, :, N_CAPACITORS_PIXEL:] = pedestal_data[:, :, :N_SAMPLES]
 
         return pedestal_data
@@ -453,8 +514,8 @@ class LSTR0Corrections(TelescopeComponent):
                 " but no pedestal file provided for telescope"
             )
 
-        table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
-        spike_height = np.array(table[0]['spike_height'])
+        table = read_table(path, f"/r1/monitoring/drs4_baseline/tel_{tel_id:03d}")
+        spike_height = np.array(table[0]["spike_height"])
         return spike_height
 
     def subtract_pedestal(self, event, tel_id):
@@ -574,7 +635,9 @@ class LSTR0Corrections(TelescopeComponent):
         Mutates the R1 waveform.
         """
         run_id = event.lst.tel[tel_id].svc.configuration_id
-        spike_height = self._get_spike_heights(self.drs4_pedestal_path.tel[tel_id], tel_id)
+        spike_height = self._get_spike_heights(
+            self.drs4_pedestal_path.tel[tel_id], tel_id
+        )
 
         r1 = event.r1.tel[tel_id]
         if r1.selected_gain_channel is None:
@@ -583,7 +646,7 @@ class LSTR0Corrections(TelescopeComponent):
                 first_capacitors=self.first_cap[tel_id],
                 previous_first_capacitors=self.first_cap_old[tel_id],
                 run_id=run_id,
-                spike_height=spike_height
+                spike_height=spike_height,
             )
         else:
             subtract_spikes_gain_selected(
@@ -592,7 +655,7 @@ class LSTR0Corrections(TelescopeComponent):
                 previous_first_capacitors=self.first_cap_old[tel_id],
                 selected_gain_channel=r1.selected_gain_channel,
                 run_id=run_id,
-                spike_height=spike_height
+                spike_height=spike_height,
             )
 
 
@@ -601,7 +664,9 @@ def convert_to_pe(waveform, calibration, selected_gain_channel):
         waveform -= calibration.pedestal_per_sample[:, :, np.newaxis]
         waveform *= calibration.dc_to_pe[:, :, np.newaxis]
     else:
-        waveform -= calibration.pedestal_per_sample[selected_gain_channel, PIXEL_INDEX, np.newaxis]
+        waveform -= calibration.pedestal_per_sample[
+            selected_gain_channel, PIXEL_INDEX, np.newaxis
+        ]
         waveform *= calibration.dc_to_pe[selected_gain_channel, PIXEL_INDEX, np.newaxis]
 
 
@@ -619,7 +684,7 @@ def interpolate_spike_A(waveform, position):
 
 @njit(cache=True)
 def get_spike_A_positions_base(current_first_cap, previous_first_cap, shift):
-    '''
+    """
     Find spike positions.
 
     For the new firmware, use shift=0; for the old firmware shift=1.
@@ -635,7 +700,7 @@ def get_spike_A_positions_base(current_first_cap, previous_first_cap, shift):
     -------
     positions: list[int]
         List of spike positions
-    '''
+    """
     last_in_first_half = N_CAPACITORS_CHANNEL // 2 - 1
     last_capacitor = (previous_first_cap + N_SAMPLES - 1) % N_CAPACITORS_CHANNEL
 
@@ -649,7 +714,7 @@ def get_spike_A_positions_base(current_first_cap, previous_first_cap, shift):
     # we have two cases for spikes that can occur in each of the 4 channels
     base_positions = (
         N_CAPACITORS_PIXEL - last_capacitor - 2 - shift,
-        last_capacitor - shift
+        last_capacitor - shift,
     )
 
     positions = []
@@ -692,13 +757,13 @@ def get_spike_A_positions(current_first_cap, previous_first_cap):
     return get_spike_A_positions_base(
         current_first_cap=current_first_cap,
         previous_first_cap=previous_first_cap,
-        shift=0
+        shift=0,
     )
 
 
 @njit(cache=True)
 def interpolate_spike_positions(waveform, positions):
-    '''Interpolate all spikes at given positions in waveform'''
+    """Interpolate all spikes at given positions in waveform"""
     for spike_A_position in positions:
         if 2 < spike_A_position < (N_SAMPLES - 2):
             interpolate_spike_A(waveform, spike_A_position)
@@ -735,7 +800,9 @@ def interpolate_spikes(waveform, first_capacitors, previous_first_capacitors, ru
 
 
 @njit(cache=True)
-def interpolate_spikes_gain_selected(waveform, first_capacitors, previous_first_capacitors, selected_gain_channel, run_id):
+def interpolate_spikes_gain_selected(
+    waveform, first_capacitors, previous_first_capacitors, selected_gain_channel, run_id
+):
     """
     Interpolate Spike type A. Modifies waveform in place
 
@@ -774,7 +841,7 @@ def interpolate_spikes_gain_selected(waveform, first_capacitors, previous_first_
 
 @njit(cache=True)
 def subtract_spikes_at_positions(waveform, positions, spike_height):
-    '''Subtract the spikes at given positions in waveform'''
+    """Subtract the spikes at given positions in waveform"""
     for spike_position in positions:
         for i in range(3):
             sample = spike_position + i
@@ -892,7 +959,9 @@ def subtract_pedestal(
             # waveform is already reordered to pixel ids,
             # the first caps are not, so we need to translate here.
             first_cap = first_capacitors[gain, pixel_id]
-            pedestal = pedestal_value_array[gain, pixel_id, first_cap:first_cap + N_SAMPLES]
+            pedestal = pedestal_value_array[
+                gain, pixel_id, first_cap : first_cap + N_SAMPLES
+            ]
             waveform[gain, pixel_id] -= pedestal
 
 
@@ -912,21 +981,20 @@ def subtract_pedestal_gain_selected(
         # waveform is already reordered to pixel ids,
         # the first caps are not, so we need to translate here.
         first_cap = first_capacitors[gain, pixel_id]
-        pedestal = pedestal_value_array[gain, pixel_id, first_cap:first_cap + N_SAMPLES]
+        pedestal = pedestal_value_array[
+            gain, pixel_id, first_cap : first_cap + N_SAMPLES
+        ]
         waveform[pixel_id] -= pedestal
 
 
 @njit(cache=True)
 def apply_timelapse_correction_pixel(
-    waveform,
-    first_capacitor,
-    time_now,
-    last_readout_time
+    waveform, first_capacitor, time_now, last_readout_time
 ):
-    '''
+    """
     Apply timelapse correction for a single pixel.
     All inputs are numbers / arrays only for the given pixel / gain channel.
-    '''
+    """
     for sample in range(N_SAMPLES):
         capacitor = (first_capacitor + sample) % N_CAPACITORS_PIXEL
 
@@ -944,10 +1012,7 @@ def apply_timelapse_correction_pixel(
 
 @njit(cache=True)
 def update_last_readout_time(
-    pixel_in_module,
-    first_capacitor,
-    time_now,
-    last_readout_time
+    pixel_in_module, first_capacitor, time_now, last_readout_time
 ):
     # update the last read time for all samples
     for sample in range(N_SAMPLES):
@@ -1058,7 +1123,6 @@ def apply_timelapse_correction_gain_selected(
     for module in range(n_modules):
         time_now = local_clock_counter[module]
         for pixel_in_module in range(N_PIXELS_MODULE):
-
             pixel_index = module * N_PIXELS_MODULE + pixel_in_module
             pixel_id = expected_pixels_id[pixel_index]
             gain = selected_gain_channel[pixel_id]
@@ -1093,8 +1157,7 @@ def ped_time(timediff):
 
     # new values at 20 degC, provided by Yokiho Kobayashi 2/3/2020
     # see also Yokiho's talk in https://indico.cta-observatory.org/event/2664/
-    return 32.99 * timediff**(-0.22) - 11.9
-
+    return 32.99 * timediff ** (-0.22) - 11.9
 
 
 @njit(cache=True)
@@ -1114,9 +1177,7 @@ def calc_drs4_time_correction_gain_selected(
 
 
 @njit(cache=True)
-def calc_drs4_time_correction_both_gains(
-    first_capacitors, fan, fbn
-):
+def calc_drs4_time_correction_both_gains(first_capacitors, fan, fbn):
     time = np.zeros((N_GAINS, N_PIXELS))
 
     for gain in range(N_GAINS):
