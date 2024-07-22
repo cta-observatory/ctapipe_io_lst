@@ -24,7 +24,7 @@ CHANNEL_ORDER_LOW_GAIN = [4, 4, 5, 5, 6, 6, 7]
 
 PIXEL_INDEX = np.arange(N_PIXELS)
 
-#: Distance from central pin to elevaion axis
+#: Distance from central pin to elevation axis
 ELEVATION_AXIS_PIN_DISTANCE = 15.885 * u.m
 #: location of LSTN-01 as `~astropy.coordinates.EarthLocation`
 #: Taken from Abelardo's Coordinates of LST-1 & MAGIC presentation
