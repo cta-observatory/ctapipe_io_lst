@@ -454,12 +454,15 @@ class LSTEventSource(EventSource):
 
         tel_descriptions = {tel_id: lst_tel_descr}
 
-        xyz = ground_frame_from_earth_location(
-            LST_LOCATIONS[tel_id],
-            reference_location,
-        ).cartesian.xyz
-        tel_positions = {tel_id: xyz}
+        try:
+            location = LST_LOCATIONS[tel_id]
+        except KeyError:
+            known = list(LST_LOCATIONS.keys())
+            msg = f"Location missing for tel_id={tel_id}. Known tel_ids: {known}. Is this LST data?"
+            raise KeyError(msg) from None
 
+        ground_frame = ground_frame_from_earth_location(location, reference_location)
+        tel_positions = {tel_id: ground_frame.cartesian.xyz}
         subarray = SubarrayDescription(
             name=f"LST-{tel_id} subarray",
             tel_descriptions=tel_descriptions,
