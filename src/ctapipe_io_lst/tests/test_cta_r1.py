@@ -14,9 +14,10 @@ from ctapipe.image.toymodel import WaveformModel, Gaussian
 from ctapipe.containers import EventType
 
 import protozfits
+from protozfits.CoreMessages_pb2 import AnyArray
 from protozfits.R1v1_pb2 import CameraConfiguration, Event, TelescopeDataStream
 from protozfits.R1v1_debug_pb2 import DebugEvent, DebugCameraConfiguration
-from protozfits.CoreMessages_pb2 import AnyArray
+from protozfits.any_array_to_numpy import numpy_to_any_array
 
 from ctapipe_io_lst import LSTEventSource, CTAPIPE_GE_0_21
 from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
@@ -27,22 +28,6 @@ from ctapipe_io_lst.evb_preprocessing import EVBPreprocessingFlag
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
 test_drs4_pedestal_path = test_data / 'real/monitoring/PixelCalibration/LevelA/drs4_baseline/20200218/v0.8.2.post2.dev48+gb1343281/drs4_pedestal.Run02005.0000.h5'
-
-
-ANY_ARRAY_TYPE_TO_NUMPY_TYPE = {
-    1: np.int8,
-    2: np.uint8,
-    3: np.int16,
-    4: np.uint16,
-    5: np.int32,
-    6: np.uint32,
-    7: np.int64,
-    8: np.uint64,
-    9: np.float32,
-    10: np.float64,
-}
-
-DTYPE_TO_ANYARRAY_TYPE = {v: k for k, v in ANY_ARRAY_TYPE_TO_NUMPY_TYPE.items()}
 
 
 subarray = LSTEventSource.create_subarray(tel_id=1)
@@ -107,10 +92,6 @@ def create_pedestal(rng):
     return image, peak_time
 
 
-def to_anyarray(array):
-    type_ = DTYPE_TO_ANYARRAY_TYPE[array.dtype.type]
-    return AnyArray(type=type_, data=array.tobytes())
-
 
 @pytest.fixture(scope="session")
 def dummy_cta_r1_dir(tmp_path_factory):
@@ -169,17 +150,17 @@ def dummy_cta_r1(dummy_cta_r1_dir):
         num_channels=2,
         data_model_version="1.0",
         num_samples_nominal=num_samples,
-        pixel_id_map=to_anyarray(np.arange(num_pixels).astype(np.uint16)),
-        module_id_map=to_anyarray(np.arange(num_modules).astype(np.uint16)),
+        pixel_id_map=numpy_to_any_array(np.arange(num_pixels).astype(np.uint16)),
+        module_id_map=numpy_to_any_array(np.arange(num_modules).astype(np.uint16)),
 
         debug=DebugCameraConfiguration(
             cs_serial="???",
             evb_version="evb-dummy",
             cdhs_version="evb-dummy",
-            tdp_type=to_anyarray(tdp_type),
-            tdp_action=to_anyarray(np.zeros(16, dtype=np.uint16)),
+            tdp_type=numpy_to_any_array(tdp_type),
+            tdp_action=numpy_to_any_array(np.zeros(16, dtype=np.uint16)),
             # at the moment, the tdp_action and ttype_pattern fields are mixed up in EVB
-            ttype_pattern=to_anyarray(tdp_action),
+            ttype_pattern=numpy_to_any_array(tdp_action),
         )
     )
 
@@ -280,15 +261,15 @@ def dummy_cta_r1(dummy_cta_r1_dir):
                 num_channels=num_channels,
                 num_pixels=num_pixels,
                 num_samples=num_samples,
-                pixel_status=to_anyarray(pixel_status),
-                waveform=to_anyarray(waveform),
-                first_cell_id=to_anyarray(first_cell_id),
-                module_hires_local_clock_counter=to_anyarray(module_hires_local_clock_counter),
+                pixel_status=numpy_to_any_array(pixel_status),
+                waveform=numpy_to_any_array(waveform),
+                first_cell_id=numpy_to_any_array(first_cell_id),
+                module_hires_local_clock_counter=numpy_to_any_array(module_hires_local_clock_counter),
                 debug=DebugEvent(
-                    module_status=to_anyarray(np.ones(num_modules, dtype=np.uint8)),
+                    module_status=numpy_to_any_array(np.ones(num_modules, dtype=np.uint8)),
                     extdevices_presence=0b011,
-                    cdts_data=to_anyarray(cdts_data.view(np.uint8)),
-                    tib_data=to_anyarray(tib_data.view(np.uint8)),
+                    cdts_data=numpy_to_any_array(cdts_data.view(np.uint8)),
+                    tib_data=numpy_to_any_array(tib_data.view(np.uint8)),
                 )
             )
 
