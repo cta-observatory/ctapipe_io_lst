@@ -230,6 +230,15 @@ class LSTR0Corrections(TelescopeComponent):
             if r1.waveform is None:
                 r1.waveform = event.r0.tel[tel_id].waveform
 
+            n_samples = r1.waveform.shape[-1]
+            if n_samples != N_SAMPLES:
+                msg = (
+                    f"Data has n_samples={n_samples}, expected {N_SAMPLES}."
+                    " Applying offline drs4 corrections to data with border samples"
+                    " already removed by EVB is not supported."
+                )
+                raise NotImplementedError(msg)
+
             # float32 can represent all values of uint16 exactly,
             # so this does not loose precision.
             r1.waveform = r1.waveform.astype(np.float32, copy=False)
