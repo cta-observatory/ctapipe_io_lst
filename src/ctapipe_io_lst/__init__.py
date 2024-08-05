@@ -37,6 +37,7 @@ from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventCon
 from .version import __version__
 from .calibration import LSTR0Corrections
 from .event_time import EventTimeCalculator, cta_high_res_to_time
+from .pixels import get_pixel_table
 from .pointing import PointingSource
 from .anyarray_dtypes import (
     CDTS_AFTER_37201_DTYPE,
@@ -100,9 +101,8 @@ def get_channel_info(pixel_status):
 
 def load_camera_geometry():
     ''' Load camera geometry from bundled resources of this repo '''
-    with as_file(files("ctapipe_io_lst") / "resources/LSTCam.camgeom.fits.gz") as path:
-        Provenance().add_input_file(path, role="CameraGeometry")
-        cam = CameraGeometry.from_table(path)
+    pixel_table = get_pixel_table()
+    cam = CameraGeometry.from_table(pixel_table)
     cam.frame = CameraFrame(focal_length=OPTICS.effective_focal_length)
     return cam
 

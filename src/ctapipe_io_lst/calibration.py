@@ -24,21 +24,15 @@ from .constants import (
     N_GAINS, N_PIXELS, N_MODULES, N_SAMPLES, LOW_GAIN, HIGH_GAIN,
     N_PIXELS_MODULE, N_CAPACITORS_PIXEL, N_CAPACITORS_CHANNEL,
     CLOCK_FREQUENCY_KHZ,
-    CHANNEL_ORDER_LOW_GAIN, CHANNEL_ORDER_HIGH_GAIN, N_CHANNELS_MODULE,
+    N_CHANNELS_MODULE,
     PIXEL_INDEX, PixelStatus
 )
+
+from .pixels import pixel_channel_indices
 
 __all__ = [
     'LSTR0Corrections',
 ]
-
-
-@lru_cache()
-def pixel_channel_indices(n_modules):
-    module_index = np.repeat(np.arange(n_modules), 7)
-    low_gain = module_index * N_CHANNELS_MODULE + np.tile(CHANNEL_ORDER_LOW_GAIN, n_modules)
-    high_gain = module_index * N_CHANNELS_MODULE + np.tile(CHANNEL_ORDER_HIGH_GAIN, n_modules)
-    return low_gain, high_gain
 
 
 def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
