@@ -70,4 +70,5 @@ def parse_tib_10MHz_counter(counter):
 
     The counter is stored using 3 uint8 values forming a 24-bit unsigned integer
     """
+    counter = counter.astype(np.uint32)
     return counter[0] + (counter[1] << 8) + (counter[2] << 16)
