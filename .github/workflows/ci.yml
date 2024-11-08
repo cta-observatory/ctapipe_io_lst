@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.10", "3.11"]
         ctapipe-version: ["0.19.3", "0.20.0"]
         include:
           # ctapipe 0.21 requires >= 3.10
@@ -53,7 +53,8 @@ jobs:
           CTAPIPE_VERSION: ${{ matrix.ctapipe-version }}
         run: |
           pip install -e .
-          pip install pytest-cov "ctapipe==$CTAPIPE_VERSION"
+          # TODO: remove pypi pin when dropping support for ctapipe <0.21
+          pip install pytest-cov "ctapipe==$CTAPIPE_VERSION" "scipy<1.14a0"
           ctapipe-info --version | grep "$CTAPIPE_VERSION"
           git describe --tags
 
