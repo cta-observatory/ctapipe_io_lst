@@ -1,7 +1,0 @@
-# Keep dependencies of GitHub Actions up to date
-version: 2
-updates:
-- package-ecosystem: "github-actions"
-  directory: "/"
-  schedule:
-    interval: "weekly"
