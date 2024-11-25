@@ -64,6 +64,21 @@ SWAT_DTYPE = np.dtype([
 ], align=True).newbyteorder('<')
 
 
+SWAT_DTYPE_2024 = np.dtype([
+    ("assigned_event_id", np.uint64),
+    ("event_request_bunch_id", np.uint64),
+    ("trigger_id", np.uint64),
+    ("bunch_id", np.uint64),
+    ("trigger_type", np.uint8),
+    ("trigger_time_s", np.uint32),
+    ("trigger_time_qns", np.uint32),
+    ("readout_requested", np.bool_),
+    ("data_available", np.bool_),
+    ("hardware_stereo_trigger_mask", np.uint16),
+    ("negative_flag", np.bool_),
+], align=True).newbyteorder('<')
+
+
 def parse_tib_10MHz_counter(counter):
     """
     Convert the tib 10MHz counter to uint32
