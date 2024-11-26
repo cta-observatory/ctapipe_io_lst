@@ -89,8 +89,11 @@ class LSTEventContainer(Container):
     ucts_num_in_bunch = Field(-1, "UCTS num in bunch (for debugging)")
     ucts_cdts_version = Field(-1, "UCTS CDTS version")
 
-    swat_assigned_event_id = Field(np.uint32(0), "SWAT assigned event id")
+    swat_assigned_event_id = Field(np.uint64(0), "SWAT assigned event id")
+    swat_event_request_bunch_id = Field(np.uint64(0), "SWAT event request bunch id")
+    swat_trigger_request_id = Field(np.uint64(0), "SWAT trigger request bunch id")
     swat_trigger_id = Field(np.uint64(0), "SWAT trigger id")
+    swat_bunch_id = Field(np.uint64(0), "SWAT bunch id")
     swat_trigger_type = Field(np.uint8(0), "SWAT trigger type")
     swat_trigger_time_s = Field(np.uint32(0), "SWAT trigger_time_s")
     swat_trigger_time_qns = Field(np.uint32(0), "SWAT trigger_time_qns")

@@ -43,6 +43,7 @@ from .anyarray_dtypes import (
     CDTS_AFTER_37201_DTYPE,
     CDTS_BEFORE_37201_DTYPE,
     SWAT_DTYPE,
+    SWAT_DTYPE_2024,
     DRAGON_COUNTERS_DTYPE,
     TIB_DTYPE,
     parse_tib_10MHz_counter,
@@ -592,8 +593,15 @@ class LSTEventSource(EventSource):
 
             # if SWAT data are there
             if evt.extdevices_presence & 4:
-                # unpack SWAT data
-                swat = debug.swat_data.view(SWAT_DTYPE)[0]
+                # unpack SWAT data, new, larger dtype introduced in 2024
+                if len(debug.swat_data) == 56:
+                    swat = debug.swat_data.view(SWAT_DTYPE_2024)[0]
+                    evt.swat_event_request_bunch_id = swat["event_request_bunch_id"]
+                    evt.swat_bunch_id = swat["bunch_id"]
+                else:
+                    # older dtype user before 2024-11-25
+                    swat = debug.swat_data.view(SWAT_DTYPE)[0]
+
                 evt.swat_assigned_event_id = swat["assigned_event_id"]
                 evt.swat_trigger_id = swat["trigger_id"]
                 evt.swat_trigger_type = swat["trigger_type"]
