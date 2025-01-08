@@ -1106,7 +1106,7 @@ def ped_time(timediff):
 
 
 
-_fourier_cache_key_type = types.UniTuple(types.int16, 2)
+_fourier_cache_key_type = types.int16
 _fourier_cache_value_type = types.UniTuple(types.float64[:], 2)
 
 
@@ -1165,7 +1165,7 @@ def calc_fourier_time_correction(first_capacitor, fan, fbn, cache):
     time = 0
     first_capacitor = first_capacitor % N_CAPACITORS_CHANNEL
 
-    cache_key = (types.int16(n_harmonics), types.int16(first_capacitor))
+    cache_key = types.int16(first_capacitor)
     cache_val = cache.get(cache_key)
     if cache_val is not None:
         sin_terms, cos_terms = cache_val
