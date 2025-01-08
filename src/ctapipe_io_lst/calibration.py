@@ -3,6 +3,8 @@ from functools import lru_cache
 import numpy as np
 import astropy.units as u
 from numba import njit
+from numba.typed import Dict
+from numba.core import types
 import tables
 
 from ctapipe.core import TelescopeComponent
@@ -1102,6 +1104,20 @@ def ped_time(timediff):
 
 
 
+
+
+_fourier_cache_key_type = types.int16
+_fourier_cache_value_type = types.UniTuple(types.float64[:], 2)
+
+
+@njit(cache=True)
+def _create_fourier_cache():
+    return Dict.empty(
+        key_type=_fourier_cache_key_type,
+        value_type=_fourier_cache_value_type,
+    )
+
+
 @njit(cache=True)
 def calc_drs4_time_correction_gain_selected(
     first_capacitors, selected_gain_channel, fan, fbn
@@ -1109,11 +1125,15 @@ def calc_drs4_time_correction_gain_selected(
     _n_gains, n_pixels, n_harmonics = fan.shape
     time = np.zeros(n_pixels)
 
+    cache = _create_fourier_cache()
     for pixel in range(n_pixels):
         gain = selected_gain_channel[pixel]
         first_capacitor = first_capacitors[gain, pixel]
         time[pixel] = calc_fourier_time_correction(
-            first_capacitor, fan[gain, pixel], fbn[gain, pixel]
+            first_capacitor,
+            fan[gain, pixel],
+            fbn[gain, pixel],
+            cache,
         )
     return time
 
@@ -1124,28 +1144,40 @@ def calc_drs4_time_correction_both_gains(
 ):
     time = np.zeros((N_GAINS, N_PIXELS))
 
+    cache = _create_fourier_cache()
     for gain in range(N_GAINS):
         for pixel in range(N_PIXELS):
             first_capacitor = first_capacitors[gain, pixel]
             time[gain, pixel] = calc_fourier_time_correction(
-                first_capacitor, fan[gain, pixel], fbn[gain, pixel]
+                first_capacitor,
+                fan[gain, pixel],
+                fbn[gain, pixel],
+                cache,
             )
     return time
 
 
+
 @njit(cache=True)
-def calc_fourier_time_correction(first_capacitor, fan, fbn):
+def calc_fourier_time_correction(first_capacitor, fan, fbn, cache):
     n_harmonics = len(fan)
 
     time = 0
     first_capacitor = first_capacitor % N_CAPACITORS_CHANNEL
 
-    for harmonic in range(1, n_harmonics):
-        a = fan[harmonic]
-        b = fbn[harmonic]
-        omega = harmonic * (2 * np.pi / N_CAPACITORS_CHANNEL)
+    cache_key = types.int16(first_capacitor)
+    cache_val = cache.get(cache_key)
+    if cache_val is not None:
+        sin_terms, cos_terms = cache_val
+    else:
+        n = np.arange(n_harmonics)
+        omega = 2 * np.pi / N_CAPACITORS_CHANNEL
+        sin_terms = np.sin(n * omega * first_capacitor)
+        cos_terms = np.cos(n * omega * first_capacitor)
+        cache[cache_key] = sin_terms, cos_terms
 
-        time += a * np.cos(omega * first_capacitor)
-        time += b * np.sin(omega * first_capacitor)
+    for harmonic in range(1, n_harmonics):
+        time += fan[harmonic] * cos_terms[harmonic]
+        time += fbn[harmonic] * sin_terms[harmonic]
 
     return time
