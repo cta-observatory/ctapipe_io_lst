@@ -26,6 +26,8 @@ jobs:
             ctapipe-version: "0.21.2"
           - python-version: "3.12"
             ctapipe-version: "0.22.0"
+          - python-version: "3.12"
+            ctapipe-version: "0.23.2"
 
     defaults:
       run:
