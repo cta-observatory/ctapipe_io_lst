@@ -141,7 +141,7 @@ def read_pulse_shapes():
 def _reorder_pixel_status(pixel_status, pixel_id_map, set_dvr_bits=True):
     if set_dvr_bits:
         not_broken = get_channel_info(pixel_status) != 0
-        pixel_status = pixel_status[not_broken] | PixelStatus.DVR_STATUS_0
+        pixel_status = pixel_status[not_broken] | np.uint8(PixelStatus.DVR_STATUS_0)
 
     reordered_pixel_status = np.zeros(N_PIXELS, dtype=pixel_status.dtype)
     reordered_pixel_status[pixel_id_map] = pixel_status
@@ -488,7 +488,7 @@ class LSTEventSource(EventSource):
         n_samples = zfits_event.num_samples
 
         if self.dvr_applied:
-            stored_pixels = (zfits_event.pixel_status & PixelStatus.DVR_STATUS) > 0
+            stored_pixels = (zfits_event.pixel_status & np.uint8(PixelStatus.DVR_STATUS)) > 0
             n_pixels = np.count_nonzero(stored_pixels)
         else:
             stored_pixels = slice(None)  # all pixels stored
@@ -836,7 +836,7 @@ class LSTEventSource(EventSource):
         # set bits for dvr if not already set
         if not self.dvr_applied:
             not_broken = get_channel_info(lst_evt.pixel_status) != 0
-            lst_evt.pixel_status[not_broken] |= PixelStatus.DVR_STATUS_0
+            lst_evt.pixel_status[not_broken] |= np.uint8(PixelStatus.DVR_STATUS_0)
 
         lst_evt.ped_id = zfits_event.ped_id
         lst_evt.module_status = zfits_event.lstcam.module_status
@@ -1067,7 +1067,7 @@ class LSTEventSource(EventSource):
         fill = np.iinfo(dtype).max
 
         if self.dvr_applied:
-            stored_pixels = (zfits_event.pixel_status & PixelStatus.DVR_STATUS) > 0
+            stored_pixels = (zfits_event.pixel_status & np.uint8(PixelStatus.DVR_STATUS)) > 0
         else:
             stored_pixels = slice(None)  # all pixels stored
 

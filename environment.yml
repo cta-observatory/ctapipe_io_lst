@@ -2,10 +2,10 @@ name: lstio
 channels:
   - conda-forge
 dependencies:
-  - astropy >=5.2,<7
+  - astropy >=6.1,<8
   - python=3.11 # nail the python version, so conda does not try upgrading / dowgrading
   - ctapipe
-  - protozfits=2.4
+  - protozfits>=2.6
   - eventio
   - corsikaio
   - zeromq
