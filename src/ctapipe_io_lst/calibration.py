@@ -4,6 +4,7 @@ import numpy as np
 import astropy.units as u
 from numba import njit
 import tables
+from astropy.io import fits
 
 from ctapipe.core import TelescopeComponent
 from ctapipe.core.traits import (
@@ -14,6 +15,7 @@ from ctapipe.core.traits import (
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 from ctapipe.containers import FlatFieldContainer, MonitoringCameraContainer, MonitoringContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
 from ctapipe.io import HDF5TableReader, read_table
+from astropy.table import QTable
 from traitlets import Enum
 
 from .compat import CTAPIPE_GE_0_21
@@ -34,6 +36,11 @@ __all__ = [
     'LSTR0Corrections',
 ]
 
+def to_native(data):
+    if not data.dtype.isnative:
+        data = data.byteswap()
+        data = data.view(data.dtype.newbyteorder("="))
+        return data
 
 def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
     '''
@@ -340,6 +347,7 @@ class LSTR0Corrections(TelescopeComponent):
             # time shift from flat fielding
             if self.mon_data is not None and self.add_calibration_timeshift:
                 time_corr = self.mon_data.tel[tel_id].calibration.time_correction
+                
                 # time_shift is subtracted in ctapipe,
                 # but time_correction should be added
                 if CTAPIPE_GE_0_21 or r1.selected_gain_channel is None:
@@ -356,35 +364,77 @@ class LSTR0Corrections(TelescopeComponent):
         Read the correction from hdf5 calibration file
         """
 
-        with tables.open_file(path) as f:
-            tel_groups = [
-                key for key in f.root._v_children.keys()
-                if key.startswith('tel_')
-            ]
-
         mon = MonitoringContainer()
 
-        for base in tel_groups:
-            with HDF5TableReader(path) as h5_table:
-                # read the calibration data
-                tel_id = int(base[4:])
-                mon.tel[tel_id] = MonitoringCameraContainer(
-                    calibration=next(h5_table.read(f'/{base}/calibration', WaveformCalibrationContainer)),
-                    pedestal=next(h5_table.read(f'/{base}/pedestal', PedestalContainer)),
-                    flatfield=next(h5_table.read(f'/{base}/flatfield', FlatFieldContainer)),
-                    pixel_status=next(h5_table.read(f"/{base}/pixel_status", PixelStatusContainer)),
-                )
+        if path.name.endswith(".h5"):
+            # get keys in file
+            with tables.open_file(path) as f:
+                tel_groups = [
+                    key for key in f.root._v_children.keys()
+                    if key.startswith('tel_')
+                ] 
+
+            for base in tel_groups:
+                with HDF5TableReader(path) as h5_table:
+                    # read the calibration data
+                    tel_id = int(base[4:])
+                    mon.tel[tel_id] = MonitoringCameraContainer(
+                        calibration=next(h5_table.read(f'/{base}/calibration', WaveformCalibrationContainer)),
+                        pedestal=next(h5_table.read(f'/{base}/pedestal', PedestalContainer)),
+                        flatfield=next(h5_table.read(f'/{base}/flatfield', FlatFieldContainer)),
+                        pixel_status=next(h5_table.read(f"/{base}/pixel_status", PixelStatusContainer)),
+                    )
+        
+        elif path.name.endswith(".fits") or path.name.endswith(".fits.gz"):
+            
+            CALIB_CONTAINERS = {
+                "calibration": WaveformCalibrationContainer,
+                "flatfield": FlatFieldContainer,
+                "pedestal": PedestalContainer,
+                "pixel_status": PixelStatusContainer,
+            } 
+
+            mon_data = MonitoringCameraContainer()
+         
+            with fits.open(path) as f:
+                tel_id = f['PRIMARY'].header['TEL_ID']
+                for key in CALIB_CONTAINERS.keys():
+                    table = QTable.read(f, hdu=key)
+                    row = table[0]
+                    
+                    for col in row.keys():  
+                        mon_data[key][col] = row[col]
+            
+            # fits forget units if not defined in the container (to be corrected in ctapipe)
+            mon_data.calibration.time_correction = mon_data.calibration.time_correction*u.ns
+
+            mon.tel[tel_id] = mon_data
+
+        else:
+            raise ValueError("Not supported file format : %s", path)
+
+        
         return mon
+        
+    
 
     @staticmethod
     def load_drs4_time_calibration_file(path):
         """
         Function to load calibration file.
         """
-        with tables.open_file(path, 'r') as f:
-            fan = f.root.fan[:]
-            fbn = f.root.fbn[:]
-
+        if path.name.endswith(".h5"):
+            with tables.open_file(path, 'r') as f:
+                fan = f.root.fan[:]
+                fbn = f.root.fbn[:]
+        
+        elif path.name.endswith(".fits") or path.name.endswith(".fits.gz"):
+            with fits.open(path) as f:
+                fan = to_native(f["fan"].data)
+                fbn = to_native(f["fbn"].data)
+        else:
+            raise ValueError("Not supported file format : %s", path)
+    
         return fan, fbn
 
     def load_drs4_time_calibration_file_for_tel(self, tel_id):
@@ -396,7 +446,7 @@ class LSTR0Corrections(TelescopeComponent):
         """
         Return pulse time after time correction.
         """
-
+ 
         if self.drs4_time_calibration_path.tel[tel_id] is None:
             if CTAPIPE_GE_0_21 or selected_gain_channel is None:
                 return np.zeros((N_GAINS, N_PIXELS))
@@ -407,7 +457,7 @@ class LSTR0Corrections(TelescopeComponent):
         if tel_id not in self.fan:
             self.load_drs4_time_calibration_file_for_tel(tel_id)
 
-        if CTAPIPE_GE_0_21 or selected_gain_channel is None:
+        if CTAPIPE_GE_0_21 or selected_gain_channel is None: 
             return calc_drs4_time_correction_both_gains(
                 first_capacitors,
                 self.fan[tel_id],
@@ -439,14 +489,24 @@ class LSTR0Corrections(TelescopeComponent):
                 " but no file provided for telescope"
             )
 
-        table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
-
         pedestal_data = np.empty(
-            (N_GAINS, N_PIXELS_MODULE * N_MODULES, N_CAPACITORS_PIXEL + N_SAMPLES),
-            dtype=np.float32
-        )
-        pedestal_data[:, :, :N_CAPACITORS_PIXEL] = table[0]['baseline_mean']
-        pedestal_data[:, :, N_CAPACITORS_PIXEL:] = pedestal_data[:, :, :N_SAMPLES]
+                (N_GAINS, N_PIXELS_MODULE * N_MODULES, N_CAPACITORS_PIXEL + N_SAMPLES),
+                dtype=np.float32
+            )
+
+        if path.name.endswith(".h5"):
+            table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
+
+            pedestal_data[:, :, :N_CAPACITORS_PIXEL] = table[0]['baseline_mean']
+            pedestal_data[:, :, N_CAPACITORS_PIXEL:] = pedestal_data[:, :, :N_SAMPLES]
+        
+        elif path.name.endswith(".fits") or path.name.endswith(".fits.gz"):   
+            with fits.open(path) as f:
+                pedestal_data[:, :, :N_CAPACITORS_PIXEL] = to_native(f["baseline_mean"].data)
+                pedestal_data[:, :, N_CAPACITORS_PIXEL:] = pedestal_data[:, :, :N_SAMPLES]
+
+        else:
+            raise ValueError("Not supported file format : %s", path)
 
         return pedestal_data
 
@@ -457,9 +517,14 @@ class LSTR0Corrections(TelescopeComponent):
                 "DRS4 spike correction requested"
                 " but no pedestal file provided for telescope"
             )
+        if path.name.endswith(".h5"):
+            table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
+            spike_height = np.array(table[0]['spike_height'])
 
-        table = read_table(path, f'/r1/monitoring/drs4_baseline/tel_{tel_id:03d}')
-        spike_height = np.array(table[0]['spike_height'])
+        elif path.name.endswith(".fits") or path.name.endswith(".fits.gz"):  
+            with fits.open(path) as f:
+                spike_height = to_native(f["spike_height"].data)
+
         return spike_height
 
     def subtract_pedestal(self, event, tel_id):
@@ -471,9 +536,10 @@ class LSTR0Corrections(TelescopeComponent):
         event : `ctapipe` event-container
         tel_id : id of the telescope
         """
+        
         pedestal = self._get_drs4_pedestal_data(
             self.drs4_pedestal_path.tel[tel_id],
-            tel_id,
+            tel_id
         )
 
         if event.r1.tel[tel_id].selected_gain_channel is None:
@@ -580,7 +646,7 @@ class LSTR0Corrections(TelescopeComponent):
         """
         run_id = event.lst.tel[tel_id].svc.configuration_id
         spike_height = self._get_spike_heights(self.drs4_pedestal_path.tel[tel_id], tel_id)
-
+        
         r1 = event.r1.tel[tel_id]
         if r1.selected_gain_channel is None:
             subtract_spikes(
@@ -1123,7 +1189,6 @@ def calc_drs4_time_correction_both_gains(
     first_capacitors, fan, fbn
 ):
     time = np.zeros((N_GAINS, N_PIXELS))
-
     for gain in range(N_GAINS):
         for pixel in range(N_PIXELS):
             first_capacitor = first_capacitors[gain, pixel]
