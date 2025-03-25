@@ -40,7 +40,8 @@ def to_native(data):
     if not data.dtype.isnative:
         data = data.byteswap()
         data = data.view(data.dtype.newbyteorder("="))
-        return data
+        
+    return data
 
 def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
     '''

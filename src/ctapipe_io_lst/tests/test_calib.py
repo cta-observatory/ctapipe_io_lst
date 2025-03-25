@@ -25,6 +25,10 @@ test_calib_path = calib_path / f'calibration/20200218/{calib_version}/calibratio
 test_drs4_pedestal_path = calib_path / f'drs4_baseline/20200218/{calib_version}/drs4_pedestal.Run02005.0000.h5'
 test_time_calib_path = calib_path / f'drs4_time_sampling_from_FF/20191124/{calib_version}/time_calibration.Run01625.0000.h5'
 
+def test_to_native():
+    from ctapipe_io_lst.calibration import to_native
+
+    assert to_native(np.array([1, 2], dtype='>i4')).dtype=='int32'
 
 def test_get_first_capacitor():
     from ctapipe_io_lst import LSTEventSource
