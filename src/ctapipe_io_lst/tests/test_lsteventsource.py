@@ -271,7 +271,7 @@ def test_dvr():
             pixel_idx = np.arange(N_PIXELS)
             waveform = original_event.r1.tel[1].waveform[selected_gain, pixel_idx]
 
-            readout_pixels = (dvr_event.lst.tel[1].evt.pixel_status & PixelStatus.DVR_STATUS) > 0
+            readout_pixels = (dvr_event.lst.tel[1].evt.pixel_status & np.uint8(PixelStatus.DVR_STATUS)) > 0
 
             if CTAPIPE_GE_0_21:
                 assert np.allclose(dvr_event.r1.tel[1].waveform[:, readout_pixels], waveform[readout_pixels])
