@@ -406,9 +406,6 @@ class LSTR0Corrections(TelescopeComponent):
                     for col in row.keys():  
                         mon_data[key][col] = row[col]
             
-            # fits forget units if not defined in the container (to be corrected in ctapipe)
-            mon_data.calibration.time_correction = mon_data.calibration.time_correction*u.ns
-
             mon.tel[tel_id] = mon_data
 
         else:
