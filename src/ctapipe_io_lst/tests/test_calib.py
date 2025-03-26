@@ -24,6 +24,7 @@ calib_path = test_data / 'real/monitoring/PixelCalibration/Cat-A/'
 test_calib_path = calib_path / f'calibration/20200218/{calib_version}/calibration_filters_52.Run02006.0000.h5'
 test_calib_path_fits = calib_path / f'calibration/20200218/{calib_version}/calibration_filters_52.Run02006.0000.fits.gz'
 test_drs4_pedestal_path = calib_path / f'drs4_baseline/20200218/{calib_version}/drs4_pedestal.Run02005.0000.h5'
+test_drs4_pedestal_path_fits = calib_path / f'drs4_baseline/20200218/{calib_version}/drs4_pedestal.Run02005.0000.fits.gz'
 test_time_calib_path = calib_path / f'drs4_time_sampling_from_FF/20191124/{calib_version}/time_calibration.Run01625.0000.h5'
 
 
@@ -88,10 +89,17 @@ def test_read_calib_file(path):
     assert mon.tel.keys() == {1, }
 
 
-def test_read_drs4_pedestal_file():
+@pytest.mark.parametrize(
+    "path",
+    [
+        pytest.param(test_drs4_pedestal_path, id="hdf5"),
+        pytest.param(test_drs4_pedestal_path_fits, id="fits"),
+    ]
+)
+def test_read_drs4_pedestal_file(path):
     from ctapipe_io_lst.calibration import LSTR0Corrections, N_CAPACITORS_PIXEL, N_SAMPLES
 
-    pedestal = LSTR0Corrections._get_drs4_pedestal_data(test_drs4_pedestal_path, tel_id=1)
+    pedestal = LSTR0Corrections._get_drs4_pedestal_data(path, tel_id=1)
 
     assert pedestal.shape[-1] == N_CAPACITORS_PIXEL + N_SAMPLES
     # check circular boundary
