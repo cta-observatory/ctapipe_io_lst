@@ -179,39 +179,33 @@ def test_source_with_calibration():
         for event in source:
             assert event.r1.tel[1].waveform is not None
 
-
 fits_calibration = {
-    "drs4_baseline_path": test_drs4_pedestal_path,
-    "drs4_time_path": test_time_calib_path,
+    "drs4_pedestal_path": test_drs4_pedestal_path,
+    "drs4_time_calibration_path": test_time_calib_path,
     "calibration_path": test_calib_path,
 }
-
 hdf5_calibration = {
-    "drs4_baseline_path": test_drs4_pedestal_path_fits,
-    "drs4_time_path": test_time_calib_path_fits,
+    "drs4_pedestal_path": test_drs4_pedestal_path_fits,
+    "drs4_time_calibration_path": test_time_calib_path_fits,
     "calibration_path": test_calib_path_fits,
 }
-
- 
 @pytest.mark.parametrize("trigger_information", [True, False])
 @pytest.mark.parametrize(
     "calib_config",
     (
         pytest.param(hdf5_calibration, id="hdf5"),
+        pytest.param(fits_calibration, id="fits"),
     )
 )
-def test_calibration_trigger(trigger_information,calib_config):
+
+def test_calibration(trigger_information,calib_config):
     from ctapipe_io_lst import LSTEventSource
 
     config = Config({
         'LSTEventSource': {
             'pointing_information': False,
             'trigger_information': trigger_information, 
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': calib_config["drs4_baseline_path"],
-                'drs4_time_calibration_path': calib_config["drs4_time_path"],
-                'calibration_path': calib_config["calibration_path"],
-            },
+            'LSTR0Corrections': calib_config
         },
     })
 
@@ -225,40 +219,6 @@ def test_calibration_trigger(trigger_information,calib_config):
         for event in source:
             assert event.r1.tel[1].waveform is not None
             assert np.any(event.calibration.tel[1].dl1.time_shift != 0)
-
-@pytest.mark.parametrize("trigger_information", [False])
-@pytest.mark.parametrize(
-    "calib_config",
-    (
-        pytest.param(hdf5_calibration, id="fits"),
-    )
-)
-def test_calibration_fits(trigger_information,calib_config):
-    from ctapipe_io_lst import LSTEventSource
-
-    config = Config({
-        'LSTEventSource': {
-            'pointing_information': False,
-            'trigger_information': trigger_information, 
-            'LSTR0Corrections': {
-                'drs4_pedestal_path': calib_config["drs4_baseline_path"],
-                'drs4_time_calibration_path': calib_config["drs4_time_path"],
-                'calibration_path': calib_config["calibration_path"],
-            },
-        },
-    })
-
-    source = LSTEventSource(
-        input_url=test_r0_path,
-        config=config,
-    )
-
-    assert source.r0_r1_calibrator.mon_data is not None
-    with source:
-        for event in source:
-            assert event.r1.tel[1].waveform is not None
-            assert np.any(event.calibration.tel[1].dl1.time_shift != 0)
-
 
 def test_missing_module():
     from ctapipe_io_lst import LSTEventSource
