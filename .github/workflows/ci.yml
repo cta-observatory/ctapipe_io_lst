@@ -23,9 +23,6 @@ jobs:
             ctapipe-version: "0.19.3"
             extra-reqs: "'numpy<2.0a0' 'scipy<1.14a0'"
           - python-version: "3.11"
-            ctapipe-version: "0.19.3"
-            extra-reqs: "'numpy<2.0a0' 'scipy<1.14a0'"
-          - python-version: "3.11"
             ctapipe-version: "0.21.2"
             extra-reqs: "'numpy<2.0a0'"
           - python-version: "3.11"
@@ -35,6 +32,8 @@ jobs:
             ctapipe-version: "0.23.2"
           - python-version: "3.12"
             ctapipe-version: "0.24.0"
+          - python-version: "3.13"
+            ctapipe-version: "0.25.0"
 
     defaults:
       run:
