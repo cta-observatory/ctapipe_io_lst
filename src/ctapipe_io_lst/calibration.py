@@ -20,6 +20,7 @@ from traitlets import Enum
 
 from .compat import CTAPIPE_GE_0_21
 from .containers import LSTArrayEventContainer
+from .evb_preprocessing import EVBPreprocessingFlag
 
 
 from .constants import (
@@ -227,13 +228,29 @@ class LSTR0Corrections(TelescopeComponent):
     def apply_drs4_corrections(self, event: LSTArrayEventContainer):
 
         for tel_id in event.trigger.tels_with_trigger:
+            tdp_action = event.lst.tel[tel_id].evt.tdp_action
+            preprocessing = EVBPreprocessingFlag(tdp_action or 0)
+
             r1 = event.r1.tel[tel_id]
             # If r1 was not yet filled, copy of r0 converted
             if r1.waveform is None:
                 r1.waveform = event.r0.tel[tel_id].waveform
 
+            correct_pedestal = (
+                self.apply_drs4_pedestal_correction
+                and EVBPreprocessingFlag.BASELINE_SUBTRACTION not in preprocessing
+            )
+            correct_timelapse = (
+                self.apply_timelapse_correction
+                and EVBPreprocessingFlag.DELTA_T_CORRECTION not in preprocessing
+            )
+            correct_spikes = (
+                self.apply_spike_correction
+                and EVBPreprocessingFlag.SPIKE_REMOVAL not in preprocessing
+            )
+
             n_samples = r1.waveform.shape[-1]
-            if n_samples != N_SAMPLES:
+            if n_samples != N_SAMPLES and (correct_pedestal or correct_timelapse or correct_spikes):
                 msg = (
                     f"Data has n_samples={n_samples}, expected {N_SAMPLES}."
                     " Applying offline drs4 corrections to data with border samples"
@@ -246,25 +263,26 @@ class LSTR0Corrections(TelescopeComponent):
             r1.waveform = r1.waveform.astype(np.float32, copy=False)
 
             # apply drs4 corrections
-            if self.apply_drs4_pedestal_correction:
+            if correct_pedestal:
                 self.subtract_pedestal(event, tel_id)
 
-            if self.apply_timelapse_correction:
+            if correct_timelapse:
                 self.time_lapse_corr(event, tel_id)
             else:
                 self.update_last_readout_times(event, tel_id)
 
-            if self.apply_spike_correction:
+            if correct_spikes:
                 if self.spike_correction_method == 'subtraction':
                     self.subtract_spikes(event, tel_id)
                 else:
                     self.interpolate_spikes(event, tel_id)
 
-
-            # remove samples at beginning / end of waveform
-            start = self.r1_sample_start.tel[tel_id]
-            end = self.r1_sample_end.tel[tel_id]
-            r1.waveform = r1.waveform[..., start:end]
+            # remove samples at beginning / end of waveform, but only if not yet
+            # done by EVB.
+            if n_samples == N_SAMPLES:
+                start = self.r1_sample_start.tel[tel_id]
+                end = self.r1_sample_end.tel[tel_id]
+                r1.waveform = r1.waveform[..., start:end]
 
             if self.offset.tel[tel_id] != 0:
                 r1.waveform -= self.offset.tel[tel_id]
