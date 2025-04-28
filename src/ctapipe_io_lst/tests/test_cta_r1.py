@@ -17,13 +17,19 @@ import protozfits
 from protozfits.CoreMessages_pb2 import AnyArray
 from protozfits.R1v1_pb2 import CameraConfiguration, Event, TelescopeDataStream
 from protozfits.R1v1_debug_pb2 import DebugEvent, DebugCameraConfiguration
-from protozfits.any_array_to_numpy import numpy_to_any_array
+
+try:
+    # protozfits < 2.7.1
+    from protozfits.any_array_to_numpy import numpy_to_any_array
+except ModuleNotFoundError:
+    # current protozfits
+    from protozfits.anyarray import numpy_to_any_array
 
 from ctapipe_io_lst import LSTEventSource, CTAPIPE_GE_0_21
-from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
 from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ, TriggerBits
 from ctapipe_io_lst.event_time import time_to_cta_high
 from ctapipe_io_lst.evb_preprocessing import EVBPreprocessingFlag
+from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
 
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
