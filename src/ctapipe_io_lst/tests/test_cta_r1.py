@@ -14,7 +14,6 @@ from ctapipe.image.toymodel import WaveformModel, Gaussian
 from ctapipe.containers import EventType
 
 import protozfits
-from protozfits.CoreMessages_pb2 import AnyArray
 from protozfits.R1v1_pb2 import CameraConfiguration, Event, TelescopeDataStream
 from protozfits.R1v1_debug_pb2 import DebugEvent, DebugCameraConfiguration
 
