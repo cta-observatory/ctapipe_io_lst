@@ -655,18 +655,19 @@ class LSTEventSource(EventSource):
             # Extend to 40 samples in case the EvB has recorded 36, to          
             # allow DRS4 calibration (R1 will be clipped back to 36 samples     
             # afterwards, as usual)
-            for c, fill_value in zip((array_event.r0, array_event.r1),
-                                     (self.data_stream.waveform_offset, 0)):
-                for tel_c in c.tel.values():
+            if self.data_stream is not None:
+                for c, fill_value in zip((array_event.r0, array_event.r1),
+                                         (self.data_stream.waveform_offset, 0)):
                     for tel_c in c.tel.values():
-                        if tel_c.waveform is not None:
-                            if tel_c.waveform.shape[-1] == 36:
-                                pad_width = [(0, 0)] * tel_c.waveform.ndim
-                                pad_width[-1] = (3, 1)
-                                tel_c.waveform = np.pad(tel_c.waveform,
-                                                        pad_width,
-                                                        mode='constant',
-                                                        constant_values=fill_value)
+                        for tel_c in c.tel.values():
+                            if tel_c.waveform is not None:
+                                if tel_c.waveform.shape[-1] == 36:
+                                    pad_width = [(0, 0)] * tel_c.waveform.ndim
+                                    pad_width[-1] = (3, 1)
+                                    tel_c.waveform = np.pad(tel_c.waveform,
+                                                            pad_width,
+                                                            mode='constant',
+                                                            constant_values=fill_value)
             
             self.fill_mon_container(array_event, zfits_event)
 
