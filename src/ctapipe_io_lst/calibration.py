@@ -236,7 +236,11 @@ class LSTR0Corrections(TelescopeComponent):
             if r1.waveform is None:
                 r1.waveform = event.r0.tel[tel_id].waveform
 
+            # we always correct the pedestal, as in normal operations, EVB corrects
+            # it online, but we do a relative update with the nightly DRS4 file
             correct_pedestal = self.apply_drs4_pedestal_correction
+
+            # apply timelapse and spike correction only if not yet done by EVB
             correct_timelapse = (
                 self.apply_timelapse_correction
                 and EVBPreprocessingFlag.DELTA_T_CORRECTION not in preprocessing
