@@ -236,10 +236,7 @@ class LSTR0Corrections(TelescopeComponent):
             if r1.waveform is None:
                 r1.waveform = event.r0.tel[tel_id].waveform
 
-            correct_pedestal = (
-                self.apply_drs4_pedestal_correction
-                and EVBPreprocessingFlag.BASELINE_SUBTRACTION not in preprocessing
-            )
+            correct_pedestal = self.apply_drs4_pedestal_correction
             correct_timelapse = (
                 self.apply_timelapse_correction
                 and EVBPreprocessingFlag.DELTA_T_CORRECTION not in preprocessing
