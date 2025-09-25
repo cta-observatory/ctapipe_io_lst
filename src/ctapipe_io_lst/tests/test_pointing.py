@@ -122,6 +122,21 @@ def test_read_target_log(tmp_path):
         targets = PointingSource.read_target_log(log_missing_end, ignore_missing_end=False)
 
 
+    # test with duplicate TrackEnd line
+    log_lines = test_target_log.read_text().splitlines()
+    log_lines.insert(1, log_lines[1])
+    log_duplicate_end = tmp_path / "target_log_duplicate_end.txt"
+    log_duplicate_end.write_text('\n'.join(log_lines))
+
+    with pytest.warns(match="Expected TrackingStart"):
+        targets = PointingSource.read_target_log(log_duplicate_end)
+
+    assert len(targets) == 7
+
+    with pytest.raises(ValueError, match="Expected TrackingStart"):
+        targets = PointingSource.read_target_log(log_duplicate_end, ignore_missing_end=False)
+
+
 
 def test_targets():
     from ctapipe_io_lst import PointingSource, LSTEventSource

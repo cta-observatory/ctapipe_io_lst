@@ -120,9 +120,14 @@ class PointingSource(TelescopeComponent):
 
                 elif tokens[1] == "TrackEnd":
                     if not tracking:
-                        raise ValueError(f"Expected TrackingStart, got {line}")
-                    tracking = False
-                    targets[-1].update(parse_end(tokens))
+                        msg = f"Expected TrackingStart, got {line}"
+                        if ignore_missing_end:
+                            warnings.warn(msg)
+                        else:
+                            raise ValueError(msg)
+                    else:
+                        tracking = False
+                        targets[-1].update(parse_end(tokens))
 
         if len(targets) > 0:
             table = Table(targets, units={"ra": u.deg, "dec": u.deg})
