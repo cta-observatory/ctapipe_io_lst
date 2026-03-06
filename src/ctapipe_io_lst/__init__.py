@@ -502,6 +502,13 @@ class LSTEventSource(EventSource):
         reordered_waveform[:, pixel_id_map[stored_pixels]] = waveform
         waveform = reordered_waveform
 
+        readout_shape = (n_channels, n_pixels)
+        raw_pixel_time_shift = zfits_event.pixel_time_shift.reshape(readout_shape)
+        pixel_time_shift_ns = raw_pixel_time_shift / 100   # 10's of ps to ns
+        reordered_pixel_time_shift = np.full((n_channels, N_PIXELS), 0.0, dtype=np.float32)
+        reordered_pixel_time_shift[:, pixel_id_map[stored_pixels]] = pixel_time_shift_ns
+        pixel_time_shift = reordered_pixel_time_shift
+
 
         if zfits_event.num_channels == 2:
             selected_gain_channel = None
@@ -521,6 +528,8 @@ class LSTEventSource(EventSource):
         r1 = R1CameraContainer(
             waveform=waveform,
             selected_gain_channel=selected_gain_channel,
+            # As soon as pixel_time_shift is defined in ctapipe:
+            # pixel_time_shift=pixel_time_shift
         )
 
         if CTAPIPE_GE_0_20:
@@ -543,11 +552,30 @@ class LSTEventSource(EventSource):
             self.pixel_id_map,
             set_dvr_bits=not self.dvr_applied,
         )
+
+        n_channels = zfits_event.num_channels
+        if self.dvr_applied:
+            stored_pixels = (zfits_event.pixel_status &
+                             np.uint8(PixelStatus.DVR_STATUS)) > 0
+            n_pixels = np.count_nonzero(stored_pixels)
+        else:
+            stored_pixels = slice(None)  # all pixels stored
+            n_pixels = zfits_event.num_pixels
+        readout_shape = (n_channels, n_pixels)
+        raw_pixel_time_shift = zfits_event.pixel_time_shift.reshape(readout_shape)
+        pixel_time_shift_ns = raw_pixel_time_shift / 100   # 10's of ps to ns
+        reordered_pixel_time_shift = np.full((n_channels, N_PIXELS), 0.0, dtype=np.float32)
+        pixel_id_map = self.camera_config.pixel_id_map
+        reordered_pixel_time_shift[:, pixel_id_map[stored_pixels]] = pixel_time_shift_ns
+        pixel_time_shift = reordered_pixel_time_shift
+
+
         evt = LSTEventContainer(
             pixel_status=pixel_status,
             first_capacitor_id=zfits_event.first_cell_id,
             calibration_monitoring_id=zfits_event.calibration_monitoring_id,
             local_clock_counter=zfits_event.module_hires_local_clock_counter,
+            pixel_time_shift = pixel_time_shift
         )
 
         if zfits_event.debug is not None:
@@ -902,7 +930,7 @@ class LSTEventSource(EventSource):
             return EventType.SUBARRAY
 
         # We only want to tag events as flatfield that *only* have the CALIBRATION bit
-        # or both CALIBRATION and MONO bits, since flatfield events might 
+        # or both CALIBRATION and MONO bits, since flatfield events might
         # trigger the physics trigger
         if trigger_bits == TriggerBits.CALIBRATION:
             return EventType.FLATFIELD
@@ -1020,7 +1048,7 @@ class LSTEventSource(EventSource):
         elif array_event.trigger.event_type == EventType.FLATFIELD:
             self.log.warning(
                 'Found FF event that does not fulfill FF criteria:'
-                f'{array_event.index.event_id}. Setting event type to UNKNOWN' 
+                f'{array_event.index.event_id}. Setting event type to UNKNOWN'
             )
             array_event.trigger.event_type = EventType.UNKNOWN
 
