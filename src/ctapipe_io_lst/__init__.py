@@ -502,12 +502,16 @@ class LSTEventSource(EventSource):
         reordered_waveform[:, pixel_id_map[stored_pixels]] = waveform
         waveform = reordered_waveform
 
-        readout_shape = (n_channels, n_pixels)
-        raw_pixel_time_shift = zfits_event.pixel_time_shift.reshape(readout_shape)
-        pixel_time_shift_ns = raw_pixel_time_shift.astype(np.float32) / np.float32(100.0)   # 10's of ps to ns
-        reordered_pixel_time_shift = np.full((n_channels, N_PIXELS), 0.0, dtype=np.float32)
-        reordered_pixel_time_shift[:, pixel_id_map[stored_pixels]] = pixel_time_shift_ns
-        pixel_time_shift = reordered_pixel_time_shift
+        # The code below has to be activated when (if ever) a version of
+        # ctapipe with the pixel_time_shift field in R1CameraContainer is
+        # pinned
+        #
+        # readout_shape = (n_channels, n_pixels)
+        # raw_pixel_time_shift = zfits_event.pixel_time_shift.reshape(readout_shape)
+        # pixel_time_shift_ns = raw_pixel_time_shift.astype(np.float32) / np.float32(100.0)   # 10's of ps to ns
+        # reordered_pixel_time_shift = np.full((n_channels, N_PIXELS), 0.0, dtype=np.float32)
+        # reordered_pixel_time_shift[:, pixel_id_map[stored_pixels]] = pixel_time_shift_ns
+        # pixel_time_shift = reordered_pixel_time_shift
 
 
         if zfits_event.num_channels == 2:
@@ -528,7 +532,8 @@ class LSTEventSource(EventSource):
         r1 = R1CameraContainer(
             waveform=waveform,
             selected_gain_channel=selected_gain_channel,
-            # As soon as pixel_time_shift is defined in ctapipe:
+            # As soon as pixel_time_shift is defined
+            # in ctapipe's R1CameraContainer:
             # pixel_time_shift=pixel_time_shift
         )
 
@@ -718,7 +723,7 @@ class LSTEventSource(EventSource):
                     start = self.r0_r1_calibrator.r1_sample_start.tel[self.tel_id]
                     end =   self.r0_r1_calibrator.r1_sample_end.tel[self.tel_id]
                     r1.waveform = r1.waveform[..., start:end]
-                    
+
             if self.pedestal_ids is not None:
                 self.check_interleaved_pedestal(array_event)
 
@@ -747,8 +752,8 @@ class LSTEventSource(EventSource):
                     relative_factor[LOW_GAIN] = self.r0_r1_calibrator.calib_scale_low_gain.tel[tel_id]
 
                     array_event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
-                
-                    
+
+
             # dl1 and drs4 timeshift needs to be filled always
             self.r0_r1_calibrator.fill_time_correction(array_event)
 
