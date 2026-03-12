@@ -224,7 +224,16 @@ class LSTR0Corrections(TelescopeComponent):
 
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
-
+        else:
+            # In case no calibration file has been provided (like e.g. when processing calibrated R1)
+            # we have to create the container here:
+            mon = MonitoringContainer()
+            mon_camera = MonitoringCameraContainer()
+            mon_camera.calibration.time_correction = np.zeros((N_GAINS, N_PIXELS)) * u.ns
+            mon_camera.calibration.unusable_pixels = np.zeros((N_GAINS, N_PIXELS), dtype='bool')
+            mon.tel[tel_id] = mon_camera
+            self.mon_data = mon
+            
     def apply_drs4_corrections(self, event: LSTArrayEventContainer):
 
         for tel_id in event.trigger.tels_with_trigger:

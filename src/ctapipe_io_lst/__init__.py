@@ -49,7 +49,7 @@ from .anyarray_dtypes import (
     parse_tib_10MHz_counter,
 )
 from .constants import (
-    HIGH_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, REFERENCE_LOCATION,
+    HIGH_GAIN, LOW_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, REFERENCE_LOCATION,
     PixelStatus, TriggerBits,
 )
 
@@ -707,7 +707,18 @@ class LSTEventSource(EventSource):
                 # already calibrated the data
                 if self.use_flatfield_heuristic:
                     self.tag_flatfield_events(array_event)
-
+            else:
+                # remove samples at beginning / end of waveform, but only if
+                # not yet done by EVB. We have at least some test data which
+                # were calibrated & gain selected by EvB, but taken with 40
+                # samples
+                r1 = array_event.r1.tel[self.tel_id]
+                n_samples = r1.waveform.shape[-1]
+                if n_samples == N_SAMPLES:
+                    start = self.r0_r1_calibrator.r1_sample_start.tel[self.tel_id]
+                    end =   self.r0_r1_calibrator.r1_sample_end.tel[self.tel_id]
+                    r1.waveform = r1.waveform[..., start:end]
+                    
             if self.pedestal_ids is not None:
                 self.check_interleaved_pedestal(array_event)
 
@@ -720,6 +731,24 @@ class LSTEventSource(EventSource):
                 ):
                     self.r0_r1_calibrator.calibrate(array_event)
 
+            else:
+                # needed for charge scaling in ctapipe dl1 calibration (as of ctapipe 0.25.1)
+                for tel_id in array_event.trigger.tels_with_trigger:
+                    r1 = array_event.r1.tel[tel_id]
+
+#                    if r1.selected_gain_channel is not None:
+#                        relative_factor = np.empty((1, N_PIXELS))
+#                        relative_factor[0, r1.selected_gain_channel == HIGH_GAIN] = self.r0_r1_calibrator.calib_scale_high_gain.tel[tel_id]
+#                        relative_factor[0, r1.selected_gain_channel == LOW_GAIN] = self.r0_r1_calibrator.calib_scale_low_gain.tel[tel_id]
+#                    else:
+
+                    relative_factor = np.empty((N_GAINS, N_PIXELS))
+                    relative_factor[HIGH_GAIN] = self.r0_r1_calibrator.calib_scale_high_gain.tel[tel_id]
+                    relative_factor[LOW_GAIN] = self.r0_r1_calibrator.calib_scale_low_gain.tel[tel_id]
+
+                    array_event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
+                
+                    
             # dl1 and drs4 timeshift needs to be filled always
             self.r0_r1_calibrator.fill_time_correction(array_event)
 
