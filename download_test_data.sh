@@ -2,7 +2,7 @@
 
 set -e
 
-TEST_DATA_URL=${TEST_DATA_URL:-https://www.lst1.iac.es/lstchain-testfiles/}
+TEST_DATA_URL=${TEST_DATA_URL:-https://old.lst.iac.es/lstchain-testfiles/}
 
 if [ -z "$TEST_DATA_USER" ]; then
 	echo -n "Username: "
