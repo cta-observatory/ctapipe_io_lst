@@ -719,11 +719,12 @@ class LSTEventSource(EventSource):
                 # were calibrated & gain selected by EvB, but taken with 40
                 # samples
                 r1 = array_event.r1.tel[self.tel_id]
-                n_samples = r1.waveform.shape[-1]
-                if n_samples == N_SAMPLES:
-                    start = self.r0_r1_calibrator.r1_sample_start.tel[self.tel_id]
-                    end =   self.r0_r1_calibrator.r1_sample_end.tel[self.tel_id]
-                    r1.waveform = r1.waveform[..., start:end]
+                if r1.waveform is not None:
+                    n_samples = r1.waveform.shape[-1]
+                    if n_samples == N_SAMPLES:
+                        start = self.r0_r1_calibrator.r1_sample_start.tel[self.tel_id]
+                        end =   self.r0_r1_calibrator.r1_sample_end.tel[self.tel_id]
+                        r1.waveform = r1.waveform[..., start:end]
 
             if self.pedestal_ids is not None:
                 self.check_interleaved_pedestal(array_event)
