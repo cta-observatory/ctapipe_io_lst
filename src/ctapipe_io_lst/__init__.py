@@ -567,13 +567,13 @@ class LSTEventSource(EventSource):
             stored_pixels = slice(None)  # all pixels stored
             n_pixels = zfits_event.num_pixels
         readout_shape = (n_channels, n_pixels)
-        raw_pixel_time_shift = zfits_event.pixel_time_shift.reshape(readout_shape)
-        pixel_time_shift_ns = raw_pixel_time_shift.astype(np.float32) / np.float32(100.0)   # 10's of ps to ns
         reordered_pixel_time_shift = np.full((n_channels, N_PIXELS), 0.0, dtype=np.float32)
-        pixel_id_map = self.camera_config.pixel_id_map
-        reordered_pixel_time_shift[:, pixel_id_map[stored_pixels]] = pixel_time_shift_ns
+        if zfits_event.pixel_time_shift is not None:
+            raw_pixel_time_shift = zfits_event.pixel_time_shift.reshape(readout_shape)
+            pixel_time_shift_ns = raw_pixel_time_shift.astype(np.float32) / np.float32(100.0)   # 10's of ps to ns
+            pixel_id_map = self.camera_config.pixel_id_map
+            reordered_pixel_time_shift[:, pixel_id_map[stored_pixels]] = pixel_time_shift_ns
         pixel_time_shift = reordered_pixel_time_shift
-
 
         evt = LSTEventContainer(
             pixel_status=pixel_status,
