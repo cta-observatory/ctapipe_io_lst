@@ -567,14 +567,15 @@ class LSTEventSource(EventSource):
             stored_pixels = slice(None)  # all pixels stored
             n_pixels = zfits_event.num_pixels
         readout_shape = (n_channels, n_pixels)
-        reordered_pixel_time_shift = np.full((n_channels, N_PIXELS), 0.0, dtype=np.float32)
         if zfits_event.pixel_time_shift is not None:
+            reordered_pixel_time_shift = np.full((n_channels, N_PIXELS), 0.0, dtype=np.float32)
             raw_pixel_time_shift = zfits_event.pixel_time_shift.reshape(readout_shape)
             pixel_time_shift_ns = raw_pixel_time_shift.astype(np.float32) / np.float32(100.0)   # 10's of ps to ns
             pixel_id_map = self.camera_config.pixel_id_map
             reordered_pixel_time_shift[:, pixel_id_map[stored_pixels]] = pixel_time_shift_ns
-        pixel_time_shift = reordered_pixel_time_shift
-
+            pixel_time_shift = reordered_pixel_time_shift
+        else:
+            pixel_time_shift = None
         evt = LSTEventContainer(
             pixel_status=pixel_status,
             first_capacitor_id=zfits_event.first_cell_id,
@@ -685,7 +686,7 @@ class LSTEventSource(EventSource):
                 self.fill_r0r1_container(array_event, zfits_event)
                 self.fill_lst_event_container(array_event, zfits_event)
                 self.fill_trigger_info(array_event)
-
+                
             self.fill_mon_container(array_event, zfits_event)
 
             # apply correction before the rest, so corrected time is used e.g. for pointing
