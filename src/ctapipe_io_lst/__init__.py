@@ -686,7 +686,7 @@ class LSTEventSource(EventSource):
                 self.fill_r0r1_container(array_event, zfits_event)
                 self.fill_lst_event_container(array_event, zfits_event)
                 self.fill_trigger_info(array_event)
-                
+
             self.fill_mon_container(array_event, zfits_event)
 
             # apply correction before the rest, so corrected time is used e.g. for pointing
@@ -743,12 +743,6 @@ class LSTEventSource(EventSource):
                 # needed for charge scaling in ctapipe dl1 calibration (as of ctapipe 0.25.1)
                 for tel_id in array_event.trigger.tels_with_trigger:
                     r1 = array_event.r1.tel[tel_id]
-
-#                    if r1.selected_gain_channel is not None:
-#                        relative_factor = np.empty((1, N_PIXELS))
-#                        relative_factor[0, r1.selected_gain_channel == HIGH_GAIN] = self.r0_r1_calibrator.calib_scale_high_gain.tel[tel_id]
-#                        relative_factor[0, r1.selected_gain_channel == LOW_GAIN] = self.r0_r1_calibrator.calib_scale_low_gain.tel[tel_id]
-#                    else:
 
                     relative_factor = np.empty((N_GAINS, N_PIXELS))
                     relative_factor[HIGH_GAIN] = self.r0_r1_calibrator.calib_scale_high_gain.tel[tel_id]
