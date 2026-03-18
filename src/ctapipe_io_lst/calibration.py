@@ -341,12 +341,12 @@ class LSTR0Corrections(TelescopeComponent):
             else:
                 r1.waveform[invalid_pixels[r1.selected_gain_channel, PIXEL_INDEX]] = 0.0
 
-            relative_factor = np.empty((N_GAINS, N_PIXELS))
+            relative_factor = np.empty((N_GAINS, N_PIXELS), dtype=np.float32)
             relative_factor[HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
             relative_factor[LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
 
             event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
-            event.calibration.tel[tel_id].dl1.absolute_factor = np.ones((N_GAINS, N_PIXELS))
+            event.calibration.tel[tel_id].dl1.absolute_factor = np.ones((N_GAINS, N_PIXELS), dtype=np.float32)
 
     def fill_time_correction(self, event):
 
