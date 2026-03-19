@@ -224,7 +224,16 @@ class LSTR0Corrections(TelescopeComponent):
 
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
-
+        else:
+            # In case no calibration file has been provided (like e.g. when processing calibrated R1)
+            # we have to create the container here:
+            mon = MonitoringContainer()
+            mon_camera = MonitoringCameraContainer()
+            mon_camera.calibration.time_correction = np.zeros((N_GAINS, N_PIXELS)) * u.ns
+            mon_camera.calibration.unusable_pixels = np.zeros((N_GAINS, N_PIXELS), dtype='bool')
+            mon.tel[tel_id] = mon_camera
+            self.mon_data = mon
+            
     def apply_drs4_corrections(self, event: LSTArrayEventContainer):
 
         for tel_id in event.trigger.tels_with_trigger:
@@ -353,11 +362,30 @@ class LSTR0Corrections(TelescopeComponent):
         for tel_id in event.trigger.tels_with_trigger:
             r1 = event.r1.tel[tel_id]
             # store calibration data needed for dl1 calibration in ctapipe
-            # first drs4 time shift (zeros if no calib file was given)
-            time_shift = self.get_drs4_time_correction(
-                tel_id, self.first_cap[tel_id],
-                selected_gain_channel=r1.selected_gain_channel,
-            )
+            # First the drs4 time shift (zeros if the info is not present in
+            # R1CameraContainer and no drs4 calib file was provided)
+
+            lst = event.lst.tel[tel_id]
+            # Check if the R1CameraContainer has the pixel_time_shift field,
+            # and use it if that is the case:
+
+            # if r1.pixel_time_shift is not None:
+            # Until pixel_time_shift is in R1CameraContainer... :
+            if lst.evt.pixel_time_shift is not None:
+                if r1.selected_gain_channel is None:
+                    time_shift = lst.evt.pixel_time_shift # r1.pixel_time_shift
+                else:
+                    time_shift = np.zeros((N_GAINS, N_PIXELS))
+                    time_shift[r1.selected_gain_channel,
+                               # np.arange(N_PIXELS)] = r1.pixel_time_shift[0]
+                               np.arange(N_PIXELS)] = lst.evt.pixel_time_shift[0]
+
+            # Otherwise, try to get the correction from a drs4 calib file:
+            else:
+                time_shift = self.get_drs4_time_correction(
+                    tel_id, self.first_cap[tel_id],
+                    selected_gain_channel=r1.selected_gain_channel,
+                )
 
             # time shift from flat fielding
             if self.mon_data is not None and self.add_calibration_timeshift:
