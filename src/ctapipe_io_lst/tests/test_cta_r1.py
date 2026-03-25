@@ -166,7 +166,6 @@ def dummy_cta_r1(dummy_cta_r1_dir):
             tdp_action=numpy_to_any_array(np.zeros(16, dtype=np.uint16)),
             # at the moment, the tdp_action and ttype_pattern fields are mixed up in EVB
             ttype_pattern=numpy_to_any_array(tdp_action),
-            counters=numpy_to_any_array(counters),
         )
     )
 
@@ -276,6 +275,7 @@ def dummy_cta_r1(dummy_cta_r1_dir):
                     extdevices_presence=0b011,
                     cdts_data=numpy_to_any_array(cdts_data.view(np.uint8)),
                     tib_data=numpy_to_any_array(tib_data.view(np.uint8)),
+                    counters=numpy_to_any_array(counters),
                 )
             )
 
