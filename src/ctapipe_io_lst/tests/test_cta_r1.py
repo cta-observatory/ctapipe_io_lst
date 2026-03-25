@@ -144,7 +144,7 @@ def dummy_cta_r1(dummy_cta_r1_dir):
     tdp_type[3] = TriggerBits.PEDESTAL
     tdp_action[4] = EVBPreprocessingFlag.BASELINE_SUBTRACTION
 
-    counters = np.zeros(265, dtype=DRAGON_COUNTERS_DTYPE).view("u8")
+    counters = np.zeros(265, dtype=DRAGON_COUNTERS_DTYPE).view(np.uint8)
     camera_config = CameraConfiguration(
         tel_id=1,
         local_run_id=10000,
