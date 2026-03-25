@@ -594,13 +594,12 @@ class LSTEventSource(EventSource):
             evt.tdp_action = debug.tdp_action
 
             # unpack Dragon counters
-            if debug.counters is not None:
-                counters = debug.counters.view(DRAGON_COUNTERS_DTYPE)
-                evt.pps_counter = counters['pps_counter']
-                evt.tenMHz_counter = counters['tenMHz_counter']
-                evt.event_counter = counters['event_counter']
-                evt.trigger_counter = counters['trigger_counter']
-                evt.local_clock_counter = counters['local_clock_counter']
+            counters = debug.counters.view(DRAGON_COUNTERS_DTYPE)
+            evt.pps_counter = counters['pps_counter']
+            evt.tenMHz_counter = counters['tenMHz_counter']
+            evt.event_counter = counters['event_counter']
+            evt.trigger_counter = counters['trigger_counter']
+            evt.local_clock_counter = counters['local_clock_counter']
 
             # if TIB data are there
             if evt.extdevices_presence & 1:

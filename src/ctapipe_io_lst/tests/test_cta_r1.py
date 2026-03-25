@@ -28,7 +28,7 @@ from ctapipe_io_lst import LSTEventSource, CTAPIPE_GE_0_21
 from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ, TriggerBits
 from ctapipe_io_lst.event_time import time_to_cta_high
 from ctapipe_io_lst.evb_preprocessing import EVBPreprocessingFlag
-from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
+from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE, DRAGON_COUNTERS_DTYPE
 
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
@@ -144,7 +144,7 @@ def dummy_cta_r1(dummy_cta_r1_dir):
     tdp_type[3] = TriggerBits.PEDESTAL
     tdp_action[4] = EVBPreprocessingFlag.BASELINE_SUBTRACTION
 
-
+    counters = np.zeros(265, dtype=DRAGON_COUNTERS_DTYPE).view("u8")
     camera_config = CameraConfiguration(
         tel_id=1,
         local_run_id=10000,
@@ -166,6 +166,7 @@ def dummy_cta_r1(dummy_cta_r1_dir):
             tdp_action=numpy_to_any_array(np.zeros(16, dtype=np.uint16)),
             # at the moment, the tdp_action and ttype_pattern fields are mixed up in EVB
             ttype_pattern=numpy_to_any_array(tdp_action),
+            counters=numpy_to_any_array(counters),
         )
     )
 
