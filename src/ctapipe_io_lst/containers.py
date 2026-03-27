@@ -62,6 +62,11 @@ class LSTEventContainer(Container):
     calibration_monitoring_id = Field(None, "calibration id of applied pre-calibration")
     local_clock_counter = Field(None, "Dragon local 133 MHz counter (n_modules)")
 
+    # This one will eventually be present in R1CameraEvent:
+    pixel_time_shift = Field(None, "Time shift in ns (n_channels, n_pixels)",
+                             dtype=np.float32, ndim=2)
+
+
     # in debug event
     module_status = Field(None, "status of the modules (n_modules)")
     extdevices_presence = Field(None, "presence of data for external devices")

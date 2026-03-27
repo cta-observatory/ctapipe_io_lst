@@ -49,7 +49,7 @@ from .anyarray_dtypes import (
     parse_tib_10MHz_counter,
 )
 from .constants import (
-    HIGH_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, REFERENCE_LOCATION,
+    HIGH_GAIN, LOW_GAIN, LST_LOCATIONS, N_GAINS, N_PIXELS, N_SAMPLES, REFERENCE_LOCATION,
     PixelStatus, TriggerBits,
 )
 
@@ -502,6 +502,17 @@ class LSTEventSource(EventSource):
         reordered_waveform[:, pixel_id_map[stored_pixels]] = waveform
         waveform = reordered_waveform
 
+        # The code below has to be activated when (if ever) a version of
+        # ctapipe with the pixel_time_shift field in R1CameraContainer is
+        # pinned
+        #
+        # readout_shape = (n_channels, n_pixels)
+        # raw_pixel_time_shift = zfits_event.pixel_time_shift.reshape(readout_shape)
+        # pixel_time_shift_ns = raw_pixel_time_shift.astype(np.float32) / np.float32(100.0)   # 10's of ps to ns
+        # reordered_pixel_time_shift = np.full((n_channels, N_PIXELS), 0.0, dtype=np.float32)
+        # reordered_pixel_time_shift[:, pixel_id_map[stored_pixels]] = pixel_time_shift_ns
+        # pixel_time_shift = reordered_pixel_time_shift
+
 
         if zfits_event.num_channels == 2:
             selected_gain_channel = None
@@ -521,6 +532,9 @@ class LSTEventSource(EventSource):
         r1 = R1CameraContainer(
             waveform=waveform,
             selected_gain_channel=selected_gain_channel,
+            # As soon as pixel_time_shift is defined
+            # in ctapipe's R1CameraContainer:
+            # pixel_time_shift=pixel_time_shift
         )
 
         if CTAPIPE_GE_0_20:
@@ -543,11 +557,31 @@ class LSTEventSource(EventSource):
             self.pixel_id_map,
             set_dvr_bits=not self.dvr_applied,
         )
+
+        n_channels = zfits_event.num_channels
+        if self.dvr_applied:
+            stored_pixels = (zfits_event.pixel_status &
+                             np.uint8(PixelStatus.DVR_STATUS)) > 0
+            n_pixels = np.count_nonzero(stored_pixels)
+        else:
+            stored_pixels = slice(None)  # all pixels stored
+            n_pixels = zfits_event.num_pixels
+        readout_shape = (n_channels, n_pixels)
+        if zfits_event.pixel_time_shift is not None:
+            reordered_pixel_time_shift = np.full((n_channels, N_PIXELS), 0.0, dtype=np.float32)
+            raw_pixel_time_shift = zfits_event.pixel_time_shift.reshape(readout_shape)
+            pixel_time_shift_ns = raw_pixel_time_shift.astype(np.float32) / np.float32(100.0)   # 10's of ps to ns
+            pixel_id_map = self.camera_config.pixel_id_map
+            reordered_pixel_time_shift[:, pixel_id_map[stored_pixels]] = pixel_time_shift_ns
+            pixel_time_shift = reordered_pixel_time_shift
+        else:
+            pixel_time_shift = None
         evt = LSTEventContainer(
             pixel_status=pixel_status,
             first_capacitor_id=zfits_event.first_cell_id,
             calibration_monitoring_id=zfits_event.calibration_monitoring_id,
             local_clock_counter=zfits_event.module_hires_local_clock_counter,
+            pixel_time_shift = pixel_time_shift
         )
 
         if zfits_event.debug is not None:
@@ -680,6 +714,18 @@ class LSTEventSource(EventSource):
                 # already calibrated the data
                 if self.use_flatfield_heuristic:
                     self.tag_flatfield_events(array_event)
+            else:
+                # remove samples at beginning / end of waveform, but only if
+                # not yet done by EVB. We have at least some test data which
+                # were calibrated & gain selected by EvB, but taken with 40
+                # samples
+                r1 = array_event.r1.tel[self.tel_id]
+                if r1.waveform is not None:
+                    n_samples = r1.waveform.shape[-1]
+                    if n_samples == N_SAMPLES:
+                        start = self.r0_r1_calibrator.r1_sample_start.tel[self.tel_id]
+                        end =   self.r0_r1_calibrator.r1_sample_end.tel[self.tel_id]
+                        r1.waveform = r1.waveform[..., start:end]
 
             if self.pedestal_ids is not None:
                 self.check_interleaved_pedestal(array_event)
@@ -692,6 +738,18 @@ class LSTEventSource(EventSource):
                     or array_event.trigger.event_type not in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}
                 ):
                     self.r0_r1_calibrator.calibrate(array_event)
+
+            else:
+                # needed for charge scaling in ctapipe dl1 calibration (as of ctapipe 0.25.1)
+                for tel_id in array_event.trigger.tels_with_trigger:
+                    r1 = array_event.r1.tel[tel_id]
+
+                    relative_factor = np.empty((N_GAINS, N_PIXELS))
+                    relative_factor[HIGH_GAIN] = self.r0_r1_calibrator.calib_scale_high_gain.tel[tel_id]
+                    relative_factor[LOW_GAIN] = self.r0_r1_calibrator.calib_scale_low_gain.tel[tel_id]
+
+                    array_event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
+
 
             # dl1 and drs4 timeshift needs to be filled always
             self.r0_r1_calibrator.fill_time_correction(array_event)
@@ -903,7 +961,7 @@ class LSTEventSource(EventSource):
             return EventType.SUBARRAY
 
         # We only want to tag events as flatfield that *only* have the CALIBRATION bit
-        # or both CALIBRATION and MONO bits, since flatfield events might 
+        # or both CALIBRATION and MONO bits, since flatfield events might
         # trigger the physics trigger
         if trigger_bits == TriggerBits.CALIBRATION:
             return EventType.FLATFIELD
@@ -1021,7 +1079,7 @@ class LSTEventSource(EventSource):
         elif array_event.trigger.event_type == EventType.FLATFIELD:
             self.log.warning(
                 'Found FF event that does not fulfill FF criteria:'
-                f'{array_event.index.event_id}. Setting event type to UNKNOWN' 
+                f'{array_event.index.event_id}. Setting event type to UNKNOWN'
             )
             array_event.trigger.event_type = EventType.UNKNOWN
 

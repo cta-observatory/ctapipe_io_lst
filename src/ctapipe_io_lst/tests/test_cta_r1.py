@@ -28,7 +28,7 @@ from ctapipe_io_lst import LSTEventSource, CTAPIPE_GE_0_21
 from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ, TriggerBits
 from ctapipe_io_lst.event_time import time_to_cta_high
 from ctapipe_io_lst.evb_preprocessing import EVBPreprocessingFlag
-from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE
+from ctapipe_io_lst.anyarray_dtypes import CDTS_AFTER_37201_DTYPE, TIB_DTYPE, DRAGON_COUNTERS_DTYPE
 
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data'))
@@ -144,7 +144,7 @@ def dummy_cta_r1(dummy_cta_r1_dir):
     tdp_type[3] = TriggerBits.PEDESTAL
     tdp_action[4] = EVBPreprocessingFlag.BASELINE_SUBTRACTION
 
-
+    counters = np.zeros(265, dtype=DRAGON_COUNTERS_DTYPE).view(np.uint8)
     camera_config = CameraConfiguration(
         tel_id=1,
         local_run_id=10000,
@@ -275,6 +275,7 @@ def dummy_cta_r1(dummy_cta_r1_dir):
                     extdevices_presence=0b011,
                     cdts_data=numpy_to_any_array(cdts_data.view(np.uint8)),
                     tib_data=numpy_to_any_array(tib_data.view(np.uint8)),
+                    counters=numpy_to_any_array(counters),
                 )
             )
 
@@ -335,6 +336,7 @@ test_files = [
     "20231214/LST-1.1.Run16102.0000_first50.fits.fz",  # has only baseline enabled
     "20231218/LST-1.1.Run16231.0000_first50.fits.fz",  # baseline + gain selection for physics
     "20231219/LST-1.1.Run16255.0000_first50.fits.fz",  # all corrections + gain selection for physics
+    "20250326/LST-1.1.Run20527.0000_first50.fits.fz",  # data calibrated to p.e. by the EvB
 ]
 
 
