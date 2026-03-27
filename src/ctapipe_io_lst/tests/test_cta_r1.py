@@ -336,6 +336,7 @@ test_files = [
     "20231214/LST-1.1.Run16102.0000_first50.fits.fz",  # has only baseline enabled
     "20231218/LST-1.1.Run16231.0000_first50.fits.fz",  # baseline + gain selection for physics
     "20231219/LST-1.1.Run16255.0000_first50.fits.fz",  # all corrections + gain selection for physics
+    "20250326/LST-1.1.Run20527.0000_first50.fits.fz",  # data calibrated to p.e. by the EvB
 ]
 
 
