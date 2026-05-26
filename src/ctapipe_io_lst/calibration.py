@@ -406,30 +406,30 @@ class LSTR0Corrections(TelescopeComponent):
                     time_shift -= time_corr[r1.selected_gain_channel, PIXEL_INDEX].to_value(u.ns)
 
             # Change time_shift so that for each event the median correction
-            # for all pixels is zero. In this way we modify as little as 
-            # possible the times, as compared to their "raw" sample values in 
+            # for all pixels is zero. In this way we modify as little as
+            # possible the times, as compared to their "raw" sample values in
             # the readout waveforms. This is convenient to keep the information
             # of where the pulses were actually located within the readout
-            # window. NOTE: this means that the absolute *average* arrival 
-            # time of the events (relative to the trigger time) is a bit 
-            # less precise, because there are correlations in the DRS4 time 
-            # corrections of the bulk of the pixels. By correcting to the 
+            # window. NOTE: this means that the absolute *average* arrival
+            # time of the events (relative to the trigger time) is a bit
+            # less precise, because there are correlations in the DRS4 time
+            # corrections of the bulk of the pixels. By correcting to the
             # event median, we do not subtract these (quasi-) global shifts
             # in time of the bulk of the camera. This is visible also as an
-            # increase in the std dev of each pixel's time in FF events 
-            # (relative to the situation without the "median-event-t 
+            # increase in the std dev of each pixel's time in FF events
+            # (relative to the situation without the "median-event-t
             # correction". This increase is of a few percent, and is pixel
-            # dependent (some pixels have a DRS4 time correction more 
+            # dependent (some pixels have a DRS4 time correction more
             # correlated to the rest than others), so with this approach one
             # can also distinguish 3 populations of pixels with std dev of
-            # FF times between 1.02 ans 1.10 ns. What really matters, which 
+            # FF times between 1.02 ans 1.10 ns. What really matters, which
             # is the relative precision of the timing among pixels, is of
             # course not affected by this correction, since it is a global
             # shift per event.
             #
             if r1.selected_gain_channel is None:
                 time_shift = time_shift - np.nanmedian(time_shift)
-            else: 
+            else:
                 tmedian = np.nanmedian(time_shift[r1.selected_gain_channel,
                                                   PIXEL_INDEX])
                 time_shift = time_shift - tmedian
