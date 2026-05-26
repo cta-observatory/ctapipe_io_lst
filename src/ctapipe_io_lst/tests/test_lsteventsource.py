@@ -447,8 +447,11 @@ def test_evb_calibrated_data():
             time_shift = e.calibration.tel[1].dl1.time_shift
             sg = e.r1.tel[1].selected_gain_channel
             # Check that non-zero and different values are present for
-            # the selecetd channel:
-            assert np.std(time_shift[sg, np.arange(time_shift.shape[1])]) > 0
+            # the selected channel(s):
+            if sg is None:
+                assert np.std(time_shift) > 0
+            else:
+                assert np.std(time_shift[sg, np.arange(time_shift.shape[1])]) > 0
 
         assert read_events == 200
 
