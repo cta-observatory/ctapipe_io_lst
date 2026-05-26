@@ -378,7 +378,7 @@ class LSTR0Corrections(TelescopeComponent):
                     # pixel_time_shift from lst.evt (or from r1 in the future)
                     # is (1, N_PIXELS), and contains the correction for the
                     # selected gain. On the other hand, time_shift in
-                    # event.calibration.tel[tel_id].dl1 is (2, N_PIXELS) no 
+                    # event.calibration.tel[tel_id].dl1 is (2, N_PIXELS) no
                     # matter whether the data is gain selected or not
                     time_shift = np.zeros((N_GAINS, N_PIXELS))
                     time_shift[r1.selected_gain_channel,
