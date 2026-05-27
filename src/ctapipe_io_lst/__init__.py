@@ -25,7 +25,7 @@ from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
     CoordinateFrameType, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
-    SchedulingBlockContainer, ObservationBlockContainer, MonitoringContainer, MonitoringCameraContainer,
+    SchedulingBlockContainer, ObservationBlockContainer, MonitoringContainer,
     EventIndexContainer,
 )
 from ctapipe.coordinates import CameraFrame
