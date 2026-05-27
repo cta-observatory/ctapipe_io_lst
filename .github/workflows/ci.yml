@@ -67,7 +67,7 @@ jobs:
           if [[ "$CTAPIPE_VERSION" == "latest" ]]; then
             pip install pytest-cov ctapipe ${{ matrix.extra-reqs }}
           elif [[ "$CTAPIPE_VERSION" == "nightly" ]]; then
-            pip install pytest-cov "ctapipe@git+https://github.com/ctapipe/ctapipe.git@main" ${{ matrix.extra-reqs }}
+            pip install pytest-cov "ctapipe@git+https://github.com/cta-observatory/ctapipe.git@main" ${{ matrix.extra-reqs }}
           else
             pip install pytest-cov "ctapipe==$CTAPIPE_VERSION" ${{ matrix.extra-reqs }}
           fi
