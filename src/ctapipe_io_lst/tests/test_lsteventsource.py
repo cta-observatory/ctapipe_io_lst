@@ -341,10 +341,10 @@ def test_pointing_info():
         expected_az = 197.318 * u.deg
         for e in source:
             if CTAPIPE_GE_0_27:
-                assert u.isclose(e.monitoing.pointing.array_ra, expected_ra)
-                assert u.isclose(e.monitoing.pointing.array_dec, expected_dec)
-                assert u.isclose(e.monitoing.tel[1].pointing.altitude.to(u.deg), expected_alt, rtol=1e-2)
-                assert u.isclose(e.monitoing.tel[1].pointing.azimuth.to(u.deg), expected_az, rtol=1e-2)
+                assert u.isclose(e.monitoring.pointing.array_ra, expected_ra)
+                assert u.isclose(e.monitoring.pointing.array_dec, expected_dec)
+                assert u.isclose(e.monitoring.tel[1].pointing.altitude.to(u.deg), expected_alt, rtol=1e-2)
+                assert u.isclose(e.monitoring.tel[1].pointing.azimuth.to(u.deg), expected_az, rtol=1e-2)
             else:
                 assert u.isclose(e.pointing.array_ra, expected_ra)
                 assert u.isclose(e.pointing.array_dec, expected_dec)

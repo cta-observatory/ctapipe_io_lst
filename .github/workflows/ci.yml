@@ -34,7 +34,7 @@ jobs:
             ctapipe-version: "latest"
           - python-version: "3.13"
             ctapipe-version: "nightly"
-    continue-on-error: ${{ matrix.ctapipe-version == 'nightly' || matrix.ctapipe-version == 'latest' }}
+    continue-on-error: ${{ matrix.ctapipe-version == 'nightly' }}
 
     defaults:
       run:
