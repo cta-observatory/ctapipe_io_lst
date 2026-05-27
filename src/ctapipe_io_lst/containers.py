@@ -152,6 +152,7 @@ class LSTContainer(Container):
 class PixelStatusContainer(Container):
     """
     Container for pixel status information
+
     It contains masks obtained by several data analysis steps
     At r0/r1 level only the hardware_mask is initialized
     """

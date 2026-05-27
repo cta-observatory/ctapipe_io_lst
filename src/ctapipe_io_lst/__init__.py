@@ -1102,7 +1102,7 @@ class LSTEventSource(EventSource):
             array_event.monitoring.pointing.array_azimuth = pointing.azimuth
             array_event.monitoring.pointing.array_ra = ra
             array_event.monitoring.pointing.array_dec = dec
-        else: 
+        else:
             array_event.pointing.tel[tel_id] = pointing
             array_event.pointing.array_altitude = pointing.altitude
             array_event.pointing.array_azimuth = pointing.azimuth

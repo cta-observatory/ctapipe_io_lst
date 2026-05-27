@@ -293,7 +293,10 @@ def test_pointing_info():
         max_events=1
     ) as source:
         for e in source:
-            assert np.isnan(e.pointing.tel[1].azimuth)
+            if CTAPIPE_GE_0_27:
+                assert np.isnan(e.monitoring.tel[1].pointing.azimuth)
+            else:  
+                assert np.isnan(e.pointing.tel[1].azimuth)
 
     # test we get an error when requesting pointing info but nor drive report given
     with pytest.raises(ValueError):
