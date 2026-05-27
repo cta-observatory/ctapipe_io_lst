@@ -149,13 +149,6 @@ class LSTContainer(Container):
     )
 
 
-class LSTArrayEventContainer(ArrayEventContainer):
-    """
-    Data container including LST and monitoring information
-    """
-    lst = Field(default_factory=LSTContainer, description="LST specific Information")
-
-
 class PixelStatusContainer(Container):
     """
     Container for pixel status information
@@ -317,4 +310,27 @@ class MonitoringCameraContainer(Container):
     calibration = Field(
         default_factory=WaveformCalibrationContainer,
         description="Container for calibration coefficients",
+    )
+
+class MonitoringContainer(Container):
+    """
+    Root container for monitoring data (MON)
+    """
+
+    # create the camera container
+    tel = Field(
+        default_factory=partial(Map, MonitoringCameraContainer),
+        description="map of tel_id to MonitoringCameraContainer",
+    )
+
+
+class LSTArrayEventContainer(ArrayEventContainer):
+    """
+    Data container including LST and monitoring information
+    """
+    lst = Field(default_factory=LSTContainer, description="LST specific Information")
+    # Patch
+    mon = Field(
+        default_factory=MonitoringContainer,
+        description="container for event-wise monitoring data (MON)",
     )

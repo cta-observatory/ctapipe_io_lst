@@ -25,8 +25,7 @@ from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
     CoordinateFrameType, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
-    SchedulingBlockContainer, ObservationBlockContainer, MonitoringContainer,
-    EventIndexContainer,
+    SchedulingBlockContainer, ObservationBlockContainer, EventIndexContainer,
 )
 from ctapipe.coordinates import CameraFrame
 
@@ -57,9 +56,9 @@ from .constants import (
 from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessingFlag
 from .compat import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21, CTAPIPE_GE_0_27
 if CTAPIPE_GE_0_27:
-    from .containers import PixelStatusContainer, MonitoringCameraContainer
+    from .containers import PixelStatusContainer, MonitoringContainer, MonitoringCameraContainer
 else:
-    from ctapipe.containers import PixelStatusContainer, MonitoringCameraContainer
+    from ctapipe.containers import PixelStatusContainer, MonitoringContainer, MonitoringCameraContainer
 
 __all__ = [
     'LSTEventSource',
