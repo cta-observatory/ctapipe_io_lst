@@ -372,6 +372,14 @@ class LSTR0Corrections(TelescopeComponent):
             # if r1.pixel_time_shift is not None:
             # Until pixel_time_shift is in R1CameraContainer... :
             if lst.evt.pixel_time_shift is not None:
+                # We assume that when pixel_time_shift is present
+                # in the input data (written out by EvB) it contains also
+                # inter-pixel time flatfielding. So we should not add
+                # it later (in case e.g. a cat-A calibration file has
+                # been read in, and self.mon_data.tel[tel_id].calibration
+                # contains a non-zero time_correction value):
+                self.add_calibration_timeshift = False
+
                 if r1.selected_gain_channel is None:
                     time_shift = lst.evt.pixel_time_shift # r1.pixel_time_shift
                 else:
@@ -385,7 +393,7 @@ class LSTR0Corrections(TelescopeComponent):
                                np.arange(N_PIXELS)] = lst.evt.pixel_time_shift[0]
                                # When pixel_time_shift is in r1:
                                # np.arange(N_PIXELS)] = r1.pixel_time_shift[0]
-
+                
 
             # Otherwise, try to get the correction from a drs4 calib file:
             else:
