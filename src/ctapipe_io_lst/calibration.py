@@ -4,6 +4,7 @@ import numpy as np
 import astropy.units as u
 from numba import njit
 import tables
+import logging
 from astropy.io import fits
 
 from ctapipe.core import TelescopeComponent
@@ -199,6 +200,9 @@ class LSTR0Corrections(TelescopeComponent):
             subarray=subarray, config=config, parent=parent, **kwargs
         )
 
+
+        self.log.setLevel(logging.INFO)
+
         self.mon_data = None
         self.last_readout_time = {}
         self.first_cap = {}
@@ -378,7 +382,11 @@ class LSTR0Corrections(TelescopeComponent):
                 # it later (in case e.g. a cat-A calibration file has
                 # been read in, and self.mon_data.tel[tel_id].calibration
                 # contains a non-zero time_correction value):
-                self.add_calibration_timeshift = False
+                if self.add_calibration_timeshift is True:
+                    self.log.info("NOTE: Pixel_time_shift provided by EVB in R1,"
+                                  " not adding time shift from calibration file"
+                    )
+                    self.add_calibration_timeshift = False
 
                 if r1.selected_gain_channel is None:
                     time_shift = lst.evt.pixel_time_shift # r1.pixel_time_shift
