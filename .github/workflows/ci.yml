@@ -7,6 +7,9 @@ on:
     tags:
       - '**'
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *' # Daily at 02:00 UTC
 
 env:
   NUMBA_NUM_THREADS: 1
@@ -27,6 +30,11 @@ jobs:
             ctapipe-version: "0.25.0"
           - python-version: "3.12"
             ctapipe-version: "0.26.0"
+          - python-version: "3.13"
+            ctapipe-version: "latest"
+          - python-version: "3.13"
+            ctapipe-version: "nightly"
+    continue-on-error: ${{ matrix.ctapipe-version == 'nightly' || matrix.ctapipe-version == 'latest' }}
 
     defaults:
       run:
@@ -56,8 +64,14 @@ jobs:
           CTAPIPE_VERSION: ${{ matrix.ctapipe-version }}
         run: |
           pip install -e .
-          pip install pytest-cov "ctapipe==$CTAPIPE_VERSION" ${{ matrix.extra-reqs }}
-          ctapipe-info --version | grep "$CTAPIPE_VERSION"
+          if [[ "$CTAPIPE_VERSION" == "latest" ]]; then
+            pip install pytest-cov ctapipe ${{ matrix.extra-reqs }}
+          elif [[ "$CTAPIPE_VERSION" == "nightly" ]]; then
+            pip install pytest-cov "ctapipe@git+https://github.com/ctapipe/ctapipe.git@main" ${{ matrix.extra-reqs }}
+          else
+            pip install pytest-cov "ctapipe==$CTAPIPE_VERSION" ${{ matrix.extra-reqs }}
+          fi
+          ctapipe-info --version
           git describe --tags
 
       - name: Test Plugin
