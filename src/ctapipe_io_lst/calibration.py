@@ -14,13 +14,18 @@ from ctapipe.core.traits import (
 )
 
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
-from ctapipe.containers import FlatFieldContainer, MonitoringCameraContainer, MonitoringContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
+from ctapipe.containers import MonitoringContainer
 from ctapipe.io import HDF5TableReader, read_table
 from astropy.table import QTable
 from traitlets import Enum
 
-from .compat import CTAPIPE_GE_0_21
+from .compat import CTAPIPE_GE_0_21, CTAPIPE_GE_0_27
 from .containers import LSTArrayEventContainer
+if CTAPIPE_GE_0_27:
+    from .containers import FlatFieldContainer, MonitoringCameraContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
+else:
+    from ctapipe.containers import FlatFieldContainer, MonitoringCameraContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
+
 from .evb_preprocessing import EVBPreprocessingFlag
 
 

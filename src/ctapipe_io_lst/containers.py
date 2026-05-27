@@ -5,6 +5,8 @@ import numpy as np
 from ctapipe.core import Container, Field, Map
 from ctapipe.containers import ArrayEventContainer
 from functools import partial
+from astropy import units as u
+from numpy import nan
 
 
 __all__ = [
@@ -179,11 +181,140 @@ class PixelStatusContainer(Container):
         "n_chan, n_pix)",
     )
 
+
+class FlatFieldContainer(Container):
+    """
+    Container for flat-field parameters obtained from a set of
+    [n_events] flat-field events
+    """
+
+    sample_time = Field(
+        0 * u.s, "Time associated to the flat-field event set ", unit=u.s
+    )
+    sample_time_min = Field(
+        nan * u.s, "Minimum time of the flat-field events", unit=u.s
+    )
+    sample_time_max = Field(
+        nan * u.s, "Maximum time of the flat-field events", unit=u.s
+    )
+    n_events = Field(0, "Number of events used for statistics")
+
+    charge_mean = Field(None, "np array of signal charge mean (n_chan, n_pix)")
+    charge_median = Field(None, "np array of signal charge median (n_chan, n_pix)")
+    charge_std = Field(
+        None, "np array of signal charge standard deviation (n_chan, n_pix)"
+    )
+    time_mean = Field(None, "np array of signal time mean (n_chan, n_pix)", unit=u.ns)
+    time_median = Field(
+        None, "np array of signal time median (n_chan, n_pix)", unit=u.ns
+    )
+    time_std = Field(
+        None, "np array of signal time standard deviation (n_chan, n_pix)", unit=u.ns
+    )
+    relative_gain_mean = Field(
+        None, "np array of the relative flat-field coefficient mean (n_chan, n_pix)"
+    )
+    relative_gain_median = Field(
+        None, "np array of the relative flat-field coefficient  median (n_chan, n_pix)"
+    )
+    relative_gain_std = Field(
+        None,
+        "np array of the relative flat-field coefficient standard deviation (n_chan, n_pix)",
+    )
+    relative_time_median = Field(
+        None,
+        "np array of time (median) - time median averaged over camera (n_chan, n_pix)",
+        unit=u.ns,
+    )
+
+    charge_median_outliers = Field(
+        None, "Boolean np array of charge median outliers (n_chan, n_pix)"
+    )
+    charge_std_outliers = Field(
+        None, "Boolean np array of charge std outliers (n_chan, n_pix)"
+    )
+
+    time_median_outliers = Field(
+        None, "Boolean np array of pixel time (median) outliers (n_chan, n_pix)"
+    )
+
+
+class PedestalContainer(Container):
+    """
+    Container for pedestal parameters obtained from a set of
+    [n_pedestal] pedestal events
+    """
+
+    n_events = Field(-1, "Number of events used for statistics")
+    sample_time = Field(
+        nan * u.s, "Time associated to the pedestal event set", unit=u.s
+    )
+    sample_time_min = Field(nan * u.s, "Time of first pedestal event", unit=u.s)
+    sample_time_max = Field(nan * u.s, "Time of last pedestal event", unit=u.s)
+    charge_mean = Field(None, "np array of pedestal average (n_chan, n_pix)")
+    charge_median = Field(None, "np array of the pedestal  median (n_chan, n_pix)")
+    charge_std = Field(
+        None, "np array of the pedestal standard deviation (n_chan, n_pix)"
+    )
+    charge_median_outliers = Field(
+        None, "Boolean np array of the pedestal median outliers (n_chan, n_pix)"
+    )
+    charge_std_outliers = Field(
+        None, "Boolean np array of the pedestal std outliers (n_chan, n_pix)"
+    )
+
+class WaveformCalibrationContainer(Container):
+    """
+    Container for the pixel calibration coefficients
+    """
+
+    time = Field(nan * u.s, "Time associated to the calibration event", unit=u.s)
+    time_min = Field(
+        nan * u.s, "Earliest time of validity for the calibration event", unit=u.s
+    )
+    time_max = Field(
+        nan * u.s, "Latest time of validity for the calibration event", unit=u.s
+    )
+
+    dc_to_pe = Field(
+        None,
+        "np array of (digital count) to (photon electron) coefficients (n_chan, n_pix)",
+    )
+
+    pedestal_per_sample = Field(
+        None,
+        "np array of average pedestal value per sample (digital count) (n_chan, n_pix)",
+    )
+
+    time_correction = Field(None, "np array of time correction values (n_chan, n_pix)")
+
+    n_pe = Field(
+        None, "np array of photo-electrons in calibration signal (n_chan, n_pix)"
+    )
+
+    unusable_pixels = Field(
+        None,
+        "Boolean np array of final calibration data analysis, True = failing pixels (n_chan, n_pix)",
+    )
+
 class MonitoringCameraContainer(Container):
     """
     Container for camera monitoring data
     """
+
+    flatfield = Field(
+        default_factory=FlatFieldContainer,
+        description="Data from flat-field event distributions",
+    )
+    pedestal = Field(
+        default_factory=PedestalContainer,
+        description="Data from pedestal event distributions",
+    )
     pixel_status = Field(
         default_factory=PixelStatusContainer,
         description="Container for masks with pixel status",
+    )
+    calibration = Field(
+        default_factory=WaveformCalibrationContainer,
+        description="Container for calibration coefficients",
     )
