@@ -295,7 +295,7 @@ def test_pointing_info():
         for e in source:
             if CTAPIPE_GE_0_27:
                 assert np.isnan(e.monitoring.tel[1].pointing.azimuth)
-            else:  
+            else:
                 assert np.isnan(e.pointing.tel[1].azimuth)
 
     # test we get an error when requesting pointing info but nor drive report given

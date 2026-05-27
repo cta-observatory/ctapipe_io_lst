@@ -178,8 +178,7 @@ class PixelStatusContainer(Container):
 
 class FlatFieldContainer(Container):
     """
-    Container for flat-field parameters obtained from a set of
-    [n_events] flat-field events
+    Container for flat-field parameters 
     """
 
     sample_time = Field(
@@ -235,8 +234,7 @@ class FlatFieldContainer(Container):
 
 class PedestalContainer(Container):
     """
-    Container for pedestal parameters obtained from a set of
-    [n_pedestal] pedestal events
+    Container for pedestal parameters
     """
 
     n_events = Field(-1, "Number of events used for statistics")
