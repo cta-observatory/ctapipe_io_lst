@@ -13,6 +13,8 @@ __all__ = [
     'LSTCameraContainer',
     'LSTContainer',
     'LSTArrayEventContainer',
+    'PixelStatusContainer',
+    'MonitoringCameraContainer',
 ]
 
 
@@ -150,3 +152,38 @@ class LSTArrayEventContainer(ArrayEventContainer):
     Data container including LST and monitoring information
     """
     lst = Field(default_factory=LSTContainer, description="LST specific Information")
+
+
+class PixelStatusContainer(Container):
+    """
+    Container for pixel status information
+    It contains masks obtained by several data analysis steps
+    At r0/r1 level only the hardware_mask is initialized
+    """
+
+    hardware_failing_pixels = Field(
+        None,
+        "Boolean np array (True = failing pixel) from the hardware pixel status data ("
+        "n_chan, n_pix)",
+    )
+
+    pedestal_failing_pixels = Field(
+        None,
+        "Boolean np array (True = failing pixel) from the pedestal data analysis ("
+        "n_chan, n_pix)",
+    )
+
+    flatfield_failing_pixels = Field(
+        None,
+        "Boolean np array (True = failing pixel) from the flat-field data analysis ("
+        "n_chan, n_pix)",
+    )
+
+class MonitoringCameraContainer(Container):
+    """
+    Container for camera monitoring data
+    """
+    pixel_status = Field(
+        default_factory=PixelStatusContainer,
+        description="Container for masks with pixel status",
+    )

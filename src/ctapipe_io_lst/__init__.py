@@ -24,7 +24,7 @@ from ctapipe.io import EventSource, read_table
 from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
-    CoordinateFrameType, PixelStatusContainer, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
+    CoordinateFrameType, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
     SchedulingBlockContainer, ObservationBlockContainer, MonitoringContainer, MonitoringCameraContainer,
     EventIndexContainer,
 )
@@ -34,6 +34,7 @@ from ctapipe_io_lst.ground_frame import ground_frame_from_earth_location
 
 from .multifiles import MultiFiles
 from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer, LSTCameraContainer
+
 from .version import __version__
 from .calibration import LSTR0Corrections
 from .event_time import EventTimeCalculator, cta_high_res_to_time
@@ -54,8 +55,11 @@ from .constants import (
 )
 
 from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessingFlag
-from .compat import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21
-
+from .compat import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21, CTAPIPE_GE_0_27
+if CTAPIPE_GE_0_27:
+    from .containers import PixelStatusContainer, MonitoringCameraContainer
+else:
+    from ctapipe.containers import PixelStatusContainer, MonitoringCameraContainer
 
 __all__ = [
     'LSTEventSource',
