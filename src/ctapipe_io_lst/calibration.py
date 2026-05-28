@@ -50,6 +50,13 @@ def to_native(data):
         data = data.view(data.dtype.newbyteorder("="))
     return data
 
+
+def get_broken_pixels_from_status(pixel_status):
+    """Return a gain-wise broken-pixel mask derived from ``pixel_status``."""
+    pixel_status = np.asarray(pixel_status)
+    broken_pixels = (pixel_status & np.uint8(PixelStatus.BOTH_GAINS_STORED)) == 0
+    return np.broadcast_to(broken_pixels, (N_GAINS, N_PIXELS))
+
 def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
     '''
     Get the first capacitor for each pixel / gain
@@ -306,7 +313,10 @@ class LSTR0Corrections(TelescopeComponent):
             if self.offset.tel[tel_id] != 0:
                 r1.waveform -= self.offset.tel[tel_id]
 
-            broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
+            if CTAPIPE_GE_0_27:
+                broken_pixels = get_broken_pixels_from_status(r1.pixel_status)
+            else:
+                broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
             dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & np.uint8(PixelStatus.DVR_STATUS)) == 0
             invalid_pixels = broken_pixels | dvred_pixels
 
@@ -349,8 +359,10 @@ class LSTR0Corrections(TelescopeComponent):
                     calibration=calibration,
                     selected_gain_channel=r1.selected_gain_channel
                 )
-
-            broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
+            if CTAPIPE_GE_0_27:
+                broken_pixels = get_broken_pixels_from_status(r1.pixel_status)
+            else:
+                broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
             dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & np.uint8(PixelStatus.DVR_STATUS )) == 0
             invalid_pixels = broken_pixels | dvred_pixels
 

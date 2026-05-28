@@ -8,7 +8,8 @@ import pytest
 import tables
 from traitlets.config import Config
 
-from ctapipe_io_lst.constants import HIGH_GAIN
+from ..calibration import get_broken_pixels_from_status
+from ctapipe_io_lst.constants import HIGH_GAIN, N_GAINS, N_PIXELS, PixelStatus
 from ctapipe_io_lst.compat import CTAPIPE_GE_0_21, CTAPIPE_GE_0_27
 
 
@@ -247,10 +248,14 @@ def test_missing_module():
     with source:
         for event in source:
             waveform = event.r1.tel[1].waveform
-            assert waveform is not None
+            pixel_status = event.r1.tel[1].pixel_status
+            assert waveform is not None and pixel_status is not None
 
 
-            failing_pixels = event.mon.tel[1].pixel_status.hardware_failing_pixels
+            if CTAPIPE_GE_0_27:
+                failing_pixels = get_broken_pixels_from_status(r1.pixel_status)
+            else:
+                failing_pixels = event.mon.tel[1].pixel_status.hardware_failing_pixels
 
             # one module failed, in each gain channel
             assert np.count_nonzero(failing_pixels) ==  2 * N_PIXELS_MODULE

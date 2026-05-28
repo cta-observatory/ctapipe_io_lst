@@ -328,8 +328,3 @@ class LSTArrayEventContainer(ArrayEventContainer):
     Data container including LST and monitoring information
     """
     lst = Field(default_factory=LSTContainer, description="LST specific Information")
-    # Patch
-    mon = Field(
-        default_factory=MonitoringContainer,
-        description="container for event-wise monitoring data (MON)",
-    )

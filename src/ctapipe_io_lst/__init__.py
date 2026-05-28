@@ -657,7 +657,8 @@ class LSTEventSource(EventSource):
         # also add service container to the event section
 
         # initialize general monitoring container
-        mon = self.initialize_mon_container()
+        if not CTAPIPE_GE_0_27:
+            mon = self.initialize_mon_container()
 
         # loop on events
         for count, (_, zfits_event) in enumerate(self.multi_file):
@@ -669,14 +670,23 @@ class LSTEventSource(EventSource):
 
 
             # container for LST data
-            array_event = LSTArrayEventContainer(
-                count=count,
-                index=EventIndexContainer(
-                    obs_id=self.local_run_id,
-                    event_id=zfits_event.event_id,
-                ),
-                mon=mon,
-            )
+            if CTAPIPE_GE_0_27:
+                array_event = LSTArrayEventContainer(
+                    count=count,
+                    index=EventIndexContainer(
+                        obs_id=self.local_run_id,
+                        event_id=zfits_event.event_id,
+                    ),
+                )
+            else:
+                array_event = LSTArrayEventContainer(
+                    count=count,
+                    index=EventIndexContainer(
+                        obs_id=self.local_run_id,
+                        event_id=zfits_event.event_id,
+                    ),
+                    mon=mon,
+                )
             array_event.meta['input_url'] = self.input_url
             array_event.meta['max_events'] = self.max_events
             array_event.meta['origin'] = 'LSTCAM'
@@ -690,7 +700,8 @@ class LSTEventSource(EventSource):
                 self.fill_lst_event_container(array_event, zfits_event)
                 self.fill_trigger_info(array_event)
 
-            self.fill_mon_container(array_event, zfits_event)
+            if not CTAPIPE_GE_0_27:
+                self.fill_mon_container(array_event, zfits_event)
 
             # apply correction before the rest, so corrected time is used e.g. for pointing
             if self._event_time_correction is not None:
