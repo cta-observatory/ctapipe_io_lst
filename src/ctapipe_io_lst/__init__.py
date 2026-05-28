@@ -1097,7 +1097,7 @@ class LSTEventSource(EventSource):
             tel_id, array_event.trigger.time
         )
         if CTAPIPE_GE_0_27:
-            array_event.monitoring.pointing.tel[tel_id] = pointing
+            array_event.monitoring.tel[tel_id].pointing = pointing
             array_event.monitoring.pointing.array_altitude = pointing.altitude
             array_event.monitoring.pointing.array_azimuth = pointing.azimuth
             array_event.monitoring.pointing.array_ra = ra

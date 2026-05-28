@@ -12,7 +12,7 @@ from ctapipe.containers import CoordinateFrameType, EventType, PointingMode
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
 from ctapipe_io_lst.constants import LST1_LOCATION, N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS, PIXEL_INDEX
-from ctapipe_io_lst import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21, TriggerBits, PixelStatus
+from ctapipe_io_lst import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21, CTAPIPE_GE_0_27, TriggerBits, PixelStatus
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_dir = test_data / 'real/R0/20200218'
@@ -332,15 +332,21 @@ def test_pointing_info():
         assert obs.obs_id == 2008
         assert obs.sb_id == 2008
 
+        expected_ra = 83.6296 * u.deg
+        expected_dec = 22.0144 * u.deg
+        expected_alt = (90 - 7.03487) * u.deg
+        expected_az = 197.318 * u.deg
         for e in source:
-            assert u.isclose(e.pointing.array_ra, 83.6296 * u.deg)
-            assert u.isclose(e.pointing.array_dec, 22.0144 * u.deg)
-
-            expected_alt = (90 - 7.03487) * u.deg
-            assert u.isclose(e.pointing.tel[1].altitude.to(u.deg), expected_alt, rtol=1e-2)
-
-            expected_az = 197.318 * u.deg
-            assert u.isclose(e.pointing.tel[1].azimuth.to(u.deg), expected_az, rtol=1e-2)
+            if CTAPIPE_GE_0_27:
+                assert u.isclose(e.monitoing.pointing.array_ra, expected_ra)
+                assert u.isclose(e.monitoing.pointing.array_dec, expected_dec)
+                assert u.isclose(e.monitoing.tel[1].pointing.altitude.to(u.deg), expected_alt, rtol=1e-2)
+                assert u.isclose(e.monitoing.tel[1].pointing.azimuth.to(u.deg), expected_az, rtol=1e-2)
+            else:
+                assert u.isclose(e.pointing.array_ra, expected_ra)
+                assert u.isclose(e.pointing.array_dec, expected_dec)
+                assert u.isclose(e.pointing.tel[1].altitude.to(u.deg), expected_alt, rtol=1e-2)
+                assert u.isclose(e.pointing.tel[1].azimuth.to(u.deg), expected_az, rtol=1e-2)
 
 
 
@@ -450,7 +456,10 @@ def test_evb_calibrated_data():
             read_events = 0
             for e in source:
                 read_events += 1
-                time_shift = e.calibration.tel[1].dl1.time_shift
+                if CTAPIPE_GE_0_27:
+                    time_shift = e.monitoring.tel[1].camera.coefficients.time_shift
+                else:
+                    time_shift = e.calibration.tel[1].dl1.time_shift
                 sg = e.r1.tel[1].selected_gain_channel
                 # Check that non-zero and different values are present for
                 # the selected channel(s):
@@ -458,7 +467,6 @@ def test_evb_calibrated_data():
                     assert np.std(time_shift[sg, PIXEL_INDEX]) > 0
                 else:
                     assert np.std(time_shift) > 0
-
             assert read_events == 200
 
 
