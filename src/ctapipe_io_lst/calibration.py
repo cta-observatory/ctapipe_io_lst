@@ -362,9 +362,11 @@ class LSTR0Corrections(TelescopeComponent):
             relative_factor = np.empty((N_GAINS, N_PIXELS), dtype=np.float32)
             relative_factor[HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
             relative_factor[LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
-
-            event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
-            event.calibration.tel[tel_id].dl1.absolute_factor = np.ones((N_GAINS, N_PIXELS), dtype=np.float32)
+            if CTAPIPE_GE_0_27:
+                event.monitoring.tel[tel_id].camera.coefficients.factor = relative_factor
+            else:
+                event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
+                event.calibration.tel[tel_id].dl1.absolute_factor = np.ones((N_GAINS, N_PIXELS), dtype=np.float32)
 
     def fill_time_correction(self, event):
 
@@ -426,6 +428,7 @@ class LSTR0Corrections(TelescopeComponent):
                 else:
                     time_shift -= time_corr[r1.selected_gain_channel, PIXEL_INDEX].to_value(u.ns)
 
+            
             # Change time_shift so that for each event the median correction
             # for all pixels is zero. In this way we modify as little as
             # possible the times, as compared to their "raw" sample values in
@@ -456,8 +459,10 @@ class LSTR0Corrections(TelescopeComponent):
                 time_shift = time_shift - tmedian
                 # Keep as zero for non-selected gain:
                 time_shift[~r1.selected_gain_channel, PIXEL_INDEX] = 0
-
-            event.calibration.tel[tel_id].dl1.time_shift = time_shift
+            if CTAPIPE_GE_0_27:
+                event.monitoring.tel[tel_id].camera.coefficients.time_shift = time_shift
+            else:
+                event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
 
     @staticmethod

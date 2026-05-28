@@ -750,8 +750,10 @@ class LSTEventSource(EventSource):
                     relative_factor = np.empty((N_GAINS, N_PIXELS))
                     relative_factor[HIGH_GAIN] = self.r0_r1_calibrator.calib_scale_high_gain.tel[tel_id]
                     relative_factor[LOW_GAIN] = self.r0_r1_calibrator.calib_scale_low_gain.tel[tel_id]
-
-                    array_event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
+                    if CTAPIPE_GE_0_27:
+                        array_event.monitoring.tel[tel_id].camera.coefficients.factor = relative_factor
+                    else:
+                        array_event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
 
 
             # dl1 and drs4 timeshift needs to be filled always
@@ -1091,15 +1093,21 @@ class LSTEventSource(EventSource):
         pointing = self.pointing_source.get_pointing_position_altaz(
             tel_id, array_event.trigger.time,
         )
-        array_event.pointing.tel[tel_id] = pointing
-        array_event.pointing.array_altitude = pointing.altitude
-        array_event.pointing.array_azimuth = pointing.azimuth
-
         ra, dec = self.pointing_source.get_pointing_position_icrs(
             tel_id, array_event.trigger.time
         )
-        array_event.pointing.array_ra = ra
-        array_event.pointing.array_dec = dec
+        if CTAPIPE_GE_0_27:
+            array_event.monitoring.pointing.tel[tel_id] = pointing
+            array_event.monitoring.pointing.array_altitude = pointing.altitude
+            array_event.monitoring.pointing.array_azimuth = pointing.azimuth
+            array_event.monitoring.pointing.array_ra = ra
+            array_event.monitoring.pointing.array_dec = dec
+        else: 
+            array_event.pointing.tel[tel_id] = pointing
+            array_event.pointing.array_altitude = pointing.altitude
+            array_event.pointing.array_azimuth = pointing.azimuth
+            array_event.pointing.array_ra = ra
+            array_event.pointing.array_dec = dec
 
     def fill_r0r1_camera_container(self, zfits_event):
         """

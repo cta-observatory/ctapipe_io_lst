@@ -9,7 +9,7 @@ import tables
 from traitlets.config import Config
 
 from ctapipe_io_lst.constants import HIGH_GAIN
-from ctapipe_io_lst.compat import CTAPIPE_GE_0_21
+from ctapipe_io_lst.compat import CTAPIPE_GE_0_21, CTAPIPE_GE_0_27
 
 
 resource_dir = files('ctapipe_io_lst') / 'tests/resources'
@@ -218,7 +218,10 @@ def test_calibration(trigger_information,calib_config):
     with source:
         for event in source:
             assert event.r1.tel[1].waveform is not None
-            assert np.any(event.calibration.tel[1].dl1.time_shift != 0)
+            if CTAPIPE_GE_0_27:
+                assert np.any(event.monitoring.tel[1].camera.coefficients.time_shift != 0)
+            else:
+                assert np.any(event.calibration.tel[1].dl1.time_shift != 0)
 
 def test_missing_module():
     from ctapipe_io_lst import LSTEventSource
@@ -384,8 +387,10 @@ def test_calibrate_precalibrated():
         n_read = 0
         for event in source:
             n_read += 1
-
-            time_shift = event.calibration.tel[1].dl1.time_shift
+            if CTAPIPE_GE_0_27:
+                time_shift = event.monitoring.tel[1].camera.coefficients.time_shift
+            else:
+                time_shift = event.calibration.tel[1].dl1.time_shift
             # test we filled the timeshift although the data is pre-calibrated
             assert time_shift is not None
             assert np.any(time_shift != 0)
