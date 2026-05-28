@@ -429,9 +429,10 @@ def test_time_correction(timeshift):
 def test_evb_calibrated_data():
     from ctapipe_io_lst import LSTEventSource
     input_urls = ['real/R0/20231219/LST-1.1.Run16255.0000_first50.fits.fz',
-                  'real/R0/20250326/LST-1.1.Run20527.0000_first50.fits.fz']
-    drs4calib = [str(test_time_calib_path), None]
-    calib = [str(test_calib_path), None]
+                  'real/R0/20250326/LST-1.1.Run20527.0000_first50.fits.fz',
+                  'real/R0/20260521/LST-1.1.Run24235.0010_first50.fits.fz']
+    drs4calib = [str(test_time_calib_path), None, None]
+    calib = [str(test_calib_path), None, None]
 
     for input_url, dcal, cal in zip(input_urls, drs4calib, calib):
         input_url = test_data / input_url
