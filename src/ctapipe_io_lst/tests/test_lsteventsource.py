@@ -11,7 +11,7 @@ import tables
 from ctapipe.containers import CoordinateFrameType, EventType, PointingMode
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
-from ctapipe_io_lst.constants import LST1_LOCATION, N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS
+from ctapipe_io_lst.constants import LST1_LOCATION, N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS, PIXEL_INDEX
 from ctapipe_io_lst import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21, TriggerBits, PixelStatus
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
@@ -428,25 +428,38 @@ def test_time_correction(timeshift):
 
 def test_evb_calibrated_data():
     from ctapipe_io_lst import LSTEventSource
-    input_url = test_data / 'real/R0/20231219/LST-1.1.Run16255.0000_first50.fits.fz'
+    input_urls = ['real/R0/20231219/LST-1.1.Run16255.0000_first50.fits.fz',
+                  'real/R0/20250326/LST-1.1.Run20527.0000_first50.fits.fz',
+                  'real/R0/20260521/LST-1.1.Run24235.0010_first50.fits.fz']
+    drs4calib = [str(test_time_calib_path), None, None]
+    calib = [str(test_calib_path), None, None]
 
-    config = {
-        'LSTEventSource': {
-            "pointing_information": False,
-            'LSTR0Corrections': {
-                'drs4_time_calibration_path': str(test_time_calib_path),
-                'calibration_path': str(test_calib_path),
+    for input_url, dcal, cal in zip(input_urls, drs4calib, calib):
+        input_url = test_data / input_url
+        config = {
+            'LSTEventSource': {
+                "pointing_information": False,
+                'LSTR0Corrections': {
+                    'drs4_time_calibration_path': dcal,
+                    'calibration_path': cal,
+                },
             },
-        },
-    }
+        }
 
-    with LSTEventSource(input_url, config=Config(config)) as source:
-        read_events = 0
-        for e in source:
-            read_events += 1
-            assert np.all(e.calibration.tel[1].dl1.time_shift != 0)
+        with LSTEventSource(input_url, config=Config(config)) as source:
+            read_events = 0
+            for e in source:
+                read_events += 1
+                time_shift = e.calibration.tel[1].dl1.time_shift
+                sg = e.r1.tel[1].selected_gain_channel
+                # Check that non-zero and different values are present for
+                # the selected channel(s):
+                if sg is not None:
+                    assert np.std(time_shift[sg, PIXEL_INDEX]) > 0
+                else:
+                    assert np.std(time_shift) > 0
 
-        assert read_events == 200
+            assert read_events == 200
 
 
 def test_arbitrary_filename(tmp_path):

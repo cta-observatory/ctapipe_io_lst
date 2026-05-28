@@ -4,6 +4,7 @@ import numpy as np
 import astropy.units as u
 from numba import njit
 import tables
+import logging
 from astropy.io import fits
 
 from ctapipe.core import TelescopeComponent
@@ -199,6 +200,9 @@ class LSTR0Corrections(TelescopeComponent):
             subarray=subarray, config=config, parent=parent, **kwargs
         )
 
+
+        self.log.setLevel(logging.INFO)
+
         self.mon_data = None
         self.last_readout_time = {}
         self.first_cap = {}
@@ -372,13 +376,32 @@ class LSTR0Corrections(TelescopeComponent):
             # if r1.pixel_time_shift is not None:
             # Until pixel_time_shift is in R1CameraContainer... :
             if lst.evt.pixel_time_shift is not None:
+                # We assume that when pixel_time_shift is present
+                # in the input data (written out by EvB) it contains also
+                # inter-pixel time flatfielding. So we should not add
+                # it later (in case e.g. a cat-A calibration file has
+                # been read in, and self.mon_data.tel[tel_id].calibration
+                # contains a non-zero time_correction value):
+                if self.add_calibration_timeshift is True:
+                    self.log.info("NOTE: Pixel_time_shift provided by EVB in R1,"
+                                  " not adding time shift from calibration file"
+                    )
+                    self.add_calibration_timeshift = False
+
                 if r1.selected_gain_channel is None:
                     time_shift = lst.evt.pixel_time_shift # r1.pixel_time_shift
                 else:
+                    # pixel_time_shift from lst.evt (or from r1 in the future)
+                    # is (1, N_PIXELS), and contains the correction for the
+                    # selected gain. On the other hand, time_shift in
+                    # event.calibration.tel[tel_id].dl1 is (2, N_PIXELS) no
+                    # matter whether the data is gain selected or not
                     time_shift = np.zeros((N_GAINS, N_PIXELS))
                     time_shift[r1.selected_gain_channel,
-                               # np.arange(N_PIXELS)] = r1.pixel_time_shift[0]
                                np.arange(N_PIXELS)] = lst.evt.pixel_time_shift[0]
+                               # When pixel_time_shift is in r1:
+                               # np.arange(N_PIXELS)] = r1.pixel_time_shift[0]
+                
 
             # Otherwise, try to get the correction from a drs4 calib file:
             else:
@@ -397,6 +420,37 @@ class LSTR0Corrections(TelescopeComponent):
                     time_shift -= time_corr.to_value(u.ns)
                 else:
                     time_shift -= time_corr[r1.selected_gain_channel, PIXEL_INDEX].to_value(u.ns)
+
+            # Change time_shift so that for each event the median correction
+            # for all pixels is zero. In this way we modify as little as
+            # possible the times, as compared to their "raw" sample values in
+            # the readout waveforms. This is convenient to keep the information
+            # of where the pulses were actually located within the readout
+            # window. NOTE: this means that the absolute *average* arrival
+            # time of the events (relative to the trigger time) is a bit
+            # less precise, because there are correlations in the DRS4 time
+            # corrections of the bulk of the pixels. By correcting to the
+            # event median, we do not subtract these (quasi-) global shifts
+            # in time of the bulk of the camera. This is visible also as an
+            # increase in the std dev of each pixel's time in FF events
+            # (relative to the situation without the "median-event-t
+            # correction". This increase is of a few percent, and is pixel
+            # dependent (some pixels have a DRS4 time correction more
+            # correlated to the rest than others), so with this approach one
+            # can also distinguish 3 populations of pixels with std dev of
+            # FF times between 1.02 ans 1.10 ns. What really matters, which
+            # is the relative precision of the timing among pixels, is of
+            # course not affected by this correction, since it is a global
+            # shift per event.
+            #
+            if r1.selected_gain_channel is None:
+                time_shift = time_shift - np.nanmedian(time_shift)
+            else:
+                tmedian = np.nanmedian(time_shift[r1.selected_gain_channel,
+                                                  PIXEL_INDEX])
+                time_shift = time_shift - tmedian
+                # Keep as zero for non-selected gain:
+                time_shift[~r1.selected_gain_channel, PIXEL_INDEX] = 0
 
             event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
