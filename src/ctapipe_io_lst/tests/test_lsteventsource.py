@@ -169,13 +169,14 @@ def test_missing_modules_r1v1():
         # one module missing, so 7 pixels
         if CTAPIPE_GE_0_27:
             broken_pixels = get_broken_pixels_from_status(event.r1.tel[1].pixel_status)
-            assert np.count_nonzero(broken_pixels) == N_PIXELS_MODULE * N_GAINS
         else:
-            assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
+            broken_pixels = event.mon.tel[1].pixel_status.hardware_failing_pixels
+        assert np.count_nonzero(broken_pixels) == N_PIXELS_MODULE * N_GAINS
         assert np.count_nonzero(event.r0.tel[1].waveform == 0.0) == N_PIXELS_MODULE * N_SAMPLES * N_GAINS
 
-        missing_gain, missing_pixel = np.nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels)
+        missing_gain, missing_pixel = np.nonzero(broken_pixels)
         # 514 is one of the missing pixels
+
         for gain, pixel in zip(missing_gain, missing_pixel):
             np.testing.assert_equal(event.r0.tel[1].waveform[gain, pixel], 0.0)
 
