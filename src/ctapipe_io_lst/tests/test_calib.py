@@ -8,7 +8,7 @@ import pytest
 import tables
 from traitlets.config import Config
 
-from ..calibration import get_broken_pixels_from_status
+from ctapipe_io_lst.calibration import get_broken_pixels_from_status
 from ctapipe_io_lst.constants import HIGH_GAIN
 from ctapipe_io_lst.compat import CTAPIPE_GE_0_21, CTAPIPE_GE_0_27
 

@@ -13,6 +13,7 @@ from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
 from ctapipe_io_lst.constants import LST1_LOCATION, N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS, PIXEL_INDEX
 from ctapipe_io_lst import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21, CTAPIPE_GE_0_27, TriggerBits, PixelStatus
+from ctapipe_io_lst.calibration import get_broken_pixels_from_status
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_dir = test_data / 'real/R0/20200218'
@@ -56,7 +57,11 @@ def test_loop_over_events():
             n_samples = event.lst.tel[telid].svc.num_samples
             waveform_shape = (n_gains, n_pixels, n_samples)
             assert event.r0.tel[telid].waveform.shape == waveform_shape
-            assert event.mon.tel[telid].pixel_status.hardware_failing_pixels.shape == (n_gains, n_pixels)
+            if CTAPIPE_GE_0_27:
+                broken_pixels = get_broken_pixels_from_status(event.r0.tel[telid].pixel_status)
+                assert broken_pixels.shape == (n_gains, n_pixels)
+            else:
+                assert event.mon.tel[telid].pixel_status.hardware_failing_pixels.shape == (n_gains, n_pixels)
 
     # make sure max_events works
     assert (i + 1) == n_events
@@ -136,7 +141,11 @@ def test_missing_modules():
     fill = np.iinfo(np.uint16).max
     for event in source:
         # one module missing, so 7 pixels
-        assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
+        if CTAPIPE_GE_0_27:
+            broken_pixels = get_broken_pixels_from_status(event.r0.tel[1].pixel_status)
+            assert np.count_nonzero(broken_pixels) == N_PIXELS_MODULE * N_GAINS
+        else:
+            assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
         assert np.count_nonzero(event.r0.tel[1].waveform == fill) == N_PIXELS_MODULE * N_SAMPLES * N_GAINS
 
         # 514 is one of the missing pixels
@@ -158,7 +167,11 @@ def test_missing_modules_r1v1():
     for event in source:
         n_events += 1
         # one module missing, so 7 pixels
-        assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
+        if CTAPIPE_GE_0_27:
+            broken_pixels = get_broken_pixels_from_status(event.r0.tel[1].pixel_status)
+            assert np.count_nonzero(broken_pixels) == N_PIXELS_MODULE * N_GAINS
+        else:
+            assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
         assert np.count_nonzero(event.r0.tel[1].waveform == 0.0) == N_PIXELS_MODULE * N_SAMPLES * N_GAINS
 
         missing_gain, missing_pixel = np.nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels)
