@@ -430,19 +430,21 @@ def test_evb_calibrated_data():
     from ctapipe_io_lst import LSTEventSource
     input_urls = ['real/R0/20231219/LST-1.1.Run16255.0000_first50.fits.fz',
                   'real/R0/20250326/LST-1.1.Run20527.0000_first50.fits.fz']
+    drs4calib = [str(test_time_calib_path), None]
+    calib = [str(test_calib_path), None]
 
-    config = {
-        'LSTEventSource': {
-            "pointing_information": False,
-            'LSTR0Corrections': {
-                'drs4_time_calibration_path': str(test_time_calib_path),
-                'calibration_path': str(test_calib_path),
-            },
-        },
-    }
-
-    for input_url in input_urls:
+    for input_url, dcal, cal in zip(input_urls, drs4calib, calib):
         input_url = test_data / input_url
+        config = {
+            'LSTEventSource': {
+                "pointing_information": False,
+                'LSTR0Corrections': {
+                    'drs4_time_calibration_path': dcal,
+                    'calibration_path': cal,
+                },
+            },
+        }
+
         with LSTEventSource(input_url, config=Config(config)) as source:
             read_events = 0
             for e in source:
