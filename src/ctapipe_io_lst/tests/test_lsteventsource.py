@@ -58,7 +58,7 @@ def test_loop_over_events():
             waveform_shape = (n_gains, n_pixels, n_samples)
             assert event.r0.tel[telid].waveform.shape == waveform_shape
             if CTAPIPE_GE_0_27:
-                broken_pixels = get_broken_pixels_from_status(event.r0.tel[telid].pixel_status)
+                broken_pixels = get_broken_pixels_from_status(event.r1.tel[telid].pixel_status)
                 assert broken_pixels.shape == (n_gains, n_pixels)
             else:
                 assert event.mon.tel[telid].pixel_status.hardware_failing_pixels.shape == (n_gains, n_pixels)
@@ -142,7 +142,7 @@ def test_missing_modules():
     for event in source:
         # one module missing, so 7 pixels
         if CTAPIPE_GE_0_27:
-            broken_pixels = get_broken_pixels_from_status(event.r0.tel[1].pixel_status)
+            broken_pixels = get_broken_pixels_from_status(event.r1.tel[1].pixel_status)
             assert np.count_nonzero(broken_pixels) == N_PIXELS_MODULE * N_GAINS
         else:
             assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
@@ -168,7 +168,7 @@ def test_missing_modules_r1v1():
         n_events += 1
         # one module missing, so 7 pixels
         if CTAPIPE_GE_0_27:
-            broken_pixels = get_broken_pixels_from_status(event.r0.tel[1].pixel_status)
+            broken_pixels = get_broken_pixels_from_status(event.r1.tel[1].pixel_status)
             assert np.count_nonzero(broken_pixels) == N_PIXELS_MODULE * N_GAINS
         else:
             assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
