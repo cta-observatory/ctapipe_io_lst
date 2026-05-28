@@ -9,7 +9,7 @@ import tables
 from traitlets.config import Config
 
 from ..calibration import get_broken_pixels_from_status
-from ctapipe_io_lst.constants import HIGH_GAIN, N_GAINS, N_PIXELS, PixelStatus
+from ctapipe_io_lst.constants import HIGH_GAIN
 from ctapipe_io_lst.compat import CTAPIPE_GE_0_21, CTAPIPE_GE_0_27
 
 
@@ -253,7 +253,7 @@ def test_missing_module():
 
 
             if CTAPIPE_GE_0_27:
-                failing_pixels = get_broken_pixels_from_status(r1.pixel_status)
+                failing_pixels = get_broken_pixels_from_status(pixel_status)
             else:
                 failing_pixels = event.mon.tel[1].pixel_status.hardware_failing_pixels
 
