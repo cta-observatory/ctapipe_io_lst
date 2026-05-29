@@ -37,8 +37,7 @@ test_drs4_pedestal_path = test_data / 'real/monitoring/PixelCalibration/LevelA/d
 
 subarray = LSTEventSource.create_subarray(tel_id=1)
 GEOMETRY = subarray.tel[1].camera.geometry
-pulse_shape = subarray.tel[1].camera.readout.reference_pulse_shape[0]
-pulse_shape = pulse_shape[np.newaxis, ...]
+pulse_shape = subarray.tel[1].camera.readout.reference_pulse_shape[0][np.newaxis, ...]
 
 waveform_model = WaveformModel(
     reference_pulse=pulse_shape,

@@ -669,23 +669,13 @@ class LSTEventSource(EventSource):
 
 
             # container for LST data
-            if CTAPIPE_GE_0_27:
-                array_event = LSTArrayEventContainer(
-                    count=count,
-                    index=EventIndexContainer(
-                        obs_id=self.local_run_id,
-                        event_id=zfits_event.event_id,
-                    ),
-                )
-            else:
-                array_event = LSTArrayEventContainer(
-                    count=count,
-                    index=EventIndexContainer(
-                        obs_id=self.local_run_id,
-                        event_id=zfits_event.event_id,
-                    ),
-                    mon=mon,
-                )
+            array_event = LSTArrayEventContainer(
+                count=count,
+                index=EventIndexContainer(
+                    obs_id=self.local_run_id,
+                    event_id=zfits_event.event_id,
+                ),
+            )
             array_event.meta['input_url'] = self.input_url
             array_event.meta['max_events'] = self.max_events
             array_event.meta['origin'] = 'LSTCAM'
@@ -700,6 +690,7 @@ class LSTEventSource(EventSource):
                 self.fill_trigger_info(array_event)
 
             if not CTAPIPE_GE_0_27:
+                array_event.mon = mon
                 self.fill_mon_container(array_event, zfits_event)
 
             # apply correction before the rest, so corrected time is used e.g. for pointing
