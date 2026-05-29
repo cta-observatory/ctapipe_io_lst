@@ -54,7 +54,7 @@ from .constants import (
 )
 
 from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessingFlag
-from .compat import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21, CTAPIPE_GE_0_27
+from .compat import CTAPIPE_GE_0_27
 if CTAPIPE_GE_0_27:
     from .containers import PixelStatusContainer, MonitoringContainer, MonitoringCameraContainer
 else:
@@ -540,10 +540,9 @@ class LSTEventSource(EventSource):
             # pixel_time_shift=pixel_time_shift
         )
 
-        if CTAPIPE_GE_0_20:
-            r1.pixel_status = pixel_status
-            r1.event_type = EventType(zfits_event.event_type)
-            r1.event_time = trigger.time
+        r1.pixel_status = pixel_status
+        r1.event_type = EventType(zfits_event.event_type)
+        r1.event_time = trigger.time
 
         array_event.r1.tel[self.tel_id] = r1
 
