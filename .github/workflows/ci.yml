@@ -31,7 +31,7 @@ jobs:
           - python-version: "3.12"
             ctapipe-version: "0.26.0"
           - python-version: "3.13"
-            ctapipe-version: "latest"
+            ctapipe-version: "0.30.0"
           - python-version: "3.13"
             ctapipe-version: "nightly"
     continue-on-error: ${{ matrix.ctapipe-version == 'nightly' }}
@@ -64,9 +64,7 @@ jobs:
           CTAPIPE_VERSION: ${{ matrix.ctapipe-version }}
         run: |
           pip install -e .
-          if [[ "$CTAPIPE_VERSION" == "latest" ]]; then
-            pip install pytest-cov ctapipe ${{ matrix.extra-reqs }}
-          elif [[ "$CTAPIPE_VERSION" == "nightly" ]]; then
+          if [[ "$CTAPIPE_VERSION" == "nightly" ]]; then
             pip install pytest-cov "ctapipe@git+https://github.com/cta-observatory/ctapipe.git@main" ${{ matrix.extra-reqs }}
           else
             pip install pytest-cov "ctapipe==$CTAPIPE_VERSION" ${{ matrix.extra-reqs }}
