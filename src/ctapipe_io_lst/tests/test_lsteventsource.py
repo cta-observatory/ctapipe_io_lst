@@ -281,7 +281,7 @@ def test_dvr():
             readout_pixels = (dvr_event.lst.tel[1].evt.pixel_status & np.uint8(PixelStatus.DVR_STATUS)) > 0
 
             assert np.allclose(dvr_event.r1.tel[1].waveform[:, readout_pixels], waveform[readout_pixels])
-            
+
     assert dvr_event.count == 199
 
 
@@ -349,8 +349,7 @@ def test_pointing_info():
                 tel_pointing = e.monitoring.tel[1].pointing
             else:
                 array_pointing = e.pointing
-                tel_pointing = e.tel[1].pointing                
-
+                tel_pointing = e.tel[1].pointing
             assert u.isclose(array_pointing.array_ra, expected_ra)
             assert u.isclose(array_pointing.array_dec, expected_dec)
             assert u.isclose(tel_pointing.altitude.to(u.deg), expected_alt, rtol=1e-2)
