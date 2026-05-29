@@ -265,7 +265,7 @@ def test_missing_module():
 
             # waveforms in failing pixels must be all 0
             np.testing.assert_equal(waveform[:, failing_pixels[HIGH_GAIN]], 0)
-            
+
 def test_no_gain_selection():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.constants import N_PIXELS, N_GAINS, N_SAMPLES

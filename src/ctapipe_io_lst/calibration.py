@@ -573,7 +573,7 @@ class LSTR0Corrections(TelescopeComponent):
         if tel_id not in self.fan:
             self.load_drs4_time_calibration_file_for_tel(tel_id)
 
-        if selected_gain_channel is None: 
+        if selected_gain_channel is None:
             return calc_drs4_time_correction_both_gains(
                 first_capacitors,
                 self.fan[tel_id],

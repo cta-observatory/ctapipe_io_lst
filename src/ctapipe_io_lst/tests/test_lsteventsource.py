@@ -223,7 +223,7 @@ def test_gain_selected():
                 assert event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
 
             assert event.r1.tel[1].waveform.shape == (1, N_PIXELS, N_SAMPLES - 4)
-            
+
             # compare to original file
             selected_gain = gain_selector(original_event.r1.tel[1].waveform)
             pixel_idx = np.arange(N_PIXELS)
