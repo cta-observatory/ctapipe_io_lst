@@ -30,7 +30,7 @@ jobs:
             ctapipe-version: "0.25.0"
           - python-version: "3.12"
             ctapipe-version: "0.26.0"
-          - python-version: "3.13"
+          - python-version: "3.14"
             ctapipe-version: "0.30.0"
           - python-version: "3.13"
             ctapipe-version: "nightly"
