@@ -24,9 +24,8 @@ from ctapipe.io import EventSource, read_table
 from ctapipe.io.datalevels import DataLevel
 from ctapipe.core.traits import Bool, Float, Enum, Path
 from ctapipe.containers import (
-    CoordinateFrameType, PixelStatusContainer, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
-    SchedulingBlockContainer, ObservationBlockContainer, MonitoringContainer, MonitoringCameraContainer,
-    EventIndexContainer,
+    CoordinateFrameType, EventType, PointingMode, R0CameraContainer, R1CameraContainer,
+    SchedulingBlockContainer, ObservationBlockContainer, EventIndexContainer,
 )
 from ctapipe.coordinates import CameraFrame
 
@@ -34,6 +33,7 @@ from ctapipe_io_lst.ground_frame import ground_frame_from_earth_location
 
 from .multifiles import MultiFiles
 from .containers import LSTArrayEventContainer, LSTServiceContainer, LSTEventContainer, LSTCameraContainer
+
 from .version import __version__
 from .calibration import LSTR0Corrections
 from .event_time import EventTimeCalculator, cta_high_res_to_time
@@ -54,8 +54,11 @@ from .constants import (
 )
 
 from .evb_preprocessing import get_processings_for_trigger_bits, EVBPreprocessingFlag
-from .compat import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21
-
+from .compat import CTAPIPE_GE_0_27
+if CTAPIPE_GE_0_27:
+    from .containers import PixelStatusContainer, MonitoringContainer, MonitoringCameraContainer
+else:
+    from ctapipe.containers import PixelStatusContainer, MonitoringContainer, MonitoringCameraContainer
 
 __all__ = [
     'LSTEventSource',
@@ -537,10 +540,9 @@ class LSTEventSource(EventSource):
             # pixel_time_shift=pixel_time_shift
         )
 
-        if CTAPIPE_GE_0_20:
-            r1.pixel_status = pixel_status
-            r1.event_type = EventType(zfits_event.event_type)
-            r1.event_time = trigger.time
+        r1.pixel_status = pixel_status
+        r1.event_type = EventType(zfits_event.event_type)
+        r1.event_time = trigger.time
 
         array_event.r1.tel[self.tel_id] = r1
 
@@ -654,7 +656,8 @@ class LSTEventSource(EventSource):
         # also add service container to the event section
 
         # initialize general monitoring container
-        mon = self.initialize_mon_container()
+        if not CTAPIPE_GE_0_27:
+            mon = self.initialize_mon_container()
 
         # loop on events
         for count, (_, zfits_event) in enumerate(self.multi_file):
@@ -672,7 +675,6 @@ class LSTEventSource(EventSource):
                     obs_id=self.local_run_id,
                     event_id=zfits_event.event_id,
                 ),
-                mon=mon,
             )
             array_event.meta['input_url'] = self.input_url
             array_event.meta['max_events'] = self.max_events
@@ -687,7 +689,9 @@ class LSTEventSource(EventSource):
                 self.fill_lst_event_container(array_event, zfits_event)
                 self.fill_trigger_info(array_event)
 
-            self.fill_mon_container(array_event, zfits_event)
+            if not CTAPIPE_GE_0_27:
+                array_event.mon = mon
+                self.fill_mon_container(array_event, zfits_event)
 
             # apply correction before the rest, so corrected time is used e.g. for pointing
             if self._event_time_correction is not None:
@@ -747,22 +751,19 @@ class LSTEventSource(EventSource):
                     relative_factor = np.empty((N_GAINS, N_PIXELS))
                     relative_factor[HIGH_GAIN] = self.r0_r1_calibrator.calib_scale_high_gain.tel[tel_id]
                     relative_factor[LOW_GAIN] = self.r0_r1_calibrator.calib_scale_low_gain.tel[tel_id]
-
-                    array_event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
+                    if CTAPIPE_GE_0_27:
+                        array_event.monitoring.tel[tel_id].camera.coefficients.factor = relative_factor
+                    else:
+                        array_event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
 
 
             # dl1 and drs4 timeshift needs to be filled always
             self.r0_r1_calibrator.fill_time_correction(array_event)
 
-            # since ctapipe 0.21, waveform is always 3d, also for gain selected data
-            # FIXME: this is the easiest solution to keep compatibility for ctapipe < 0.21
-            # once we drop all version < 0.21, the proper solution would be to directly fill
-            # the correct shape
-            if CTAPIPE_GE_0_21:
-                for c in (array_event.r0, array_event.r1):
-                    for tel_c in c.tel.values():
-                        if tel_c.waveform is not None and tel_c.waveform.ndim == 2:
-                            tel_c.waveform = tel_c.waveform[np.newaxis, ...]
+            for c in (array_event.r0, array_event.r1):
+                for tel_c in c.tel.values():
+                    if tel_c.waveform is not None and tel_c.waveform.ndim == 2:
+                        tel_c.waveform = tel_c.waveform[np.newaxis, ...]
 
             yield array_event
 
@@ -1035,8 +1036,7 @@ class LSTEventSource(EventSource):
         if trigger.event_type == EventType.UNKNOWN:
             self.log.warning(f'Event {array_event.index.event_id} has unknown event type, trigger: {trigger_bits:08b}')
 
-        if CTAPIPE_GE_0_20:
-            array_event.r1.tel[tel_id].event_type = trigger.event_type
+        array_event.r1.tel[tel_id].event_type = trigger.event_type
 
     def tag_flatfield_events(self, array_event):
         '''
@@ -1088,15 +1088,21 @@ class LSTEventSource(EventSource):
         pointing = self.pointing_source.get_pointing_position_altaz(
             tel_id, array_event.trigger.time,
         )
-        array_event.pointing.tel[tel_id] = pointing
-        array_event.pointing.array_altitude = pointing.altitude
-        array_event.pointing.array_azimuth = pointing.azimuth
-
         ra, dec = self.pointing_source.get_pointing_position_icrs(
             tel_id, array_event.trigger.time
         )
-        array_event.pointing.array_ra = ra
-        array_event.pointing.array_dec = dec
+        if CTAPIPE_GE_0_27:
+            array_event.monitoring.tel[tel_id].pointing = pointing
+            array_event.monitoring.pointing.array_altitude = pointing.altitude
+            array_event.monitoring.pointing.array_azimuth = pointing.azimuth
+            array_event.monitoring.pointing.array_ra = ra
+            array_event.monitoring.pointing.array_dec = dec
+        else:
+            array_event.pointing.tel[tel_id] = pointing
+            array_event.pointing.array_altitude = pointing.altitude
+            array_event.pointing.array_azimuth = pointing.azimuth
+            array_event.pointing.array_ra = ra
+            array_event.pointing.array_dec = dec
 
     def fill_r0r1_camera_container(self, zfits_event):
         """
@@ -1168,15 +1174,14 @@ class LSTEventSource(EventSource):
             r0 = R0CameraContainer(waveform=reordered_waveform)
             r1 = R1CameraContainer()
 
-        if CTAPIPE_GE_0_20:
-            # reorder to nominal pixel order
-            pixel_status = _reorder_pixel_status(
-                zfits_event.pixel_status, pixel_id_map, set_dvr_bits=not self.dvr_applied
-            )
-            r1.pixel_status = pixel_status
-            r1.event_time = cta_high_res_to_time(
-                zfits_event.trigger_time_s, zfits_event.trigger_time_qns,
-            )
+        # reorder to nominal pixel order
+        pixel_status = _reorder_pixel_status(
+            zfits_event.pixel_status, pixel_id_map, set_dvr_bits=not self.dvr_applied
+        )
+        r1.pixel_status = pixel_status
+        r1.event_time = cta_high_res_to_time(
+            zfits_event.trigger_time_s, zfits_event.trigger_time_qns,
+        )
 
         return r0, r1
 
@@ -1262,5 +1267,4 @@ class LSTEventSource(EventSource):
             return
 
         array_event.trigger.event_type = event_type
-        if CTAPIPE_GE_0_20:
-            array_event.r1.tel[self.tel_id].event_type = event_type
+        array_event.r1.tel[self.tel_id].event_type = event_type

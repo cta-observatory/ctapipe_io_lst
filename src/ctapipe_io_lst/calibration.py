@@ -14,13 +14,18 @@ from ctapipe.core.traits import (
 )
 
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
-from ctapipe.containers import FlatFieldContainer, MonitoringCameraContainer, MonitoringContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
+from ctapipe.containers import MonitoringContainer
 from ctapipe.io import HDF5TableReader, read_table
 from astropy.table import QTable
 from traitlets import Enum
 
-from .compat import CTAPIPE_GE_0_21
+from .compat import CTAPIPE_GE_0_27
 from .containers import LSTArrayEventContainer
+if CTAPIPE_GE_0_27:
+    from .containers import FlatFieldContainer, MonitoringCameraContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
+else:
+    from ctapipe.containers import FlatFieldContainer, MonitoringCameraContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
+
 from .evb_preprocessing import EVBPreprocessingFlag
 
 
@@ -44,6 +49,13 @@ def to_native(data):
         data = data.byteswap()
         data = data.view(data.dtype.newbyteorder("="))
     return data
+
+
+def get_broken_pixels_from_status(pixel_status):
+    """Return a gain-wise broken-pixel mask derived from ``pixel_status``."""
+    pixel_status = np.asarray(pixel_status)
+    broken_pixels = (pixel_status & np.uint8(PixelStatus.BOTH_GAINS_STORED)) == 0
+    return np.broadcast_to(broken_pixels, (N_GAINS, N_PIXELS))
 
 def get_first_capacitors_for_pixels(first_capacitor_id, expected_pixel_id=None):
     '''
@@ -301,7 +313,10 @@ class LSTR0Corrections(TelescopeComponent):
             if self.offset.tel[tel_id] != 0:
                 r1.waveform -= self.offset.tel[tel_id]
 
-            broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
+            if CTAPIPE_GE_0_27:
+                broken_pixels = get_broken_pixels_from_status(r1.pixel_status)
+            else:
+                broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
             dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & np.uint8(PixelStatus.DVR_STATUS)) == 0
             invalid_pixels = broken_pixels | dvred_pixels
 
@@ -344,8 +359,10 @@ class LSTR0Corrections(TelescopeComponent):
                     calibration=calibration,
                     selected_gain_channel=r1.selected_gain_channel
                 )
-
-            broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
+            if CTAPIPE_GE_0_27:
+                broken_pixels = get_broken_pixels_from_status(r1.pixel_status)
+            else:
+                broken_pixels = event.mon.tel[tel_id].pixel_status.hardware_failing_pixels
             dvred_pixels = (event.lst.tel[tel_id].evt.pixel_status & np.uint8(PixelStatus.DVR_STATUS )) == 0
             invalid_pixels = broken_pixels | dvred_pixels
 
@@ -357,9 +374,11 @@ class LSTR0Corrections(TelescopeComponent):
             relative_factor = np.empty((N_GAINS, N_PIXELS), dtype=np.float32)
             relative_factor[HIGH_GAIN] = self.calib_scale_high_gain.tel[tel_id]
             relative_factor[LOW_GAIN] = self.calib_scale_low_gain.tel[tel_id]
-
-            event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
-            event.calibration.tel[tel_id].dl1.absolute_factor = np.ones((N_GAINS, N_PIXELS), dtype=np.float32)
+            if CTAPIPE_GE_0_27:
+                event.monitoring.tel[tel_id].camera.coefficients.factor = relative_factor
+            else:
+                event.calibration.tel[tel_id].dl1.relative_factor = relative_factor
+                event.calibration.tel[tel_id].dl1.absolute_factor = np.ones((N_GAINS, N_PIXELS), dtype=np.float32)
 
     def fill_time_correction(self, event):
 
@@ -416,10 +435,7 @@ class LSTR0Corrections(TelescopeComponent):
                 
                 # time_shift is subtracted in ctapipe,
                 # but time_correction should be added
-                if CTAPIPE_GE_0_21 or r1.selected_gain_channel is None:
-                    time_shift -= time_corr.to_value(u.ns)
-                else:
-                    time_shift -= time_corr[r1.selected_gain_channel, PIXEL_INDEX].to_value(u.ns)
+                time_shift -= time_corr.to_value(u.ns)
 
             # Change time_shift so that for each event the median correction
             # for all pixels is zero. In this way we modify as little as
@@ -451,8 +467,10 @@ class LSTR0Corrections(TelescopeComponent):
                 time_shift = time_shift - tmedian
                 # Keep as zero for non-selected gain:
                 time_shift[~r1.selected_gain_channel, PIXEL_INDEX] = 0
-
-            event.calibration.tel[tel_id].dl1.time_shift = time_shift
+            if CTAPIPE_GE_0_27:
+                event.monitoring.tel[tel_id].camera.coefficients.time_shift = time_shift
+            else:
+                event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
 
     @staticmethod
@@ -542,28 +560,17 @@ class LSTR0Corrections(TelescopeComponent):
         """
  
         if self.drs4_time_calibration_path.tel[tel_id] is None:
-            if CTAPIPE_GE_0_21 or selected_gain_channel is None:
-                return np.zeros((N_GAINS, N_PIXELS))
-            else:
-                return np.zeros(N_PIXELS)
+            return np.zeros((N_GAINS, N_PIXELS))
 
         # load calib file if not already done
         if tel_id not in self.fan:
             self.load_drs4_time_calibration_file_for_tel(tel_id)
 
-        if CTAPIPE_GE_0_21 or selected_gain_channel is None: 
-            return calc_drs4_time_correction_both_gains(
-                first_capacitors,
-                self.fan[tel_id],
-                self.fbn[tel_id],
-            )
-        else:
-            return calc_drs4_time_correction_gain_selected(
-                first_capacitors,
-                selected_gain_channel,
-                self.fan[tel_id],
-                self.fbn[tel_id],
-            )
+        return calc_drs4_time_correction_both_gains(
+            first_capacitors,
+            self.fan[tel_id],
+            self.fbn[tel_id],
+        )
 
     @staticmethod
     @lru_cache(maxsize=4)

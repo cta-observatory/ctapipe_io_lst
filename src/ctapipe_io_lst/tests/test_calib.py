@@ -8,8 +8,9 @@ import pytest
 import tables
 from traitlets.config import Config
 
+from ctapipe_io_lst.calibration import get_broken_pixels_from_status
 from ctapipe_io_lst.constants import HIGH_GAIN
-from ctapipe_io_lst.compat import CTAPIPE_GE_0_21
+from ctapipe_io_lst.compat import CTAPIPE_GE_0_27
 
 
 resource_dir = files('ctapipe_io_lst') / 'tests/resources'
@@ -218,7 +219,10 @@ def test_calibration(trigger_information,calib_config):
     with source:
         for event in source:
             assert event.r1.tel[1].waveform is not None
-            assert np.any(event.calibration.tel[1].dl1.time_shift != 0)
+            if CTAPIPE_GE_0_27:
+                assert np.any(event.monitoring.tel[1].camera.coefficients.time_shift != 0)
+            else:
+                assert np.any(event.calibration.tel[1].dl1.time_shift != 0)
 
 def test_missing_module():
     from ctapipe_io_lst import LSTEventSource
@@ -244,10 +248,14 @@ def test_missing_module():
     with source:
         for event in source:
             waveform = event.r1.tel[1].waveform
-            assert waveform is not None
+            pixel_status = event.r1.tel[1].pixel_status
+            assert waveform is not None and pixel_status is not None
 
 
-            failing_pixels = event.mon.tel[1].pixel_status.hardware_failing_pixels
+            if CTAPIPE_GE_0_27:
+                failing_pixels = get_broken_pixels_from_status(pixel_status)
+            else:
+                failing_pixels = event.mon.tel[1].pixel_status.hardware_failing_pixels
 
             # one module failed, in each gain channel
             assert np.count_nonzero(failing_pixels) ==  2 * N_PIXELS_MODULE
@@ -256,10 +264,7 @@ def test_missing_module():
             assert np.count_nonzero(waveform == 0) >= N_PIXELS_MODULE * (N_SAMPLES - 4)
 
             # waveforms in failing pixels must be all 0
-            if CTAPIPE_GE_0_21:
-                np.testing.assert_equal(waveform[:, failing_pixels[HIGH_GAIN]], 0)
-            else:
-                np.testing.assert_equal(waveform[failing_pixels[HIGH_GAIN]], 0)
+            np.testing.assert_equal(waveform[:, failing_pixels[HIGH_GAIN]], 0)
 
 def test_no_gain_selection():
     from ctapipe_io_lst import LSTEventSource
@@ -384,8 +389,10 @@ def test_calibrate_precalibrated():
         n_read = 0
         for event in source:
             n_read += 1
-
-            time_shift = event.calibration.tel[1].dl1.time_shift
+            if CTAPIPE_GE_0_27:
+                time_shift = event.monitoring.tel[1].camera.coefficients.time_shift
+            else:
+                time_shift = event.calibration.tel[1].dl1.time_shift
             # test we filled the timeshift although the data is pre-calibrated
             assert time_shift is not None
             assert np.any(time_shift != 0)

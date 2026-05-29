@@ -12,7 +12,8 @@ from ctapipe.containers import CoordinateFrameType, EventType, PointingMode
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
 from ctapipe_io_lst.constants import LST1_LOCATION, N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS, PIXEL_INDEX
-from ctapipe_io_lst import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21, TriggerBits, PixelStatus
+from ctapipe_io_lst import CTAPIPE_GE_0_27, TriggerBits, PixelStatus
+from ctapipe_io_lst.calibration import get_broken_pixels_from_status
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
 test_r0_dir = test_data / 'real/R0/20200218'
@@ -56,7 +57,11 @@ def test_loop_over_events():
             n_samples = event.lst.tel[telid].svc.num_samples
             waveform_shape = (n_gains, n_pixels, n_samples)
             assert event.r0.tel[telid].waveform.shape == waveform_shape
-            assert event.mon.tel[telid].pixel_status.hardware_failing_pixels.shape == (n_gains, n_pixels)
+            if CTAPIPE_GE_0_27:
+                broken_pixels = get_broken_pixels_from_status(event.r1.tel[telid].pixel_status)
+                assert broken_pixels.shape == (n_gains, n_pixels)
+            else:
+                assert event.mon.tel[telid].pixel_status.hardware_failing_pixels.shape == (n_gains, n_pixels)
 
     # make sure max_events works
     assert (i + 1) == n_events
@@ -136,7 +141,11 @@ def test_missing_modules():
     fill = np.iinfo(np.uint16).max
     for event in source:
         # one module missing, so 7 pixels
-        assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
+        if CTAPIPE_GE_0_27:
+            broken_pixels = get_broken_pixels_from_status(event.r1.tel[1].pixel_status)
+            assert np.count_nonzero(broken_pixels) == N_PIXELS_MODULE * N_GAINS
+        else:
+            assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
         assert np.count_nonzero(event.r0.tel[1].waveform == fill) == N_PIXELS_MODULE * N_SAMPLES * N_GAINS
 
         # 514 is one of the missing pixels
@@ -158,16 +167,20 @@ def test_missing_modules_r1v1():
     for event in source:
         n_events += 1
         # one module missing, so 7 pixels
-        assert np.count_nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels) == N_PIXELS_MODULE * N_GAINS
+        if CTAPIPE_GE_0_27:
+            broken_pixels = get_broken_pixels_from_status(event.r1.tel[1].pixel_status)
+        else:
+            broken_pixels = event.mon.tel[1].pixel_status.hardware_failing_pixels
+        assert np.count_nonzero(broken_pixels) == N_PIXELS_MODULE * N_GAINS
         assert np.count_nonzero(event.r0.tel[1].waveform == 0.0) == N_PIXELS_MODULE * N_SAMPLES * N_GAINS
 
-        missing_gain, missing_pixel = np.nonzero(event.mon.tel[1].pixel_status.hardware_failing_pixels)
+        missing_gain, missing_pixel = np.nonzero(broken_pixels)
         # 514 is one of the missing pixels
+
         for gain, pixel in zip(missing_gain, missing_pixel):
             np.testing.assert_equal(event.r0.tel[1].waveform[gain, pixel], 0.0)
 
-        if CTAPIPE_GE_0_20:
-            np.testing.assert_equal(event.lst.tel[1].evt.pixel_status, event.r1.tel[1].pixel_status)
+        np.testing.assert_equal(event.lst.tel[1].evt.pixel_status, event.r1.tel[1].pixel_status)
 
     assert n_events == 40
 
@@ -209,10 +222,7 @@ def test_gain_selected():
             if event.r0.tel[1].waveform is not None:
                 assert event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
 
-            if CTAPIPE_GE_0_21:
-                assert event.r1.tel[1].waveform.shape == (1, N_PIXELS, N_SAMPLES - 4)
-            else:
-                assert event.r1.tel[1].waveform.shape == (N_PIXELS, N_SAMPLES - 4)
+            assert event.r1.tel[1].waveform.shape == (1, N_PIXELS, N_SAMPLES - 4)
 
             # compare to original file
             selected_gain = gain_selector(original_event.r1.tel[1].waveform)
@@ -261,10 +271,7 @@ def test_dvr():
             if dvr_event.r0.tel[1].waveform is not None:
                 assert dvr_event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
 
-            if CTAPIPE_GE_0_21:
-                assert dvr_event.r1.tel[1].waveform.shape == (1, N_PIXELS, N_SAMPLES - 4)
-            else:
-                assert dvr_event.r1.tel[1].waveform.shape == (N_PIXELS, N_SAMPLES - 4)
+            assert dvr_event.r1.tel[1].waveform.shape == (1, N_PIXELS, N_SAMPLES - 4)
 
             # compare to original file
             selected_gain = gain_selector(original_event.r1.tel[1].waveform)
@@ -273,10 +280,7 @@ def test_dvr():
 
             readout_pixels = (dvr_event.lst.tel[1].evt.pixel_status & np.uint8(PixelStatus.DVR_STATUS)) > 0
 
-            if CTAPIPE_GE_0_21:
-                assert np.allclose(dvr_event.r1.tel[1].waveform[:, readout_pixels], waveform[readout_pixels])
-            else:
-                assert np.allclose(dvr_event.r1.tel[1].waveform[readout_pixels], waveform[readout_pixels])
+            assert np.allclose(dvr_event.r1.tel[1].waveform[:, readout_pixels], waveform[readout_pixels])
 
     assert dvr_event.count == 199
 
@@ -293,7 +297,10 @@ def test_pointing_info():
         max_events=1
     ) as source:
         for e in source:
-            assert np.isnan(e.pointing.tel[1].azimuth)
+            if CTAPIPE_GE_0_27:
+                assert np.isnan(e.monitoring.tel[1].pointing.azimuth)
+            else:
+                assert np.isnan(e.pointing.tel[1].azimuth)
 
     # test we get an error when requesting pointing info but nor drive report given
     with pytest.raises(ValueError):
@@ -332,15 +339,21 @@ def test_pointing_info():
         assert obs.obs_id == 2008
         assert obs.sb_id == 2008
 
+        expected_ra = 83.6296 * u.deg
+        expected_dec = 22.0144 * u.deg
+        expected_alt = (90 - 7.03487) * u.deg
+        expected_az = 197.318 * u.deg
         for e in source:
-            assert u.isclose(e.pointing.array_ra, 83.6296 * u.deg)
-            assert u.isclose(e.pointing.array_dec, 22.0144 * u.deg)
-
-            expected_alt = (90 - 7.03487) * u.deg
-            assert u.isclose(e.pointing.tel[1].altitude.to(u.deg), expected_alt, rtol=1e-2)
-
-            expected_az = 197.318 * u.deg
-            assert u.isclose(e.pointing.tel[1].azimuth.to(u.deg), expected_az, rtol=1e-2)
+            if CTAPIPE_GE_0_27:
+                array_pointing = e.monitoring.pointing
+                tel_pointing = e.monitoring.tel[1].pointing
+            else:
+                array_pointing = e.pointing
+                tel_pointing = e.pointing.tel[1]
+            assert u.isclose(array_pointing.array_ra, expected_ra)
+            assert u.isclose(array_pointing.array_dec, expected_dec)
+            assert u.isclose(tel_pointing.altitude.to(u.deg), expected_alt, rtol=1e-2)
+            assert u.isclose(tel_pointing.azimuth.to(u.deg), expected_az, rtol=1e-2)
 
 
 
@@ -364,8 +377,7 @@ def test_pedestal_events(tmp_path):
             else:
                 assert event.trigger.event_type != EventType.SKY_PEDESTAL
 
-            if CTAPIPE_GE_0_20:
-                assert event.r1.tel[1].event_type == event.trigger.event_type
+            assert event.r1.tel[1].event_type == event.trigger.event_type
 
 
 @pytest.mark.parametrize(
@@ -450,7 +462,10 @@ def test_evb_calibrated_data():
             read_events = 0
             for e in source:
                 read_events += 1
-                time_shift = e.calibration.tel[1].dl1.time_shift
+                if CTAPIPE_GE_0_27:
+                    time_shift = e.monitoring.tel[1].camera.coefficients.time_shift
+                else:
+                    time_shift = e.calibration.tel[1].dl1.time_shift
                 sg = e.r1.tel[1].selected_gain_channel
                 # Check that non-zero and different values are present for
                 # the selected channel(s):
@@ -458,7 +473,6 @@ def test_evb_calibrated_data():
                     assert np.std(time_shift[sg, PIXEL_INDEX]) > 0
                 else:
                     assert np.std(time_shift) > 0
-
             assert read_events == 200
 
 
