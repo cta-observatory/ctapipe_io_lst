@@ -24,7 +24,7 @@ except ModuleNotFoundError:
     # current protozfits
     from protozfits.anyarray import numpy_to_any_array
 
-from ctapipe_io_lst import LSTEventSource, CTAPIPE_GE_0_21
+from ctapipe_io_lst import LSTEventSource
 from ctapipe_io_lst.constants import CLOCK_FREQUENCY_KHZ, TriggerBits
 from ctapipe_io_lst.event_time import time_to_cta_high
 from ctapipe_io_lst.evb_preprocessing import EVBPreprocessingFlag
@@ -38,8 +38,7 @@ test_drs4_pedestal_path = test_data / 'real/monitoring/PixelCalibration/LevelA/d
 subarray = LSTEventSource.create_subarray(tel_id=1)
 GEOMETRY = subarray.tel[1].camera.geometry
 pulse_shape = subarray.tel[1].camera.readout.reference_pulse_shape[0]
-if CTAPIPE_GE_0_21:
-    pulse_shape = pulse_shape[np.newaxis, ...]
+pulse_shape = pulse_shape[np.newaxis, ...]
 
 waveform_model = WaveformModel(
     reference_pulse=pulse_shape,
@@ -80,9 +79,7 @@ def create_shower(rng):
 
 
 def create_waveform(image, peak_time, num_samples=40, gains=(86, 5), offset=400):
-    r1 = waveform_model.get_waveform(image, peak_time, num_samples)
-    if CTAPIPE_GE_0_21:
-        r1 = r1[0]
+    r1 = waveform_model.get_waveform(image, peak_time, num_samples)[0]
     return np.array([r1 * gain + offset for gain in gains]).astype(np.uint16)
 
 
@@ -321,10 +318,7 @@ def test_drs4_calibration(dummy_cta_r1):
 
             assert e.r1.tel[1].waveform.dtype == np.float32
             if e.trigger.event_type is EventType.SUBARRAY:
-                if CTAPIPE_GE_0_21:
-                    assert e.r1.tel[1].waveform.shape == (1, 1855, 36)
-                else:
-                    assert e.r1.tel[1].waveform.shape == (1855, 36)
+                assert e.r1.tel[1].waveform.shape == (1, 1855, 36)
             else:
                 assert e.r1.tel[1].waveform.shape == (2, 1855, 36)
 

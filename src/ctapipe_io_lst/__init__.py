@@ -770,15 +770,10 @@ class LSTEventSource(EventSource):
             # dl1 and drs4 timeshift needs to be filled always
             self.r0_r1_calibrator.fill_time_correction(array_event)
 
-            # since ctapipe 0.21, waveform is always 3d, also for gain selected data
-            # FIXME: this is the easiest solution to keep compatibility for ctapipe < 0.21
-            # once we drop all version < 0.21, the proper solution would be to directly fill
-            # the correct shape
-            if CTAPIPE_GE_0_21:
-                for c in (array_event.r0, array_event.r1):
-                    for tel_c in c.tel.values():
-                        if tel_c.waveform is not None and tel_c.waveform.ndim == 2:
-                            tel_c.waveform = tel_c.waveform[np.newaxis, ...]
+            for c in (array_event.r0, array_event.r1):
+                for tel_c in c.tel.values():
+                    if tel_c.waveform is not None and tel_c.waveform.ndim == 2:
+                        tel_c.waveform = tel_c.waveform[np.newaxis, ...]
 
             yield array_event
 
@@ -1051,8 +1046,7 @@ class LSTEventSource(EventSource):
         if trigger.event_type == EventType.UNKNOWN:
             self.log.warning(f'Event {array_event.index.event_id} has unknown event type, trigger: {trigger_bits:08b}')
 
-        if CTAPIPE_GE_0_20:
-            array_event.r1.tel[tel_id].event_type = trigger.event_type
+        array_event.r1.tel[tel_id].event_type = trigger.event_type
 
     def tag_flatfield_events(self, array_event):
         '''
@@ -1190,15 +1184,14 @@ class LSTEventSource(EventSource):
             r0 = R0CameraContainer(waveform=reordered_waveform)
             r1 = R1CameraContainer()
 
-        if CTAPIPE_GE_0_20:
-            # reorder to nominal pixel order
-            pixel_status = _reorder_pixel_status(
-                zfits_event.pixel_status, pixel_id_map, set_dvr_bits=not self.dvr_applied
-            )
-            r1.pixel_status = pixel_status
-            r1.event_time = cta_high_res_to_time(
-                zfits_event.trigger_time_s, zfits_event.trigger_time_qns,
-            )
+        # reorder to nominal pixel order
+        pixel_status = _reorder_pixel_status(
+            zfits_event.pixel_status, pixel_id_map, set_dvr_bits=not self.dvr_applied
+        )
+        r1.pixel_status = pixel_status
+        r1.event_time = cta_high_res_to_time(
+            zfits_event.trigger_time_s, zfits_event.trigger_time_qns,
+        )
 
         return r0, r1
 
@@ -1284,5 +1277,4 @@ class LSTEventSource(EventSource):
             return
 
         array_event.trigger.event_type = event_type
-        if CTAPIPE_GE_0_20:
-            array_event.r1.tel[self.tel_id].event_type = event_type
+        array_event.r1.tel[self.tel_id].event_type = event_type

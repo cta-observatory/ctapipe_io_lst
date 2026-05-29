@@ -10,7 +10,7 @@ from traitlets.config import Config
 
 from ctapipe_io_lst.calibration import get_broken_pixels_from_status
 from ctapipe_io_lst.constants import HIGH_GAIN
-from ctapipe_io_lst.compat import CTAPIPE_GE_0_21, CTAPIPE_GE_0_27
+from ctapipe_io_lst.compat import CTAPIPE_GE_0_27
 
 
 resource_dir = files('ctapipe_io_lst') / 'tests/resources'
@@ -264,11 +264,8 @@ def test_missing_module():
             assert np.count_nonzero(waveform == 0) >= N_PIXELS_MODULE * (N_SAMPLES - 4)
 
             # waveforms in failing pixels must be all 0
-            if CTAPIPE_GE_0_21:
-                np.testing.assert_equal(waveform[:, failing_pixels[HIGH_GAIN]], 0)
-            else:
-                np.testing.assert_equal(waveform[failing_pixels[HIGH_GAIN]], 0)
-
+            np.testing.assert_equal(waveform[:, failing_pixels[HIGH_GAIN]], 0)
+            
 def test_no_gain_selection():
     from ctapipe_io_lst import LSTEventSource
     from ctapipe_io_lst.constants import N_PIXELS, N_GAINS, N_SAMPLES

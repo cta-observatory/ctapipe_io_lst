@@ -12,7 +12,7 @@ from ctapipe.containers import CoordinateFrameType, EventType, PointingMode
 from ctapipe.calib.camera.gainselection import ThresholdGainSelector
 
 from ctapipe_io_lst.constants import LST1_LOCATION, N_GAINS, N_PIXELS_MODULE, N_SAMPLES, N_PIXELS, PIXEL_INDEX
-from ctapipe_io_lst import CTAPIPE_GE_0_20, CTAPIPE_GE_0_21, CTAPIPE_GE_0_27, TriggerBits, PixelStatus
+from ctapipe_io_lst import CTAPIPE_GE_0_27, TriggerBits, PixelStatus
 from ctapipe_io_lst.calibration import get_broken_pixels_from_status
 
 test_data = Path(os.getenv('LSTCHAIN_TEST_DATA', 'test_data')).absolute()
@@ -180,8 +180,7 @@ def test_missing_modules_r1v1():
         for gain, pixel in zip(missing_gain, missing_pixel):
             np.testing.assert_equal(event.r0.tel[1].waveform[gain, pixel], 0.0)
 
-        if CTAPIPE_GE_0_20:
-            np.testing.assert_equal(event.lst.tel[1].evt.pixel_status, event.r1.tel[1].pixel_status)
+        np.testing.assert_equal(event.lst.tel[1].evt.pixel_status, event.r1.tel[1].pixel_status)
 
     assert n_events == 40
 
@@ -223,11 +222,8 @@ def test_gain_selected():
             if event.r0.tel[1].waveform is not None:
                 assert event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
 
-            if CTAPIPE_GE_0_21:
-                assert event.r1.tel[1].waveform.shape == (1, N_PIXELS, N_SAMPLES - 4)
-            else:
-                assert event.r1.tel[1].waveform.shape == (N_PIXELS, N_SAMPLES - 4)
-
+            assert event.r1.tel[1].waveform.shape == (1, N_PIXELS, N_SAMPLES - 4)
+            
             # compare to original file
             selected_gain = gain_selector(original_event.r1.tel[1].waveform)
             pixel_idx = np.arange(N_PIXELS)
@@ -275,11 +271,8 @@ def test_dvr():
             if dvr_event.r0.tel[1].waveform is not None:
                 assert dvr_event.r0.tel[1].waveform.shape == (N_GAINS, N_PIXELS, N_SAMPLES)
 
-            if CTAPIPE_GE_0_21:
-                assert dvr_event.r1.tel[1].waveform.shape == (1, N_PIXELS, N_SAMPLES - 4)
-            else:
-                assert dvr_event.r1.tel[1].waveform.shape == (N_PIXELS, N_SAMPLES - 4)
-
+            assert dvr_event.r1.tel[1].waveform.shape == (1, N_PIXELS, N_SAMPLES - 4)
+            
             # compare to original file
             selected_gain = gain_selector(original_event.r1.tel[1].waveform)
             pixel_idx = np.arange(N_PIXELS)
@@ -287,11 +280,8 @@ def test_dvr():
 
             readout_pixels = (dvr_event.lst.tel[1].evt.pixel_status & np.uint8(PixelStatus.DVR_STATUS)) > 0
 
-            if CTAPIPE_GE_0_21:
-                assert np.allclose(dvr_event.r1.tel[1].waveform[:, readout_pixels], waveform[readout_pixels])
-            else:
-                assert np.allclose(dvr_event.r1.tel[1].waveform[readout_pixels], waveform[readout_pixels])
-
+            assert np.allclose(dvr_event.r1.tel[1].waveform[:, readout_pixels], waveform[readout_pixels])
+            
     assert dvr_event.count == 199
 
 
@@ -387,8 +377,7 @@ def test_pedestal_events(tmp_path):
             else:
                 assert event.trigger.event_type != EventType.SKY_PEDESTAL
 
-            if CTAPIPE_GE_0_20:
-                assert event.r1.tel[1].event_type == event.trigger.event_type
+            assert event.r1.tel[1].event_type == event.trigger.event_type
 
 
 @pytest.mark.parametrize(

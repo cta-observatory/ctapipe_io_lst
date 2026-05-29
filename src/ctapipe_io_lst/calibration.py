@@ -19,7 +19,7 @@ from ctapipe.io import HDF5TableReader, read_table
 from astropy.table import QTable
 from traitlets import Enum
 
-from .compat import CTAPIPE_GE_0_21, CTAPIPE_GE_0_27
+from .compat import CTAPIPE_GE_0_27
 from .containers import LSTArrayEventContainer
 if CTAPIPE_GE_0_27:
     from .containers import FlatFieldContainer, MonitoringCameraContainer, PedestalContainer, PixelStatusContainer, WaveformCalibrationContainer
@@ -435,7 +435,7 @@ class LSTR0Corrections(TelescopeComponent):
                 
                 # time_shift is subtracted in ctapipe,
                 # but time_correction should be added
-                if CTAPIPE_GE_0_21 or r1.selected_gain_channel is None:
+                if r1.selected_gain_channel is None:
                     time_shift -= time_corr.to_value(u.ns)
                 else:
                     time_shift -= time_corr[r1.selected_gain_channel, PIXEL_INDEX].to_value(u.ns)
@@ -564,7 +564,7 @@ class LSTR0Corrections(TelescopeComponent):
         """
  
         if self.drs4_time_calibration_path.tel[tel_id] is None:
-            if CTAPIPE_GE_0_21 or selected_gain_channel is None:
+            if selected_gain_channel is None:
                 return np.zeros((N_GAINS, N_PIXELS))
             else:
                 return np.zeros(N_PIXELS)
@@ -573,7 +573,7 @@ class LSTR0Corrections(TelescopeComponent):
         if tel_id not in self.fan:
             self.load_drs4_time_calibration_file_for_tel(tel_id)
 
-        if CTAPIPE_GE_0_21 or selected_gain_channel is None: 
+        if selected_gain_channel is None: 
             return calc_drs4_time_correction_both_gains(
                 first_capacitors,
                 self.fan[tel_id],
