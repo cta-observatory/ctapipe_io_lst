@@ -349,7 +349,7 @@ def test_pointing_info():
                 tel_pointing = e.monitoring.tel[1].pointing
             else:
                 array_pointing = e.pointing
-                tel_pointing = e.tel[1].pointing
+                tel_pointing = e.pointing.tel[1]
             assert u.isclose(array_pointing.array_ra, expected_ra)
             assert u.isclose(array_pointing.array_dec, expected_dec)
             assert u.isclose(tel_pointing.altitude.to(u.deg), expected_alt, rtol=1e-2)
