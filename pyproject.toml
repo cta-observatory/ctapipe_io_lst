@@ -2,5 +2,77 @@
 requires = ["setuptools >= 64.0.3", "setuptools_scm[toml]>=3.4"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "ctapipe_io_lst"
+description = "ctapipe plugin for reading LST R0/R1 data"
+readme = { file = "README.md", content-type = "text/markdown; charset=UTF-8; variant=GFM" }
+authors = [
+    { name = "CTAO LST Project" },
+]
+maintainers = [
+    { name = "Maximilian Linhoff", email = "maximilian.linhoff@tu-dortmund.de" },
+    { name = "Abelardo Moralejo Olaizola", email = "moralejo@ifae.es" },
+]
+license = { text = "BSD 3-clause" }
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "astropy >=5.2,<8.0.0",
+    "ctapipe >=0.23.2,<0.32.0",
+    "protozfits ~=2.6",
+    "numpy >=1.20",
+    "scipy",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+tests = [
+    "pytest >=9.0",
+]
+dev = [
+    "setuptools_scm[toml]",
+]
+all = [
+    "ctapipe_io_lst[tests,dev]",
+]
+
+[project.urls]
+"Bug Tracker" = "https://github.com/cta-observatory/ctapipe_io_lst/issues"
+"Source Code" = "https://github.com/cta-observatory/ctapipe_io_lst"
+
+[project.entry-points.ctapipe_io]
+LSTEventSource = "ctapipe_io_lst:LSTEventSource"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+zip-safe = false
+
+[tool.setuptools.package-data]
+"*" = ["resources/*"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+exclude = [
+    "ctapipe_io_lst._dev_version",
+]
+
 [tool.setuptools_scm]
 write_to = "src/ctapipe_io_lst/_version.py"
+
+[tool.pytest]
+minversion = "9.0"
+addopts = ["-v"]
+
+[tool.flake8]
+max-line-length = 88
