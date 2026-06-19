@@ -794,8 +794,8 @@ class LSTEventSource(EventSource):
             log.debug(f"ZTABLE is not in header or False")
             return False
 
-        if header.get("ORIGIN", "") != "CTA":
-            log.debug("ORIGIN != CTA")
+        if header.get("ORIGIN", "") not in {"CTA", "CTAO"}:
+            log.debug("ORIGIN != CTA(O)")
             return False
 
         proto_class = header.get("PBFHEAD")
