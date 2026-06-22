@@ -155,6 +155,14 @@ class PointingSource(TelescopeComponent):
         ----------
         path : str or Path
             drive report file
+        bending_model_corrections_path : str or Path or None or bool
+            The path to the BendingModelCorrection file.
+            If a path, then bending model corrections will be loaded from this file.
+            If None, this function will look for a file next to the given
+            DriveLog file for the same day and load it.
+            If False, no bending model corrections will be loaded.
+            If loaded, corrections will be directly applied to the values
+            loaded from the drive report file.
 
         Returns
         -------
@@ -173,6 +181,10 @@ class PointingSource(TelescopeComponent):
             )
         except Exception as e:
             raise IOError("Error reading drive report path") from e
+
+        # user explicitly chose not to load bending model
+        if bending_model_corrections_path is False:
+            return data
 
         # check for bending model corrections
         # if the filename is not mathcing the general scheme, we cannot look for the bending model
