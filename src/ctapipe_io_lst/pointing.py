@@ -169,7 +169,9 @@ class PointingSource(TelescopeComponent):
                 path, format='ascii', delimiter=' ',
                 header_start=None,
                 data_start=0,
-                names=["unix_time", "azimuth", "zenith"],
+                names=["date", "time", "unix_time", "azimuth", "zenith"],
+                include_names=["unix_time", "azimuth", "zenith"],
+                guess=False,
             )
         except Exception as e:
             raise IOError("Error reading drive report path") from e
@@ -215,7 +217,9 @@ class PointingSource(TelescopeComponent):
             delimiter=" ",
             header_start=None,
             data_start=0,
-            names=["unix_time", "azimuth_correction", "zenith_correction"],
+            names=["date", "time", "unix_time", "azimuth_correction", "zenith_correction"],
+            include_names=["unix_time", "azimuth_correction", "zenith_correction"],
+            guess=False,
         )
 
     def _read_drive_report_for_tel(self, tel_id):
