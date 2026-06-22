@@ -28,7 +28,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "astropy >=5.2,<8.0.0",
+    "astropy >=5.2,<9.0.0",
     "ctapipe >=0.23.2,<0.32.0",
     "protozfits ~=2.6",
     "numpy >=1.20",
