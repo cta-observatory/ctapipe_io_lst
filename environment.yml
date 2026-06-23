@@ -4,7 +4,7 @@ channels:
 dependencies:
   - astropy >=6.1,<9
   - python=3.11 # nail the python version, so conda does not try upgrading / dowgrading
-  - ctapipe
+  - ctapipe-base
   - protozfits>=2.11
   - eventio
   - corsikaio
