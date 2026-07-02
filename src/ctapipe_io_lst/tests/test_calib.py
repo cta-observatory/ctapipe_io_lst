@@ -28,6 +28,7 @@ test_drs4_pedestal_path = calib_path / f'drs4_baseline/20200218/{calib_version}/
 test_drs4_pedestal_path_fits = calib_path / f'drs4_baseline/20200218/{calib_version}/drs4_pedestal.Run02005.0000.fits.gz'
 test_time_calib_path = calib_path / f'drs4_time_sampling_from_FF/20191124/{calib_version}/time_calibration.Run01625.0000.h5'
 test_time_calib_path_fits = calib_path / f'drs4_time_sampling_from_FF/20191124/{calib_version}/time_calibration.Run01625.0000.fits.gz'
+test_drs4_timelapse_file = calib_path / 'drs4_timelapse/20260602/drs4_timelapse.Run00231.0000.fits'
 
 
 @pytest.mark.parametrize(
@@ -123,6 +124,15 @@ def test_read_drs_time_calibration_file(path):
     assert fan.shape == fbn.shape
     assert fan.shape[0] == N_GAINS
     assert fan.shape[1] == N_PIXELS
+
+def test_read_drs4_timelapse_file():
+    from ctapipe_io_lst.calibration import LSTR0Corrections, N_GAINS, N_PIXELS
+
+    params = LSTR0Corrections._read_timelapse_file(test_drs4_timelapse_file)
+
+    assert params.shape[0] == 3
+    assert params.shape[1] == N_GAINS
+    assert params.shape[2] == N_PIXELS
 
 
 def test_init():
