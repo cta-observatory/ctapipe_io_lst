@@ -131,7 +131,7 @@ def read_pulse_shapes():
     pulse_shape_path = 'resources/oversampled_pulse_LST_8dynode_pix6_20200204.dat'
     with as_file(files("ctapipe_io_lst") / pulse_shape_path) as path:
         data = np.genfromtxt(path, dtype='float', comments='#')
-        Provenance().add_input_file(path, role="PulseShapes")
+        Provenance().add_input_file(path, role="PulseShapes", add_meta=False)
 
     daq_time_per_sample = data[0, 0] * u.ns
     pulse_shape_time_step = data[0, 1] * u.ns
