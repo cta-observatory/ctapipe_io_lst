@@ -970,6 +970,10 @@ class LSTEventSource(EventSource):
         if trigger_bits == (TriggerBits.CALIBRATION | TriggerBits.MONO):
             return EventType.FLATFIELD
 
+        # coincident physics and pedestal trigger, likely a shower candidate
+        if trigger_bits == (TriggerBits.PEDESTAL | TriggerBits.MONO):
+            return EventType.SUBARRAY
+
         # all other event types must match exactly
         if trigger_bits == TriggerBits.PEDESTAL:
             return EventType.SKY_PEDESTAL
