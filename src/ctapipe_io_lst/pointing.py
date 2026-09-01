@@ -92,7 +92,7 @@ class PointingSource(TelescopeComponent):
             return {"end_unix": int(tokens[0])}
 
         # state machine for Tracking/not Tracking
-        Provenance().add_input_file(str(path), "target log")
+        Provenance().add_input_file(str(path), "target log", add_meta=False)
         tracking = False
         targets = []
         with path.open("r") as f:
@@ -162,7 +162,7 @@ class PointingSource(TelescopeComponent):
             A table of drive reports
         """
         path = Path(path)
-        Provenance().add_input_file(str(path), 'drive positioning')
+        Provenance().add_input_file(str(path), 'drive positioning', add_meta=False)
 
         try:
             data = Table.read(
@@ -208,7 +208,7 @@ class PointingSource(TelescopeComponent):
         '''
         Read a bendingmodelcorrection report.
         '''
-        Provenance().add_input_file(str(path), 'bending model corrections')
+        Provenance().add_input_file(str(path), 'bending model corrections', add_meta=False)
         return Table.read(
             path,
             format="ascii",
