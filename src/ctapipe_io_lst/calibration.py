@@ -136,6 +136,17 @@ class LSTR0Corrections(TelescopeComponent):
         ),
     ).tag(config=True)
 
+    drs4_timelapse_path = TelescopeParameter(
+        trait=Path(exists=True, directory_ok=False, allow_none=True),
+        allow_none=True,
+        default_value=None,
+        help=(
+            'Path to the LST pedestal timelapse baseline correction file'
+            'If not provided, the default LST1 correction will be applied'
+            'if apply_timelapse_correction=True'
+        ),
+    ).tag(config=True)
+
     calibration_path = Path(
         None, exists=True, directory_ok=False, allow_none=True,
         help='Path to LST calibration file',
@@ -221,6 +232,7 @@ class LSTR0Corrections(TelescopeComponent):
         self.first_cap_old = {}
         self.fbn = {}
         self.fan = {}
+        self.timelapse_correction_params = {}
 
         for tel_id in self.subarray.tel:
             shape = (N_GAINS, N_PIXELS, N_CAPACITORS_PIXEL)
@@ -238,16 +250,23 @@ class LSTR0Corrections(TelescopeComponent):
         else:
             self.gain_selector = None
 
+        if self.apply_timelapse_correction:
+            for tel_id in self.subarray.tel:
+                tlapse_file = self.drs4_timelapse_path.tel[tel_id]
+                if tlapse_file is not None:
+                    self.timelapse_correction_params[tel_id] = self._read_timelapse_file(tlapse_file)
+
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
         else:
             # In case no calibration file has been provided (like e.g. when processing calibrated R1)
             # we have to create the container here:
             mon = MonitoringContainer()
-            mon_camera = MonitoringCameraContainer()
-            mon_camera.calibration.time_correction = np.zeros((N_GAINS, N_PIXELS)) * u.ns
-            mon_camera.calibration.unusable_pixels = np.zeros((N_GAINS, N_PIXELS), dtype='bool')
-            mon.tel[tel_id] = mon_camera
+            for tel_id in self.subarray.tel:
+                mon_camera = MonitoringCameraContainer()
+                mon_camera.calibration.time_correction = np.zeros((N_GAINS, N_PIXELS)) * u.ns
+                mon_camera.calibration.unusable_pixels = np.zeros((N_GAINS, N_PIXELS), dtype='bool')
+                mon.tel[tel_id] = mon_camera
             self.mon_data = mon
             
     def apply_drs4_corrections(self, event: LSTArrayEventContainer):
@@ -472,6 +491,22 @@ class LSTR0Corrections(TelescopeComponent):
             else:
                 event.calibration.tel[tel_id].dl1.time_shift = time_shift
 
+    @staticmethod
+    def _read_timelapse_file(path):
+        """
+        Read the timelapse baseline correction parameters from fits timelapse file.
+        Returns a (3, ngains, npixels) array, the first index stands for the 3
+        necessary parameters (scale, exponent and t0). The baseline correction
+        is scale * ((delta_t / t0)**-exponent - 1)  (to be subtracted from the
+        given DRS4 cell baseline)
+        """
+        with fits.open(path) as f:
+           pixel_batch = f['PIXEL_BATCH'].data # (ngains, npixels)
+           scale = f['SCALE'].data[pixel_batch]       # (ngains, npixels)
+           exponent = f['EXPONENT'].data[pixel_batch] # (ngains, npixels)
+           t0 = f['T0'].data[pixel_batch]             # (ngains, npixels)
+
+        return np.array([scale, exponent, t0])
 
     @staticmethod
     def _read_calibration_file(path):
@@ -691,6 +726,16 @@ class LSTR0Corrections(TelescopeComponent):
         # The old readout (before 2019/11/05) is shifted by 1 cell.
         run_id = event.lst.tel[tel_id].svc.configuration_id
 
+        if tel_id in self.timelapse_correction_params:
+            tlc = self.timelapse_correction_params[tel_id]
+        else:
+            # if not provided, use default values for LST1
+            # Values at 20 degC, provided by Yukiho Kobayashi 2/3/2020
+            # see also Yukiho's talk in https://indico.cta-observatory.org/event/2664/
+            tlc = np.array([11.9, 0.22, 103.012])
+            tlc = np.reshape(tlc, (3, 1, 1))
+            tlc = np.broadcast_to(tlc, (3, N_GAINS, N_PIXELS))
+
         # not yet gain selected
         if event.r1.tel[tel_id].selected_gain_channel is None:
             apply_timelapse_correction(
@@ -699,7 +744,7 @@ class LSTR0Corrections(TelescopeComponent):
                 first_capacitors=self.first_cap[tel_id],
                 last_readout_time=self.last_readout_time[tel_id],
                 expected_pixels_id=lst.svc.pixel_ids,
-                run_id=run_id,
+                tlapse_params=tlc,
             )
         else:
             apply_timelapse_correction_gain_selected(
@@ -709,7 +754,7 @@ class LSTR0Corrections(TelescopeComponent):
                 last_readout_time=self.last_readout_time[tel_id],
                 expected_pixels_id=lst.svc.pixel_ids,
                 selected_gain_channel=event.r1.tel[tel_id].selected_gain_channel,
-                run_id=run_id,
+                tlapse_params=tlc,
             )
 
         container.waveform = waveform
@@ -1093,7 +1138,8 @@ def apply_timelapse_correction_pixel(
     waveform,
     first_capacitor,
     time_now,
-    last_readout_time
+    last_readout_time,
+    tlapse_params,
 ):
     '''
     Apply timelapse correction for a single pixel.
@@ -1109,9 +1155,10 @@ def apply_timelapse_correction_pixel(
             time_diff = time_now - last_readout_time_cap
             time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
 
-            # FIXME: Why only for values < 100 ms, negligible otherwise?
-            if time_diff_ms < 100:
-                waveform[sample] -= ped_time(time_diff_ms)
+            # Correct only for values < p0 (range of validity of correction,
+            # which becomes 0 at p0)
+            if time_diff_ms < tlapse_params[0]:
+                waveform[sample] -= ped_time(time_diff_ms, tlapse_params)
 
 
 @njit(cache=True)
@@ -1155,7 +1202,7 @@ def apply_timelapse_correction(
     first_capacitors,
     last_readout_time,
     expected_pixels_id,
-    run_id,
+    tlapse_params,
 ):
     """
     Apply time lapse baseline correction for data not yet gain selected.
@@ -1170,11 +1217,15 @@ def apply_timelapse_correction(
                 pixel_index = module * N_PIXELS_MODULE + pixel_in_module
                 pixel_id = expected_pixels_id[pixel_index]
 
+                # Corrections parameters for this pixel & gain:
+                tlp = tlapse_params[:, gain, pixel_id]
+
                 apply_timelapse_correction_pixel(
                     waveform=waveform[gain, pixel_id],
                     first_capacitor=first_capacitors[gain, pixel_id],
                     time_now=time_now,
                     last_readout_time=last_readout_time[gain, pixel_id],
+                    tlapse_params=tlp,
                 )
 
                 update_last_readout_time(
@@ -1219,7 +1270,7 @@ def apply_timelapse_correction_gain_selected(
     last_readout_time,
     expected_pixels_id,
     selected_gain_channel,
-    run_id,
+    tlapse_params,
 ):
     """
     Apply time lapse baseline correction to already gain selected data.
@@ -1235,11 +1286,15 @@ def apply_timelapse_correction_gain_selected(
             pixel_id = expected_pixels_id[pixel_index]
             gain = selected_gain_channel[pixel_id]
 
+            # Corrections parameters for this pixel & gain:
+            tlp = tlapse_params[:, gain, pixel_id]
+
             apply_timelapse_correction_pixel(
                 waveform=waveform[pixel_id],
                 first_capacitor=first_capacitors[gain, pixel_id],
                 time_now=time_now,
                 last_readout_time=last_readout_time[gain, pixel_id],
+                tlapse_params=tlp,
             )
 
             # we need to update the last readout times of all gains
@@ -1254,19 +1309,17 @@ def apply_timelapse_correction_gain_selected(
 
 
 @njit(cache=True)
-def ped_time(timediff):
+def ped_time(timediff, params):
     """
     Power law function for time lapse baseline correction.
     Coefficients from curve fitting to dragon test data
     at temperature 20 degC
+
+    params: array of size 3, [scale, exponent, t0]
     """
-    # old values at 30 degC (used till release v0.4.5)
-    # return 27.33 * np.power(timediff, -0.24) - 10.4
 
-    # new values at 20 degC, provided by Yokiho Kobayashi 2/3/2020
-    # see also Yokiho's talk in https://indico.cta-observatory.org/event/2664/
-    return 32.99 * timediff**(-0.22) - 11.9
-
+    correction = params[0] * ((timediff / params[2])**-params[1] - 1)
+    return correction
 
 
 @njit(cache=True)
