@@ -726,9 +726,15 @@ class LSTR0Corrections(TelescopeComponent):
         # The old readout (before 2019/11/05) is shifted by 1 cell.
         run_id = event.lst.tel[tel_id].svc.configuration_id
 
-        tlc = None
         if tel_id in self.timelapse_correction_params:
             tlc = self.timelapse_correction_params[tel_id]
+        else:
+            # if not provided, use default values for LST1
+            # Values at 20 degC, provided by Yukiho Kobayashi 2/3/2020
+            # see also Yukiho's talk in https://indico.cta-observatory.org/event/2664/
+            tlc = np.array([11.9, 0.22, 103.012])
+            tlc = np.reshape(tlc, (3, 1, 1))
+            tlc = np.broadcast_to(tlc, (3, N_GAINS, N_PIXELS))
 
         # not yet gain selected
         if event.r1.tel[tel_id].selected_gain_channel is None:
@@ -738,7 +744,6 @@ class LSTR0Corrections(TelescopeComponent):
                 first_capacitors=self.first_cap[tel_id],
                 last_readout_time=self.last_readout_time[tel_id],
                 expected_pixels_id=lst.svc.pixel_ids,
-                run_id=run_id,
                 tlapse_params=tlc,
             )
         else:
@@ -749,7 +754,6 @@ class LSTR0Corrections(TelescopeComponent):
                 last_readout_time=self.last_readout_time[tel_id],
                 expected_pixels_id=lst.svc.pixel_ids,
                 selected_gain_channel=event.r1.tel[tel_id].selected_gain_channel,
-                run_id=run_id,
                 tlapse_params=tlc,
             )
 
@@ -1212,12 +1216,8 @@ def apply_timelapse_correction(
                 pixel_index = module * N_PIXELS_MODULE + pixel_in_module
                 pixel_id = expected_pixels_id[pixel_index]
 
-                if tlapse_params is None:
-                    # Default correction parameters will be used
-                    tlp = None
-                else:
-                    # Corrections parameters for this pixel & gain, from file:
-                    tlp = tlapse_params[:, gain, pixel_id]
+                # Corrections parameters for this pixel & gain:
+                tlp = tlapse_params[:, gain, pixel_id]
 
                 apply_timelapse_correction_pixel(
                     waveform=waveform[gain, pixel_id],
@@ -1285,12 +1285,8 @@ def apply_timelapse_correction_gain_selected(
             pixel_id = expected_pixels_id[pixel_index]
             gain = selected_gain_channel[pixel_id]
 
-            if tlapse_params is None:
-                # Default correction parameters will be used
-                tlp = None
-            else:
-                # Corrections parameters for this pixel & gain, from file:
-                tlp = tlapse_params[:, gain, pixel_id]
+            # Corrections parameters for this pixel & gain:
+            tlp = tlapse_params[:, gain, pixel_id]
 
             apply_timelapse_correction_pixel(
                 waveform=waveform[pixel_id],
@@ -1321,19 +1317,8 @@ def ped_time(timediff, params):
     params: array of size 3, [scale, exponent, t0]
     """
 
-    if params is None:
-        # old values at 30 degC (used till release v0.4.5)
-        # return 27.33 * np.power(timediff, -0.24) - 10.4
-        # new values at 20 degC, provided by Yokiho Kobayashi 2/3/2020
-        # see also Yokiho's talk in https://indico.cta-observatory.org/event/2664/
-        return 32.99 * timediff**(-0.22) - 11.9
-    else:
-        # Values from file (pixels with DRS4 from different batches)
-        correction = params[0] * ((timediff / params[2])**-params[1] - 1)
-        # The parametrization is valid until it becomes negative. Beyond that
-        # (long timediffs), correction is 0
-        correction = max(correction, 0)
-        return correction
+    correction = params[0] * ((timediff / params[2])**-params[1] - 1)
+    return correction
 
 
 @njit(cache=True)
