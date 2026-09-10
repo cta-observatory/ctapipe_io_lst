@@ -1197,7 +1197,6 @@ def apply_timelapse_correction(
     first_capacitors,
     last_readout_time,
     expected_pixels_id,
-    run_id,
     tlapse_params,
 ):
     """
@@ -1270,7 +1269,6 @@ def apply_timelapse_correction_gain_selected(
     last_readout_time,
     expected_pixels_id,
     selected_gain_channel,
-    run_id,
     tlapse_params,
 ):
     """
