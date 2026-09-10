@@ -494,7 +494,7 @@ class LSTR0Corrections(TelescopeComponent):
     @staticmethod
     def _read_timelapse_file(path):
         """
-        Read the timelapse baseline correction parameters from fits timelapse file
+        Read the timelapse baseline correction parameters from fits timelapse file.
         Returns a (3, ngains, npixels) array, the first index stands for the 3
         necessary parameters (scale, exponent and t0). The baseline correction
         is scale * ((delta_t / t0)**-exponent - 1)  (to be subtracted from the
