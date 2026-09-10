@@ -1155,8 +1155,9 @@ def apply_timelapse_correction_pixel(
             time_diff = time_now - last_readout_time_cap
             time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
 
-            # Only for values < 100 ms, negligible otherwise
-            if time_diff_ms < 100:
+            # Correct only for values < p0 (range of validity of correction,
+            # which becomes 0 at p0)
+            if time_diff_ms < tlapse_params[0]:
                 waveform[sample] -= ped_time(time_diff_ms, tlapse_params)
 
 
