@@ -13,7 +13,8 @@ N_CAPACITORS_PIXEL = 4 * N_CAPACITORS_CHANNEL
 N_SAMPLES = 40
 HIGH_GAIN = 0
 LOW_GAIN = 1
-CLOCK_FREQUENCY_KHZ = 133e3
+CLOCK_STEP = 7.5 * u.ns
+CLOCK_FREQUENCY_KHZ = (1 / CLOCK_STEP).to_value(u.kHz)
 
 # we have 8 channels per module, but only 7 are used.
 N_CHANNELS_MODULE = 8
