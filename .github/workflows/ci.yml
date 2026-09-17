@@ -24,17 +24,13 @@ jobs:
         include:
           - python-version: "3.12"
             ctapipe-version: "0.23.2"
-          - python-version: "3.12"
-            ctapipe-version: "0.24.0"
-          - python-version: "3.13"
-            ctapipe-version: "0.25.0"
-          - python-version: "3.12"
-            ctapipe-version: "0.26.0"
           - python-version: "3.14"
             ctapipe-version: "0.30.0"
           - python-version: "3.13"
             ctapipe-version: "0.31.0"
-          - python-version: "3.13"
+          - python-version: "3.14"
+            ctapipe-version: "0.32.0"
+          - python-version: "3.14"
             ctapipe-version: "nightly"
     continue-on-error: ${{ matrix.ctapipe-version == 'nightly' }}
 
