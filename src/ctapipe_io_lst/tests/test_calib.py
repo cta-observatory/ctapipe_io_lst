@@ -128,12 +128,10 @@ def test_read_drs_time_calibration_file(path):
 def test_read_drs4_timelapse_file():
     from ctapipe_io_lst.calibration import LSTR0Corrections, N_GAINS, N_PIXELS
 
-    params = LSTR0Corrections._read_timelapse_file(test_drs4_timelapse_file)
+    batches, params = LSTR0Corrections._read_timelapse_file(test_drs4_timelapse_file)
 
-    assert params.shape[0] == 3
-    assert params.shape[1] == N_GAINS
-    assert params.shape[2] == N_PIXELS
-
+    assert batches.shape == (N_GAINS, N_PIXELS)
+    assert params.shape[1] == 3
 
 def test_init():
     from ctapipe_io_lst import LSTEventSource
