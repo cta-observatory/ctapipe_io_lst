@@ -500,7 +500,9 @@ class LSTR0Corrections(TelescopeComponent):
     def _read_timelapse_file(path):
         """
         Read the timelapse baseline correction parameters from fits timelapse file.
+
         Returns
+        _______
         - a (ngains, npixels) array which contains the batch of the DRS4 chip which
         reads the given channel
         - a (nbatches, 3) array, contains for each batch the 3 necessary parameters
