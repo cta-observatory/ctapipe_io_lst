@@ -232,7 +232,12 @@ class LSTR0Corrections(TelescopeComponent):
         self.first_cap_old = {}
         self.fbn = {}
         self.fan = {}
+        self.drs4_batch = {}
+        # drs4_batch: one per telescope, of shape [N_GAINS, N_PIXELS], contains
+        # the batch to which the DRS4 chip for each pixel belongs
         self.timelapse_correction_params = {}
+        # one per telescope, of shape [k, 3] (k different batches, 3 parameters
+        # for the correction curve)
 
         for tel_id in self.subarray.tel:
             shape = (N_GAINS, N_PIXELS, N_CAPACITORS_PIXEL)
@@ -254,7 +259,7 @@ class LSTR0Corrections(TelescopeComponent):
             for tel_id in self.subarray.tel:
                 tlapse_file = self.drs4_timelapse_path.tel[tel_id]
                 if tlapse_file is not None:
-                    self.timelapse_correction_params[tel_id] = self._read_timelapse_file(tlapse_file)
+                    self.drs4_batch[tel_id], self.timelapse_correction_params[tel_id] = self._read_timelapse_file(tlapse_file)
 
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
@@ -495,18 +500,21 @@ class LSTR0Corrections(TelescopeComponent):
     def _read_timelapse_file(path):
         """
         Read the timelapse baseline correction parameters from fits timelapse file.
-        Returns a (3, ngains, npixels) array, the first index stands for the 3
-        necessary parameters (scale, exponent and t0). The baseline correction
-        is scale * ((delta_t / t0)**-exponent - 1)  (to be subtracted from the
+        Returns
+        - a (ngains, npixels) array which contains the batch of the DRS4 chip which
+        reads the given channel
+        - a (nbatches, 3) array, contains for each batch the 3 necessary parameters
+        (scale, exponent and t0). The baseline correction is
+        scale * ((delta_t / t0)**-exponent - 1)  (to be subtracted from the
         given DRS4 cell baseline)
         """
         with fits.open(path) as f:
            pixel_batch = f['PIXEL_BATCH'].data # (ngains, npixels)
-           scale = f['SCALE'].data[pixel_batch]       # (ngains, npixels)
-           exponent = f['EXPONENT'].data[pixel_batch] # (ngains, npixels)
-           t0 = f['T0'].data[pixel_batch]             # (ngains, npixels)
+           scale = f['SCALE'].data       # (nbatches)
+           exponent = f['EXPONENT'].data # (nbatches)
+           t0 = f['T0'].data             # (nbatches)
 
-        return np.array([scale, exponent, t0])
+        return np.array(pixel_batch), np.transpose([scale, exponent, t0])
 
     @staticmethod
     def _read_calibration_file(path):
@@ -728,13 +736,13 @@ class LSTR0Corrections(TelescopeComponent):
 
         if tel_id in self.timelapse_correction_params:
             tlc = self.timelapse_correction_params[tel_id]
+            tlb = self.drs4_batch[tel_id]
         else:
             # if not provided, use default values for LST1
             # Values at 20 degC, provided by Yukiho Kobayashi 2/3/2020
             # see also Yukiho's talk in https://indico.cta-observatory.org/event/2664/
-            tlc = np.array([11.9, 0.22, 103.012])
-            tlc = np.reshape(tlc, (3, 1, 1))
-            tlc = np.broadcast_to(tlc, (3, N_GAINS, N_PIXELS))
+            tlc = np.array([[11.9, 0.22, 103.012]])
+            tlb = np.zeros((N_GAINS, N_PIXELS), dtype=np.uint8)
 
         # not yet gain selected
         if event.r1.tel[tel_id].selected_gain_channel is None:
@@ -744,6 +752,7 @@ class LSTR0Corrections(TelescopeComponent):
                 first_capacitors=self.first_cap[tel_id],
                 last_readout_time=self.last_readout_time[tel_id],
                 expected_pixels_id=lst.svc.pixel_ids,
+                drs4_batch=tlb,
                 tlapse_params=tlc,
             )
         else:
@@ -754,6 +763,7 @@ class LSTR0Corrections(TelescopeComponent):
                 last_readout_time=self.last_readout_time[tel_id],
                 expected_pixels_id=lst.svc.pixel_ids,
                 selected_gain_channel=event.r1.tel[tel_id].selected_gain_channel,
+                drs4_batch=tlb,
                 tlapse_params=tlc,
             )
 
@@ -1202,6 +1212,7 @@ def apply_timelapse_correction(
     first_capacitors,
     last_readout_time,
     expected_pixels_id,
+    drs4_batch,
     tlapse_params,
 ):
     """
@@ -1218,7 +1229,7 @@ def apply_timelapse_correction(
                 pixel_id = expected_pixels_id[pixel_index]
 
                 # Corrections parameters for this pixel & gain:
-                tlp = tlapse_params[:, gain, pixel_id]
+                tlp = tlapse_params[drs4_batch[gain, pixel_id]]
 
                 apply_timelapse_correction_pixel(
                     waveform=waveform[gain, pixel_id],
@@ -1270,6 +1281,7 @@ def apply_timelapse_correction_gain_selected(
     last_readout_time,
     expected_pixels_id,
     selected_gain_channel,
+    drs4_batch,
     tlapse_params,
 ):
     """
@@ -1287,7 +1299,7 @@ def apply_timelapse_correction_gain_selected(
             gain = selected_gain_channel[pixel_id]
 
             # Corrections parameters for this pixel & gain:
-            tlp = tlapse_params[:, gain, pixel_id]
+            tlp = tlapse_params[drs4_batch[gain, pixel_id]]
 
             apply_timelapse_correction_pixel(
                 waveform=waveform[pixel_id],
