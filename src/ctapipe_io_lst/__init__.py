@@ -710,23 +710,22 @@ class LSTEventSource(EventSource):
                 tdp_action = EVBPreprocessingFlag(int(tdp_action))
                 is_calibrated = EVBPreprocessingFlag.PE_CALIBRATION in tdp_action
 
-            if self.apply_drs4_corrections and not is_calibrated:
-                self.r0_r1_calibrator.apply_drs4_corrections(array_event)
-                # flat field tagging is performed on r1 data, so can only
-                # be done after the drs4 corrections are applied
-                # it also assumes uncalibrated data, so cannot be done if EVB
-                # already calibrated the data
-                if self.use_flatfield_heuristic:
-                    self.tag_flatfield_events(array_event)
-            else:
-                # remove samples at beginning / end of waveform, but only if
-                # not yet done by EVB. We have at least some test data which
-                # were calibrated & gain selected by EvB, but taken with 40
-                # samples
-                r1 = array_event.r1.tel[self.tel_id]
-                if r1.waveform is not None:
-                    n_samples = r1.waveform.shape[-1]
-                    if n_samples == N_SAMPLES:
+            if self.apply_drs4_corrections:
+                if not is_calibrated:
+                    self.r0_r1_calibrator.apply_drs4_corrections(array_event)
+                    # flat field tagging is performed on r1 data, so can only
+                    # be done after the drs4 corrections are applied
+                    # it also assumes uncalibrated data, so cannot be done if EVB
+                    # already calibrated the data
+                    if self.use_flatfield_heuristic:
+                        self.tag_flatfield_events(array_event)
+                else:
+                    # remove samples at beginning / end of waveform, but only if
+                    # not yet done by EVB. We have at least some test data which
+                    # were calibrated & gain selected by EvB, but taken with 40
+                    # samples
+                    r1 = array_event.r1.tel[self.tel_id]
+                    if r1.waveform is not None and r1.waveform.shape[-1] == N_SAMPLES:
                         start = self.r0_r1_calibrator.r1_sample_start.tel[self.tel_id]
                         end =   self.r0_r1_calibrator.r1_sample_end.tel[self.tel_id]
                         r1.waveform = r1.waveform[..., start:end]
