@@ -260,6 +260,12 @@ class LSTR0Corrections(TelescopeComponent):
                 tlapse_file = self.drs4_timelapse_path.tel[tel_id]
                 if tlapse_file is not None:
                     self.drs4_batch[tel_id], self.timelapse_correction_params[tel_id] = self._read_timelapse_file(tlapse_file)
+                else:
+                    if tel_id != 1:
+                        raise ValueError("Timelapse correction requested"
+                                         "but no timelapse file provided")
+                    # Default values, same for all channels; valid only for LST-1
+                    self.drs4_batch[tel_id], self.timelapse_correction_params[tel_id] = self._get_default_time_params()
 
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
@@ -736,15 +742,8 @@ class LSTR0Corrections(TelescopeComponent):
         # The old readout (before 2019/11/05) is shifted by 1 cell.
         run_id = event.lst.tel[tel_id].svc.configuration_id
 
-        if tel_id in self.timelapse_correction_params:
-            tlc = self.timelapse_correction_params[tel_id]
-            tlb = self.drs4_batch[tel_id]
-        else:
-            # if not provided, use default values for LST1
-            # Values at 20 degC, provided by Yukiho Kobayashi 2/3/2020
-            # see also Yukiho's talk in https://indico.cta-observatory.org/event/2664/
-            tlc = np.array([[11.9, 0.22, 103.012]])
-            tlb = np.zeros((N_GAINS, N_PIXELS), dtype=np.uint8)
+        tlc = self.timelapse_correction_params[tel_id]
+        tlb = self.drs4_batch[tel_id]
 
         # not yet gain selected
         if event.r1.tel[tel_id].selected_gain_channel is None:
@@ -833,6 +832,18 @@ def convert_to_pe(waveform, calibration, selected_gain_channel):
         waveform -= calibration.pedestal_per_sample[selected_gain_channel, PIXEL_INDEX, np.newaxis]
         waveform *= calibration.dc_to_pe[selected_gain_channel, PIXEL_INDEX, np.newaxis]
 
+
+def _get_default_time_params():
+    """
+    If timelapse correction parameters are not provided (via a file), this returns
+    default values for LST1. Values at 20 degC, provided by Yukiho Kobayashi 2/3/2020
+    see also Yukiho's talk in https://indico.cta-observatory.org/event/2664/
+    """
+    tlc = np.array([[11.9, 0.22, 103.012]])
+    # All channels have the same parameters (=belong to "batch 0")
+    tlb = np.zeros((N_GAINS, N_PIXELS), dtype=np.uint8)
+
+    return tlb, tlc
 
 @njit(cache=True)
 def interpolate_spike_A(waveform, position):
