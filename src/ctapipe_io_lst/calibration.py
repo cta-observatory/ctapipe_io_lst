@@ -235,7 +235,7 @@ class LSTR0Corrections(TelescopeComponent):
         self.drs4_batch = {}
         # drs4_batch: one per telescope, of shape [N_GAINS, N_PIXELS], contains
         # the batch to which the DRS4 chip for each pixel belongs
-        self.timelapse_correction_params = {}
+        self.timelapse_coefficients = {}
         # one per telescope, of shape [k, 3] (k different batches, 3 parameters
         # for the correction curve)
 
@@ -255,17 +255,6 @@ class LSTR0Corrections(TelescopeComponent):
         else:
             self.gain_selector = None
 
-        if self.apply_timelapse_correction:
-            for tel_id in self.subarray.tel:
-                tlapse_file = self.drs4_timelapse_path.tel[tel_id]
-                if tlapse_file is not None:
-                    self.drs4_batch[tel_id], self.timelapse_correction_params[tel_id] = self._read_timelapse_file(tlapse_file)
-                else:
-                    if tel_id != 1:
-                        raise ValueError("Timelapse correction requested"
-                                         "but no timelapse file provided")
-                    # Default values, same for all channels; valid only for LST-1
-                    self.drs4_batch[tel_id], self.timelapse_correction_params[tel_id] = _get_default_time_params()
 
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
@@ -717,6 +706,17 @@ class LSTR0Corrections(TelescopeComponent):
             expected_pixels_id=lst.svc.pixel_ids,
         )
 
+    def _load_timelapse_coefficients(self, tel_id):
+        path = self.drs4_timelapse_path.tel[tel_id]
+        if path is not None:
+            self.drs4_batch[tel_id], self.timelapse_coefficients[tel_id] = self._read_timelapse_file(path)
+        else:
+            if tel_id != 1:
+                msg = "Timelapse correction requested but no timelapse file provided"
+                raise ValueError(msg)
+            # Default values, same for all channels; valid only for LST-1
+            self.drs4_batch[tel_id], self.timelapse_coefficients[tel_id] = _get_default_time_params()
+
     def time_lapse_corr(self, event, tel_id):
         """
         Perform time lapse baseline corrections.
@@ -726,6 +726,9 @@ class LSTR0Corrections(TelescopeComponent):
         event : `ctapipe` event-container
         tel_id : id of the telescope
         """
+        if tel_id not in self.timelapse_coefficients:
+            self._load_timelapse_coefficients(tel_id)
+
         lst = event.lst.tel[tel_id]
 
         # If R1 container exists, update it inplace
@@ -742,7 +745,7 @@ class LSTR0Corrections(TelescopeComponent):
         # The old readout (before 2019/11/05) is shifted by 1 cell.
         run_id = event.lst.tel[tel_id].svc.configuration_id
 
-        tlc = self.timelapse_correction_params[tel_id]
+        tlc = self.timelapse_coefficients[tel_id]
         tlb = self.drs4_batch[tel_id]
 
         # not yet gain selected
