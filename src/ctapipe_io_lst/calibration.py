@@ -265,7 +265,7 @@ class LSTR0Corrections(TelescopeComponent):
                         raise ValueError("Timelapse correction requested"
                                          "but no timelapse file provided")
                     # Default values, same for all channels; valid only for LST-1
-                    self.drs4_batch[tel_id], self.timelapse_correction_params[tel_id] = self._get_default_time_params()
+                    self.drs4_batch[tel_id], self.timelapse_correction_params[tel_id] = _get_default_time_params()
 
         if self.calibration_path is not None:
             self.mon_data = self._read_calibration_file(self.calibration_path)
