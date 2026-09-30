@@ -128,10 +128,12 @@ def test_read_drs_time_calibration_file(path):
 def test_read_drs4_timelapse_file():
     from ctapipe_io_lst.calibration import LSTR0Corrections, N_GAINS, N_PIXELS
 
-    batches, params = LSTR0Corrections._read_timelapse_file(test_drs4_timelapse_file)
+    coefficients = LSTR0Corrections._read_timelapse_file(test_drs4_timelapse_file)
+    assert coefficients.keys() == {"pixel_batch", "scale", "exponent", "t0"}
 
-    assert batches.shape == (N_GAINS, N_PIXELS)
-    assert params.shape[1] == 3
+    for col, value in coefficients.items():
+        assert value.dtype.isnative, f"DRS4 timelapse coeff not in native byteorder: {col}"
+
 
 def test_init():
     from ctapipe_io_lst import LSTEventSource

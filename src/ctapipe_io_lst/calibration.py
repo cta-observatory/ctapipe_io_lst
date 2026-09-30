@@ -505,13 +505,12 @@ class LSTR0Corrections(TelescopeComponent):
         scale * ((delta_t / t0)**-exponent - 1)  (to be subtracted from the
         given DRS4 cell baseline)
         """
+        coefficients = {}
         with fits.open(path) as f:
-           pixel_batch = f['PIXEL_BATCH'].data # (ngains, npixels)
-           scale = f['SCALE'].data       # (nbatches)
-           exponent = f['EXPONENT'].data # (nbatches)
-           t0 = f['T0'].data             # (nbatches)
+            for hdu in ("PIXEL_BATCH", "SCALE", "EXPONENT", "T0"):
+                coefficients[hdu.lower()] = to_native(f[hdu].data)  # (n_batches)
 
-        return np.array(pixel_batch), np.transpose([scale, exponent, t0])
+        return coefficients
 
     @staticmethod
     def _read_calibration_file(path):
@@ -709,13 +708,13 @@ class LSTR0Corrections(TelescopeComponent):
     def _load_timelapse_coefficients(self, tel_id):
         path = self.drs4_timelapse_path.tel[tel_id]
         if path is not None:
-            self.drs4_batch[tel_id], self.timelapse_coefficients[tel_id] = self._read_timelapse_file(path)
+            self.timelapse_coefficients[tel_id] = self._read_timelapse_file(path)
         else:
             if tel_id != 1:
                 msg = "Timelapse correction requested but no timelapse file provided"
                 raise ValueError(msg)
             # Default values, same for all channels; valid only for LST-1
-            self.drs4_batch[tel_id], self.timelapse_coefficients[tel_id] = _get_default_time_params()
+            self.timelapse_coefficients[tel_id] = _get_default_time_params()
 
     def time_lapse_corr(self, event, tel_id):
         """
@@ -740,13 +739,7 @@ class LSTR0Corrections(TelescopeComponent):
 
         waveform = container.waveform.copy()
 
-        # We have 2 functions: one for data from 2018/10/10 to 2019/11/04 and
-        # one for data from 2019/11/05 (from Run 1574) after update firmware.
-        # The old readout (before 2019/11/05) is shifted by 1 cell.
-        run_id = event.lst.tel[tel_id].svc.configuration_id
-
-        tlc = self.timelapse_coefficients[tel_id]
-        tlb = self.drs4_batch[tel_id]
+        coefficients = self.timelapse_coefficients[tel_id]
 
         # not yet gain selected
         if event.r1.tel[tel_id].selected_gain_channel is None:
@@ -756,8 +749,10 @@ class LSTR0Corrections(TelescopeComponent):
                 first_capacitors=self.first_cap[tel_id],
                 last_readout_time=self.last_readout_time[tel_id],
                 expected_pixels_id=lst.svc.pixel_ids,
-                drs4_batch=tlb,
-                tlapse_params=tlc,
+                drs4_batch=coefficients["pixel_batch"],
+                scale=coefficients["scale"],
+                exponent=coefficients["exponent"],
+                t0=coefficients["t0"],
             )
         else:
             apply_timelapse_correction_gain_selected(
@@ -767,8 +762,10 @@ class LSTR0Corrections(TelescopeComponent):
                 last_readout_time=self.last_readout_time[tel_id],
                 expected_pixels_id=lst.svc.pixel_ids,
                 selected_gain_channel=event.r1.tel[tel_id].selected_gain_channel,
-                drs4_batch=tlb,
-                tlapse_params=tlc,
+                drs4_batch=coefficients["pixel_batch"],
+                scale=coefficients["scale"],
+                exponent=coefficients["exponent"],
+                t0=coefficients["t0"],
             )
 
         container.waveform = waveform
@@ -842,11 +839,14 @@ def _get_default_time_params():
     default values for LST1. Values at 20 degC, provided by Yukiho Kobayashi 2/3/2020
     see also Yukiho's talk in https://indico.cta-observatory.org/event/2664/
     """
-    tlc = np.array([[11.9, 0.22, 103.012]])
     # All channels have the same parameters (=belong to "batch 0")
-    tlb = np.zeros((N_GAINS, N_PIXELS), dtype=np.uint8)
-
-    return tlb, tlc
+    coefficients = {
+        "pixel_batch": np.zeros((N_GAINS, N_PIXELS), dtype=np.uint8),
+        "scale":np.array([11.9]),
+        "exponent": np.array([0.22]),
+        "t0": np.array([103.012]),
+    }
+    return coefficients
 
 @njit(cache=True)
 def interpolate_spike_A(waveform, position):
@@ -1165,7 +1165,9 @@ def apply_timelapse_correction_pixel(
     first_capacitor,
     time_now,
     last_readout_time,
-    tlapse_params,
+    scale,
+    exponent,
+    t0,
 ):
     '''
     Apply timelapse correction for a single pixel.
@@ -1181,10 +1183,10 @@ def apply_timelapse_correction_pixel(
             time_diff = time_now - last_readout_time_cap
             time_diff_ms = time_diff / CLOCK_FREQUENCY_KHZ
 
-            # Correct only for values < p0 (range of validity of correction,
-            # which becomes 0 at p0)
-            if time_diff_ms < tlapse_params[0]:
-                waveform[sample] -= ped_time(time_diff_ms, tlapse_params)
+            # Correct only for values < t0
+            # (range of validity of correction, which becomes 0 at t0)
+            if time_diff_ms < t0:
+                waveform[sample] -= ped_time(time_diff_ms, scale, exponent, t0)
 
 
 @njit(cache=True)
@@ -1229,7 +1231,9 @@ def apply_timelapse_correction(
     last_readout_time,
     expected_pixels_id,
     drs4_batch,
-    tlapse_params,
+    scale,
+    exponent,
+    t0,
 ):
     """
     Apply time lapse baseline correction for data not yet gain selected.
@@ -1245,14 +1249,16 @@ def apply_timelapse_correction(
                 pixel_id = expected_pixels_id[pixel_index]
 
                 # Corrections parameters for this pixel & gain:
-                tlp = tlapse_params[drs4_batch[gain, pixel_id]]
+                pixel_batch = drs4_batch[gain, pixel_id]
 
                 apply_timelapse_correction_pixel(
                     waveform=waveform[gain, pixel_id],
                     first_capacitor=first_capacitors[gain, pixel_id],
                     time_now=time_now,
                     last_readout_time=last_readout_time[gain, pixel_id],
-                    tlapse_params=tlp,
+                    scale=scale[pixel_batch],
+                    exponent=exponent[pixel_batch],
+                    t0=t0[pixel_batch],
                 )
 
                 update_last_readout_time(
@@ -1298,7 +1304,9 @@ def apply_timelapse_correction_gain_selected(
     expected_pixels_id,
     selected_gain_channel,
     drs4_batch,
-    tlapse_params,
+    scale,
+    exponent,
+    t0,
 ):
     """
     Apply time lapse baseline correction to already gain selected data.
@@ -1315,14 +1323,16 @@ def apply_timelapse_correction_gain_selected(
             gain = selected_gain_channel[pixel_id]
 
             # Corrections parameters for this pixel & gain:
-            tlp = tlapse_params[drs4_batch[gain, pixel_id]]
+            pixel_batch = drs4_batch[gain, pixel_id]
 
             apply_timelapse_correction_pixel(
                 waveform=waveform[pixel_id],
                 first_capacitor=first_capacitors[gain, pixel_id],
                 time_now=time_now,
                 last_readout_time=last_readout_time[gain, pixel_id],
-                tlapse_params=tlp,
+                scale=scale[pixel_batch],
+                exponent=exponent[pixel_batch],
+                t0=t0[pixel_batch],
             )
 
             # we need to update the last readout times of all gains
@@ -1337,7 +1347,7 @@ def apply_timelapse_correction_gain_selected(
 
 
 @njit(cache=True)
-def ped_time(timediff, params):
+def ped_time(timediff, scale, exponent, t0):
     """
     Power law function for time lapse baseline correction.
     Coefficients from curve fitting to dragon test data
@@ -1346,7 +1356,7 @@ def ped_time(timediff, params):
     params: array of size 3, [scale, exponent, t0]
     """
 
-    correction = params[0] * ((timediff / params[2])**-params[1] - 1)
+    correction = scale * ((timediff / t0)**(-exponent) - 1)
     return correction
 
 
