@@ -508,12 +508,7 @@ class LSTR0Corrections(TelescopeComponent):
         coefficients = {}
         with fits.open(path) as f:
             for hdu in ("PIXEL_BATCH", "SCALE", "EXPONENT", "T0"):
-                data = f[hdu].data  # (n_batches)
-                if not data.dtype.isnative:
-                    data = data.byteswap()
-                    data = data.view(data.dtype.newbyteorder())
-
-                coefficients[hdu.lower()] = data
+                coefficients[hdu.lower()] = to_native(f[hdu].data)  # (n_batches)
 
         return coefficients
 
