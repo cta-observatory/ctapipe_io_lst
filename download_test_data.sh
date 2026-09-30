@@ -2,7 +2,7 @@
 
 set -e
 
-TEST_DATA_URL=${TEST_DATA_URL:-https://lst.iac.es/lstchain-testfiles/}
+TEST_DATA_URL=${TEST_DATA_URL:-https://old.lst.iac.es/lstchain-testfiles/}
 
 if [ -z "$TEST_DATA_USER" ]; then
 	echo -n "Username: "
@@ -17,15 +17,18 @@ if [ -z "$TEST_DATA_PASSWORD" ]; then
 fi
 
 
-wget \
+output=$(wget \
 	-R "*.html*,*.gif" \
 	--no-host-directories --cut-dirs=1 \
 	--no-parent \
-	--level=inf \
 	--user="$TEST_DATA_USER" \
 	--password="$TEST_DATA_PASSWORD" \
-	--no-verbose \
 	--recursive \
 	--timestamping \
 	--directory-prefix=test_data \
-	"$TEST_DATA_URL"
+	"$TEST_DATA_URL" 2>&1
+) || {
+    rc=$?
+    printf '%s\n' "$output" >&2
+    exit "$rc"
+}
