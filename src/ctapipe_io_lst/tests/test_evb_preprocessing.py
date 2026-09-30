@@ -43,7 +43,7 @@ expected = [
         TriggerBits.CALIBRATION: all_corrections,
     },
 ]
-@pytest.mark.parametrize(("test_file", "expected"), zip(test_files, expected))
+@pytest.mark.parametrize(("test_file", "expected"), list(zip(test_files, expected)))
 def test_get_processings_for_trigger_bits(test_file, expected):
     from ctapipe_io_lst.evb_preprocessing import get_processings_for_trigger_bits
 
