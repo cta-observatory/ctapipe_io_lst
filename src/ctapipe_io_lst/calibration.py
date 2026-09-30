@@ -507,11 +507,15 @@ class LSTR0Corrections(TelescopeComponent):
         """
         coefficients = {}
         with fits.open(path) as f:
-            pixel_batch = f['PIXEL_BATCH'].data # (ngains, npixels)
-            for col in ("SCALE", "EXPONENT", "T0"):
-                coefficients[col.lower()] = f[col].data # (nbatches)
+            for hdu in ("PIXEL_BATCH", "SCALE", "EXPONENT", "T0"):
+                data = f[hdu].data  # (n_batches)
+                if not data.dtype.isnative:
+                    data = data.byteswap()
+                    data = data.view(data.dtype.newbyteorder())
 
-        return np.array(pixel_batch), coefficients
+                coefficients[hdu.lower()] = data
+
+        return coefficients
 
     @staticmethod
     def _read_calibration_file(path):
@@ -709,13 +713,13 @@ class LSTR0Corrections(TelescopeComponent):
     def _load_timelapse_coefficients(self, tel_id):
         path = self.drs4_timelapse_path.tel[tel_id]
         if path is not None:
-            self.drs4_batch[tel_id], self.timelapse_coefficients[tel_id] = self._read_timelapse_file(path)
+            self.timelapse_coefficients[tel_id] = self._read_timelapse_file(path)
         else:
             if tel_id != 1:
                 msg = "Timelapse correction requested but no timelapse file provided"
                 raise ValueError(msg)
             # Default values, same for all channels; valid only for LST-1
-            self.drs4_batch[tel_id], self.timelapse_coefficients[tel_id] = _get_default_time_params()
+            self.timelapse_coefficients[tel_id] = _get_default_time_params()
 
     def time_lapse_corr(self, event, tel_id):
         """
@@ -741,7 +745,6 @@ class LSTR0Corrections(TelescopeComponent):
         waveform = container.waveform.copy()
 
         coefficients = self.timelapse_coefficients[tel_id]
-        drs4_batch = self.drs4_batch[tel_id]
 
         # not yet gain selected
         if event.r1.tel[tel_id].selected_gain_channel is None:
@@ -751,7 +754,7 @@ class LSTR0Corrections(TelescopeComponent):
                 first_capacitors=self.first_cap[tel_id],
                 last_readout_time=self.last_readout_time[tel_id],
                 expected_pixels_id=lst.svc.pixel_ids,
-                drs4_batch=drs4_batch,
+                drs4_batch=coefficients["pixel_batch"],
                 scale=coefficients["scale"],
                 exponent=coefficients["exponent"],
                 t0=coefficients["t0"],
@@ -764,7 +767,7 @@ class LSTR0Corrections(TelescopeComponent):
                 last_readout_time=self.last_readout_time[tel_id],
                 expected_pixels_id=lst.svc.pixel_ids,
                 selected_gain_channel=event.r1.tel[tel_id].selected_gain_channel,
-                drs4_batch=drs4_batch,
+                drs4_batch=coefficients["pixel_batch"],
                 scale=coefficients["scale"],
                 exponent=coefficients["exponent"],
                 t0=coefficients["t0"],
@@ -841,15 +844,14 @@ def _get_default_time_params():
     default values for LST1. Values at 20 degC, provided by Yukiho Kobayashi 2/3/2020
     see also Yukiho's talk in https://indico.cta-observatory.org/event/2664/
     """
+    # All channels have the same parameters (=belong to "batch 0")
     coefficients = {
+        "pixel_batch": np.zeros((N_GAINS, N_PIXELS), dtype=np.uint8),
         "scale":np.array([11.9]),
         "exponent": np.array([0.22]),
         "t0": np.array([103.012]),
     }
-    # All channels have the same parameters (=belong to "batch 0")
-    batch = np.zeros((N_GAINS, N_PIXELS), dtype=np.uint8)
-
-    return batch, coefficients
+    return coefficients
 
 @njit(cache=True)
 def interpolate_spike_A(waveform, position):
