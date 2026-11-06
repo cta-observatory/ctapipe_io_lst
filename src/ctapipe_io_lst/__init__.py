@@ -86,6 +86,13 @@ OPTICS = OpticsDescription(
     mirror_area=u.Quantity(386.73, u.m**2),
 )
 
+CALIBRATION_EVENT_TYPES = {
+    EventType.FLATFIELD,
+    EventType.SKY_PEDESTAL,
+}
+if CTAPIPE_GE_0_27:
+    CALIBRATION_EVENT_TYPES.add(EventType.PEDESTAL)
+
 
 def get_channel_info(pixel_status):
     '''
@@ -738,7 +745,7 @@ class LSTEventSource(EventSource):
                 # skip flatfield and pedestal events if asked
                 if (
                     self.calibrate_flatfields_and_pedestals
-                    or array_event.trigger.event_type not in {EventType.FLATFIELD, EventType.SKY_PEDESTAL}
+                    or array_event.trigger.event_type not in CALIBRATION_EVENT_TYPES
                 ):
                     self.r0_r1_calibrator.calibrate(array_event)
 
